@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/MohitKumar1991/hedge-fund-analyst/skills/.skill-schema.json",
+  "title": "Hedge Fund Analyst skill frontmatter",
+  "type": "object",
+  "required": ["name", "type", "description"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "description": "kebab-case; MUST equal the skill folder name"
+    },
+    "type": {
+      "enum": ["capability", "composite"]
+    },
+    "description": {
+      "type": "string",
+      "minLength": 40,
+      "pattern": "Triggers:",
+      "description": "What it does + a 'Triggers:' clause of natural-language phrases"
+    },
+    "requires": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+      "description": "composite only — capability skill names this composite uses"
+    },
+    "env": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+      "description": "environment variables / API keys the skill needs"
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "type": { "const": "capability" } } },
+      "then": { "not": { "required": ["requires"] } }
+    }
+  ],
+  "additionalProperties": true
+}

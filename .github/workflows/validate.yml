@@ -1,0 +1,19 @@
+name: validate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Validate skills & packaging
+        run: node scripts/validate.js
+      - name: Check registry.json is in sync
+        run: node scripts/build-registry.js --check

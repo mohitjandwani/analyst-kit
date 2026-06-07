@@ -1,0 +1,15 @@
+{
+  "name": "international-analyst",
+  "version": "0.1.0",
+  "description": "Region-agnostic equity research: forensic single-stock deep dives, thematic value-chain mapping, company research wikis, and data analysis — with global + Taiwan data capabilities.",
+  "author": { "name": "Mohit Kumar" },
+  "skills": [
+    "../../skills/single-stock-deep-dive",
+    "../../skills/thematic-investing",
+    "../../skills/company-wiki",
+    "../../skills/data-analysis",
+    "../../skills/wiki-builder",
+    "../../skills/company-universe-manager",
+    "../../skills/finmind"
+  ]
+}

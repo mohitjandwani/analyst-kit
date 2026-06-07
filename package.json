@@ -1,0 +1,41 @@
+{
+  "name": "hfa",
+  "version": "0.1.0",
+  "description": "Hedge Fund Analyst — installable equity-research skills for Claude Code, Codex, and other agent runtimes.",
+  "type": "module",
+  "bin": {
+    "hfa": "bin/hfa.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "bin",
+    "src",
+    "skills",
+    "plugins",
+    "registry.json",
+    ".env.example"
+  ],
+  "scripts": {
+    "validate": "node scripts/validate.js",
+    "build:registry": "node scripts/build-registry.js",
+    "check:registry": "node scripts/build-registry.js --check"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "codex",
+    "skills",
+    "agent",
+    "finance",
+    "equity-research",
+    "hedge-fund"
+  ],
+  "author": "Mohit Kumar",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MohitKumar1991/hedge-fund-analyst.git"
+  }
+}

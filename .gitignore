@@ -1,0 +1,16 @@
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+
+# Dependencies / build artifacts (skills bootstrap these on first use)
+node_modules/
+**/node_modules/
+.venv/
+**/__pycache__/
+*.pyc
+dist/
+build/
+
+# OS / editor
+.DS_Store

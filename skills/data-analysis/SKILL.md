@@ -1,0 +1,165 @@
+---
+name: data-analysis
+type: composite
+description: >
+  End-to-end data analysis assistant for any structured dataset (CSV, JSON, Excel, SQL).
+  Use whenever the user wants to analyze, explore, profile, clean, or model a dataset;
+  build visualizations or dashboards; generate reproducible analysis code (Python, R,
+  SQL, JavaScript); write an analysis report; run data-quality checks; or generate
+  testable research hypotheses. Triggers: "analyze this data/CSV", "explore this
+  dataset", "what patterns are in X", "visualize / chart / plot this data", "build a
+  dashboard", "write analysis code for X", "generate a report on this data", "check the
+  data quality of X", "clean this dataset", "what hypotheses can we test", "EDA on X",
+  "find correlations / outliers / segments / trends in X". Adapted from the
+  claude-data-analysis multi-agent project (github.com/liangdabiao/claude-data-analysis).
+  Run this skill before producing ad-hoc data analysis — follow its pipeline and
+  specialist roles instead of jumping straight to a one-off script.
+---
+
+# Data Analysis Assistant
+
+A structured, multi-role data analysis workflow. It replaces ad-hoc "load CSV → print
+`df.describe()`" answers with a disciplined pipeline that profiles data, discovers
+patterns, visualizes them, generates reproducible code, validates quality, and writes
+decision-useful reports — saving every artifact so the analysis is transparent and
+repeatable.
+
+This skill is adapted from the [claude-data-analysis](https://github.com/liangdabiao/claude-data-analysis)
+project, which orchestrated six specialist sub-agents and a set of slash commands. Here
+those roles are collapsed into one skill: you adopt the relevant **specialist role(s)**
+for the task and follow the **pipeline** below.
+
+---
+
+## Core principle
+
+Data quality first, insight over statistics, everything reproducible. Never report a
+finding you have not validated against the data. Never produce a chart that does not
+expose structure prose hides. Always save the code and artifacts that produced a result.
+
+---
+
+## Specialist roles
+
+Adopt the role(s) that match the request. Most non-trivial requests touch several — run
+them in pipeline order. Full playbooks live in `references/specialists.md`; read that
+file before doing deep work in a role.
+
+| Role | Owns | Use when |
+|---|---|---|
+| **data-explorer** | EDA, descriptive + inferential stats, correlation, outliers, clustering, pattern discovery | Any "analyze / explore / find patterns" request — the default entry point |
+| **quality-assurance** | Completeness, accuracy, consistency, uniqueness, validity; cleaning; profiling; quality score | Before trusting results, or on "check/clean/validate the data" |
+| **visualization-specialist** | Chart selection, design (data-ink ratio, accessible color), dashboards, storytelling | "Visualize / chart / plot / dashboard" or whenever a finding needs a visual |
+| **code-generator** | Production-ready, documented, tested analysis code in Python / R / SQL / JS | "Write code for X", or to make any analysis reproducible |
+| **report-writer** | Executive / technical / BI reports, narrative, recommendations | "Write a report / summary / writeup" of the analysis |
+| **hypothesis-generator** | Testable hypotheses, null/alternative framing, experimental design, power | "What can we test", "design an experiment", turning patterns into research questions |
+
+---
+
+## The pipeline
+
+Run the stages relevant to the request, in this order. Skip stages that don't apply, but
+do not skip **Quality** before reporting conclusions.
+
+1. **Setup** — Locate the dataset. By default datasets live in `data_storage/`, outputs
+   go to the directories in "Project layout" below. If the user points elsewhere, use
+   that. Confirm the file exists and note its size before loading.
+2. **Quality** *(quality-assurance)* — Profile the data: shape, dtypes, missing values,
+   duplicates, ranges. Compute a quality score across the six dimensions and surface
+   blocking issues before any analysis. Clean only with the user's awareness; document
+   every transformation.
+3. **Explore** *(data-explorer)* — Univariate → bivariate → multivariate. Summary stats,
+   distributions, correlations, outliers, trends, segments. Choose tests appropriate to
+   the data types and sample size; report effect sizes and p-values, not just point
+   estimates.
+4. **Visualize** *(visualization-specialist)* — Turn the key findings into charts. Pick
+   the chart type from the data type and the message (see `references/specialists.md`
+   chart-selection guide). Save static (PNG/SVG) and, where useful, interactive (HTML).
+5. **Generate code** *(code-generator)* — When the work should be reproducible or handed
+   off, emit clean, documented, tested scripts using the templates in
+   `references/templates.md`. Save them; don't just paste throwaway snippets.
+6. **Report** *(report-writer)* — Synthesize into an audience-appropriate report
+   (executive / technical / BI). Lead with findings and recommendations, support with
+   visuals, state limitations. Templates in `references/templates.md`.
+7. **Hypothesize** *(hypothesis-generator)* — Optionally convert discovered patterns into
+   testable hypotheses with experimental designs and success criteria.
+
+For a one-shot "do everything" request, run Quality → Explore → Visualize → Report (and
+Generate code if reproducibility is wanted). This is the `do-all` flow from the source
+project.
+
+---
+
+## Request → stage routing
+
+Map the user's verb to where you enter the pipeline:
+
+- "analyze / explore / EDA / find patterns / correlations / outliers" → **Explore**
+  (run Quality first).
+- "visualize / chart / plot / dashboard / graph" → **Visualize** (run a quick Explore
+  first if not already done).
+- "generate / write code / script / pipeline / notebook" → **Generate code**.
+- "report / summary / writeup / brief / deck notes" → **Report** (assumes analysis
+  exists; if not, run Explore first).
+- "quality / clean / validate / profile / dedupe / missing values" → **Quality**.
+- "hypothesis / experiment / what can we test / A/B design" → **Hypothesize**.
+- "analyze everything / full analysis / end-to-end" → full **do-all** pipeline.
+
+Parameters worth confirming or inferring: dataset path, analysis type (exploratory /
+statistical / predictive / complete), chart type, code language, report type + format,
+quality action. Infer sensible defaults and state them rather than blocking on questions.
+
+---
+
+## Project layout
+
+Create these directories on demand under the working directory (or wherever the user
+keeps the dataset). Saving artifacts is what makes the analysis auditable.
+
+```
+data_storage/        # input datasets (CSV, JSON, Excel, SQL extracts)
+visualizations/      # generated charts: PNG, SVG, interactive HTML, plotting code
+generated_code/      # reproducible analysis scripts + requirements + tests
+analysis_reports/    # written reports (md/html/pdf/json) + metadata
+quality_reports/     # data-quality assessments, profiles, cleaned data
+hypothesis_reports/  # hypotheses + experimental designs
+```
+
+Name outputs after the dataset and task, e.g. `analysis_reports/sales_complete_report.md`,
+`visualizations/sales_correlation.png`, `generated_code/python_segmentation_analysis.py`.
+
+---
+
+## Operating rules
+
+- **Validate before you conclude.** Double-check every statistic; verify test assumptions
+  (normality, sample size, independence) before applying a test; cross-check important
+  findings with a second method. Use non-parametric alternatives when assumptions fail.
+- **Never fabricate.** If a value isn't in the data, say so. State what data is missing
+  and what would change the conclusion. Distinguish **fact / inference / speculation**.
+- **Document transformations.** Every cleaning step, imputation, or filter must be
+  recorded so a reader can reproduce the result.
+- **Reproducibility.** Prefer saved, runnable scripts over inline one-offs for anything
+  the user may rerun. Include the `requirements` and a usage example.
+- **Insight over volume.** Lead with the few findings that matter and their business
+  meaning; relegate exhaustive statistics to an appendix.
+- **Charts must do work.** No decorative visuals; maximize data-ink ratio; use
+  colorblind-safe palettes; label axes and units; pick the chart type from the message.
+- **Internationalization.** Write reports in the user's language. When plotting non-ASCII
+  text (e.g. CJK labels), configure a font that renders it so charts don't show tofu
+  boxes.
+- **Safety.** Treat the dataset as the source of truth; don't overwrite the original —
+  write cleaned copies to `quality_reports/` or a new file. Flag any code containing
+  `os.system`, `eval`, `exec`, or `subprocess` before running it.
+
+---
+
+## Reference files
+
+- `references/specialists.md` — full playbook for each of the six roles: methodology,
+  techniques, chart-selection guide, quality dimensions + thresholds, communication style.
+- `references/templates.md` — production-ready code templates (Python `DataAnalyzer`
+  class, R R6 class, SQL RFM/segmentation) and report templates (executive, technical, BI).
+
+Read the relevant reference file before doing substantial work in that area; don't rely
+on this summary alone for deep statistical, visualization, or code-generation work.

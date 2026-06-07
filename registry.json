@@ -1,0 +1,96 @@
+{
+  "generated": "run `npm run build:registry` to refresh",
+  "skills": [
+    {
+      "name": "13f-analysis",
+      "folder": "13f-analysis",
+      "type": "capability",
+      "description": "Fetch and read U.S. institutional 13F-HR filings (quarterly long-equity holdings) for any fund manager from SEC EDGAR — free, no API key. Resolve a fund to its filing entity (CIK), pull the latest or a historical quarter's holdings as a ranked CSV with values normalized to whole dollars and positions rolled up by issuer, and interpret them without the common traps. Triggers: \"get the 13F for X\", \"latest 13F holdings of Y\", \"what does <fund> own\", \"pull <manager>'s 13F\", \"find the CIK for <fund>\", \"who filed this 13F\", \"13F analysis of Z\".",
+      "requires": [],
+      "env": [],
+      "runtime": "python"
+    },
+    {
+      "name": "company-universe-manager",
+      "folder": "company-universe-manager",
+      "type": "capability",
+      "description": "Manage a CSV-based company universe stored in GitHub: add companies with metadata, update company information, soft-delete companies, list active/inactive companies, and sync with the repository. Triggers: \"add company to the universe\", \"update company info\", \"soft-delete company X\", \"list active companies\", \"sync the company universe\".",
+      "requires": [],
+      "env": [],
+      "runtime": "python"
+    },
+    {
+      "name": "company-wiki",
+      "folder": "company-wiki",
+      "type": "composite",
+      "description": "Build a comprehensive, multi-page company research wiki as a deployed web application. Use for: researching any publicly listed company from any region (US, Europe, Japan, Taiwan, India, or other) and producing a structured wiki covering company overview/history, individual product pages (sourced from earnings calls and investor presentations), 5-year financials, analyst reports, stock price and technical analysis, financial modelling with growth scenarios and forward P/E and P/S multiples, competitor comparison, and a sourced citations page. The wiki is built with React + Tailwind using the webdev tools and deployed on Manus hosting. Triggers: 'build a company wiki for X', 'research wiki on Y', 'make a company research site for Z', 'deep research wiki for <ticker>'.",
+      "requires": [
+        "wiki-builder",
+        "company-universe-manager"
+      ],
+      "env": [
+        "FMP_API_KEY"
+      ],
+      "runtime": "python"
+    },
+    {
+      "name": "data-analysis",
+      "folder": "data-analysis",
+      "type": "composite",
+      "description": "End-to-end data analysis assistant for any structured dataset (CSV, JSON, Excel, SQL). Use whenever the user wants to analyze, explore, profile, clean, or model a dataset; build visualizations or dashboards; generate reproducible analysis code (Python, R, SQL, JavaScript); write an analysis report; run data-quality checks; or generate testable research hypotheses. Triggers: \"analyze this data/CSV\", \"explore this dataset\", \"what patterns are in X\", \"visualize / chart / plot this data\", \"build a dashboard\", \"write analysis code for X\", \"generate a report on this data\", \"check the data quality of X\", \"clean this dataset\", \"what hypotheses can we test\", \"EDA on X\", \"find correlations / outliers / segments / trends in X\". Adapted from the claude-data-analysis multi-agent project (github.com/liangdabiao/claude-data-analysis). Run this skill before producing ad-hoc data analysis — follow its pipeline and specialist roles instead of jumping straight to a one-off script.",
+      "requires": [],
+      "env": [],
+      "runtime": "none"
+    },
+    {
+      "name": "finmind",
+      "folder": "finmind",
+      "type": "capability",
+      "description": "Fetch and maintain Taiwan stock-market company data (prices, monthly revenue, financial statements, dividends, shareholding, market cap, institutional flows) via the FinMind API, for any company listed in Taiwan (TWSE/TPEx), referenced by stock id (data_id) or company name. Triggers: \"fetch Taiwan stock data for X\", \"TSMC monthly revenue\", \"TWSE financials for <stock id>\", \"Taiwan dividends/shareholding for Y\".",
+      "requires": [],
+      "env": [
+        "FINMIND_TOKEN"
+      ],
+      "runtime": "python"
+    },
+    {
+      "name": "infographics",
+      "folder": "infographics",
+      "type": "capability",
+      "description": "It helps you generate beautiful infographics for our hedge fund analyst knowledge base. Triggers: want to visualize a concept, need an infographic for a topic.",
+      "requires": [],
+      "env": [],
+      "runtime": "none"
+    },
+    {
+      "name": "single-stock-deep-dive",
+      "folder": "single-stock-deep-dive",
+      "type": "composite",
+      "description": "Forensic, decision-useful single-stock deep dive for investors and traders. Covers analysis/research on any individual stock, short theses, catalyst identification, valuation, variant-perception work, and proxy / adjacency / value-chain expansion on a stock. Always use before producing stock research — never produce a generic company summary without running this framework first. Triggers: \"analyze X\", \"deep dive on Y\", \"is Z a buy\", \"bull/bear case on X\", \"thesis on Y\", \"what does the market miss about Z\", \"what else moves with X\", \"upstream/downstream plays for Y\", \"picks-and-shovels for Z\", \"pair trade for X\".",
+      "requires": [],
+      "env": [],
+      "runtime": "none"
+    },
+    {
+      "name": "thematic-investing",
+      "folder": "thematic-investing",
+      "type": "composite",
+      "description": "Forensic thematic investing research skill. Use this whenever the user asks about investable themes, secular trends, technology transitions, industrial buildouts, commodity cycles, policy-driven opportunities, or value chain analysis. Triggers: 'map the value chain for X', 'what are the plays on X', 'who benefits from X', 'hidden beneficiaries of X', 'fake exposures to X', 'where does value accrue in X', 'which layer is mispriced', 'best stocks for X theme', 'picks and shovels for X', 'ETF for X theme', 'is X theme real or overhyped', 'bottlenecks in X'. Covers AI, semis, defense, electrification, energy transition, reshoring, infrastructure, shipping, biotech platforms, robotics, power grid, payments, and any other thematic or structural market story. Always use this skill before answering thematic investing questions — never give a generic stock list without running this framework first.",
+      "requires": [
+        "company-universe-manager"
+      ],
+      "env": [],
+      "runtime": "none"
+    },
+    {
+      "name": "wiki-builder",
+      "folder": "wiki-builder",
+      "type": "capability",
+      "description": "Serve any directory of markdown files as a beautiful, navigable browser wiki — sidebar navigation, on-page table of contents, frontmatter metadata chips, and interactive ECharts charts. Use when the user wants to view, browse, preview, or serve markdown files (notes, research, a brain/knowledge base, a company wiki) as a local website. Triggers: 'serve wiki', 'start wiki server', 'render markdown as a website', 'open my notes in the browser', 'view brain as wiki', 'open wiki'. Self-contained Bun + markdown-it server; runs a local HTTP server, mutates nothing.",
+      "requires": [],
+      "env": [],
+      "runtime": "bun"
+    }
+  ],
+  "skipped": []
+}
