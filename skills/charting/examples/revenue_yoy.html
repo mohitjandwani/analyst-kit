@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AAPL — revenue YoY growth</title>
+  <script src="https://cdn.jsdelivr.net/npm/highcharts@12/highcharts.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/highcharts@12/modules/exporting.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/highcharts@12/modules/accessibility.js"></script>
+  <style>html,body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}#c{width:100%;height:520px}</style>
+</head>
+<body>
+  <div id="c"></div>
+  <script>
+
+var HFA = {
+  fmt: function (value, opts) {
+    opts = opts || {};
+    if (value === null || value === undefined || (typeof value === 'number' && isNaN(value))) return '—';
+    if (opts.percent) {
+      var dp = (opts.decimals == null) ? 1 : opts.decimals;
+      return value.toFixed(dp) + '%';
+    }
+    var dp2 = (opts.decimals == null) ? (opts.unit ? 1 : 0) : opts.decimals;
+    var cur = opts.currency || '';
+    var unit = opts.unit || '';
+    if (value === 0) return cur + '0';
+    var body = cur + Math.abs(value).toFixed(dp2) + unit;
+    return (value < 0) ? '(' + body + ')' : body;
+  }
+};
+
+Highcharts.chart('c', {"chart":{"backgroundColor":"#FFFFFF","style":{"fontFamily":"system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif"}},"title":{"text":"AAPL — revenue YoY growth","style":{"fontSize":"16px","fontWeight":"600"}},"colors":["#5B8FF9","#5AD8A6","#F6BD16","#7262FD","#F6903D","#78D3F8","#9661BC","#269A99"],"credits":{"enabled":false},"legend":{"enabled":false},"tooltip":{"shared":true},"xAxis":{"type":"category","categories":["FY2014","FY2015","FY2016","FY2017","FY2018","FY2019","FY2020","FY2021","FY2022","FY2023","FY2024","FY2025"]},"yAxis":{"title":{"text":"YoY growth (%)","style":{"color":"#666666"}},"labels":{"formatter":function(){var v=(this.value!=null?this.value:this.y);return HFA.fmt(v,{"percent":true});},"style":{"color":"#666666"}},"opposite":false,"gridLineColor":"#ECECEC"},"series":[{"name":"Revenue","type":"line","data":[null,27.8563,-7.7342,6.3045,15.862,-2.0411,5.5121,33.2594,7.7938,-2.8005,2.022,6.4255],"color":"#5B8FF9","tooltip":{"valueSuffix":"%","valueDecimals":1},"dataLabels":{"enabled":true,"formatter":function(){var v=(this.value!=null?this.value:this.y);return HFA.fmt(v,{"percent":true});},"style":{"fontSize":"9px","fontWeight":"normal","textOutline":"none"}}}],"plotOptions":{"series":{"animation":false}},"subtitle":{"text":"FY2014–FY2025","style":{"color":"#666666"}}});
+  </script>
+</body>
+</html>

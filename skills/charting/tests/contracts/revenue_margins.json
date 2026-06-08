@@ -1,0 +1,75 @@
+{
+  "title": "AAPL \u2014 revenue, net income & margin",
+  "subtitle": "FY2021\u2013FY2025",
+  "axis": {
+    "type": "category",
+    "categories": [
+      "FY2021",
+      "FY2022",
+      "FY2023",
+      "FY2024",
+      "FY2025"
+    ]
+  },
+  "yAxes": [
+    {
+      "id": "money",
+      "name": "Amount",
+      "unit": "B",
+      "currency": "$"
+    },
+    {
+      "id": "pct",
+      "name": "Net margin",
+      "percent": true,
+      "opposite": true
+    }
+  ],
+  "series": [
+    {
+      "name": "Revenue",
+      "kind": "column",
+      "yAxis": "money",
+      "role": "primary",
+      "data": [
+        365.817,
+        394.328,
+        383.285,
+        391.035,
+        416.161
+      ]
+    },
+    {
+      "name": "Net income",
+      "kind": "column",
+      "yAxis": "money",
+      "role": "secondary",
+      "data": [
+        94.68,
+        99.803,
+        96.995,
+        93.736,
+        112.01
+      ]
+    },
+    {
+      "name": "Net margin",
+      "kind": "line",
+      "yAxis": "pct",
+      "role": "neutral",
+      "data": [
+        25.88,
+        25.31,
+        25.31,
+        23.97,
+        26.92
+      ]
+    }
+  ],
+  "meta": {
+    "currency": "$",
+    "unit": "B",
+    "chart": "revenueMargins",
+    "symbol": "AAPL"
+  }
+}

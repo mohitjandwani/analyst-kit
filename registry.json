@@ -11,6 +11,15 @@
       "runtime": "python"
     },
     {
+      "name": "charting",
+      "folder": "charting",
+      "type": "capability",
+      "description": "Build financially-correct charts from company fundamentals — pick the right chart for the question, normalise units (one unit per axis, $B/$M scaling, %-vs-$ dual axes, rebasing for comparisons), and apply finance conventions (green beat / red miss, accounting negatives, dashed estimates, dark totals). A thin Python+Polars layer normalises already-available data into a chart contract; a TypeScript layer emits Highcharts options and renders a self-contained HTML page. Covers revenue trends & YoY, segment mix, margins, dividends, earnings surprise, estimate-vs-reported, revenue→net-income waterfalls, and price (candlestick/Stock). Use whenever the user wants to chart, plot, graph, or visualize financial data. Triggers: \"chart revenue over time\", \"plot YoY growth with event flags\", \"revenue breakdown by segment\", \"dividend history and yield\", \"earnings surprise chart\", \"estimate vs reported\", \"waterfall from revenue to net income\", \"margins over time\", \"candlestick / price chart\", \"compare two companies' revenue\", \"show visual breakdown of income statement\"",
+      "requires": [],
+      "env": [],
+      "runtime": "bun"
+    },
+    {
       "name": "company-universe-manager",
       "folder": "company-universe-manager",
       "type": "capability",

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AAPL — Revenue: estimate vs reported</title>
+  <script src="https://cdn.jsdelivr.net/npm/highcharts@12/highcharts.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/highcharts@12/modules/exporting.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/highcharts@12/modules/accessibility.js"></script>
+  <style>html,body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}#c{width:100%;height:520px}</style>
+</head>
+<body>
+  <div id="c"></div>
+  <script>
+
+var HFA = {
+  fmt: function (value, opts) {
+    opts = opts || {};
+    if (value === null || value === undefined || (typeof value === 'number' && isNaN(value))) return '—';
+    if (opts.percent) {
+      var dp = (opts.decimals == null) ? 1 : opts.decimals;
+      return value.toFixed(dp) + '%';
+    }
+    var dp2 = (opts.decimals == null) ? (opts.unit ? 1 : 0) : opts.decimals;
+    var cur = opts.currency || '';
+    var unit = opts.unit || '';
+    if (value === 0) return cur + '0';
+    var body = cur + Math.abs(value).toFixed(dp2) + unit;
+    return (value < 0) ? '(' + body + ')' : body;
+  }
+};
+
+Highcharts.chart('c', {"chart":{"backgroundColor":"#FFFFFF","style":{"fontFamily":"system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif"}},"title":{"text":"AAPL — Revenue: estimate vs reported","style":{"fontSize":"16px","fontWeight":"600"}},"colors":["#5B8FF9","#5AD8A6","#F6BD16","#7262FD","#F6903D","#78D3F8","#9661BC","#269A99"],"credits":{"enabled":false},"legend":{"enabled":true},"tooltip":{"shared":true},"xAxis":{"type":"category","categories":["Q3'24","Q4'24","Q1'25","Q2'25","Q3'25","Q4'25","Q1'26","Q2'26"]},"yAxis":{"title":{"text":"Revenue ($B)","style":{"color":"#666666"}},"labels":{"formatter":function(){var v=(this.value!=null?this.value:this.y);return HFA.fmt(v,{"currency":"$","unit":"B"});},"style":{"color":"#666666"}},"opposite":false,"gridLineColor":"#ECECEC"},"series":[{"name":"Estimate","type":"column","data":[84.4807,94.5119,124.2574,94.5422,89.5627,102.2271,138.391,109.4576],"color":"#BFC6D4","tooltip":{"valuePrefix":"$","valueSuffix":"B","valueDecimals":1},"dataLabels":{"enabled":true,"formatter":function(){var v=(this.value!=null?this.value:this.y);return HFA.fmt(v,{"currency":"$","unit":"B"});},"style":{"fontSize":"9px","fontWeight":"normal","textOutline":"none"}}},{"name":"Reported","type":"column","data":[85.777,94.93,124.3,95.359,94.036,102.466,143.756,111.184],"color":"#5B8FF9","tooltip":{"valuePrefix":"$","valueSuffix":"B","valueDecimals":1},"dataLabels":{"enabled":true,"formatter":function(){var v=(this.value!=null?this.value:this.y);return HFA.fmt(v,{"currency":"$","unit":"B"});},"style":{"fontSize":"9px","fontWeight":"normal","textOutline":"none"}}}],"plotOptions":{"series":{"animation":false}},"subtitle":{"text":"Q3'24–Q2'26","style":{"color":"#666666"}}});
+  </script>
+</body>
+</html>

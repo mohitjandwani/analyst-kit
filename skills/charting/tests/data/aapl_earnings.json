@@ -1,0 +1,146 @@
+[
+  {
+    "symbol": "AAPL",
+    "date": "2026-07-30",
+    "epsActual": null,
+    "epsEstimated": 1.86,
+    "revenueActual": null,
+    "revenueEstimated": 108401100000,
+    "lastUpdated": "2026-06-08"
+  },
+  {
+    "symbol": "AAPL",
+    "date": "2026-04-30",
+    "epsActual": 2.01,
+    "epsEstimated": 1.95,
+    "revenueActual": 111184000000,
+    "revenueEstimated": 109457600000,
+    "lastUpdated": "2026-06-08"
+  },
+  {
+    "symbol": "AAPL",
+    "date": "2026-01-29",
+    "epsActual": 2.85,
+    "epsEstimated": 2.67,
+    "revenueActual": 143756000000,
+    "revenueEstimated": 138391000000,
+    "lastUpdated": "2026-06-04"
+  },
+  {
+    "symbol": "AAPL",
+    "date": "2025-10-30",
+    "epsActual": 1.85,
+    "epsEstimated": 1.73,
+    "revenueActual": 102466000000,
+    "revenueEstimated": 102227100000,
+    "lastUpdated": "2026-06-04"
+  },
+  {
+    "symbol": "AAPL",
+    "date": "2025-07-31",
+    "epsActual": 1.57,
+    "epsEstimated": 1.44,
+    "revenueActual": 94036000000,
+    "revenueEstimated": 89562740000,
+    "lastUpdated": "2026-06-04"
+  },
+  {
+    "symbol": "AAPL",
+    "date": "2025-05-01",
+    "epsActual": 1.65,
+    "epsEstimated": 1.63,
+    "revenueActual": 95359000000,
+    "revenueEstimated": 94542180000,
+    "lastUpdated": "2026-06-04"
+  },
+  {
+    "symbol": "AAPL",
+    "date": "2025-01-30",
+    "epsActual": 2.4,
+    "epsEstimated": 2.36,
+    "revenueActual": 124300000000,
+    "revenueEstimated": 124257400000,
+    "lastUpdated": "2026-06-04"
+  },
+  {
+    "symbol": "AAPL",
+    "date": "2024-10-31",
+    "epsActual": 1.64,
+    "epsEstimated": 1.6,
+    "revenueActual": 94930000000,
+    "revenueEstimated": 94511950000,
+    "lastUpdated": "2026-06-04"
+  },
+  {
+    "symbol": "AAPL",
+    "date": "2024-08-01",
+    "epsActual": 1.4,
+    "epsEstimated": 1.34,
+    "revenueActual": 85777000000,
+    "revenueEstimated": 84480710000,
+    "lastUpdated": "2026-06-04"
+  },
+  {
+    "symbol": "AAPL",
+    "date": "2024-05-02",
+    "epsActual": 1.53,
+    "epsEstimated": 1.51,
+    "revenueActual": 90753000000,
+    "revenueEstimated": 90366110000,
+    "lastUpdated": "2026-06-04"
+  },
+  {
+    "symbol": "AAPL",
+    "date": "2024-02-01",
+    "epsActual": 2.18,
+    "epsEstimated": 2.1,
+    "revenueActual": 119575000000,
+    "revenueEstimated": 117986600000,
+    "lastUpdated": "2026-06-04"
+  },
+  {
+    "symbol": "AAPL",
+    "date": "2023-11-02",
+    "epsActual": 1.46,
+    "epsEstimated": 1.39,
+    "revenueActual": 89498000000,
+    "revenueEstimated": 89303800000,
+    "lastUpdated": "2026-06-04"
+  },
+  {
+    "symbol": "AAPL",
+    "date": "2023-08-03",
+    "epsActual": 1.26,
+    "epsEstimated": 1.19,
+    "revenueActual": 81797000000,
+    "revenueEstimated": 81794920000,
+    "lastUpdated": "2026-06-04"
+  },
+  {
+    "symbol": "AAPL",
+    "date": "2023-05-04",
+    "epsActual": 1.52,
+    "epsEstimated": 1.44,
+    "revenueActual": 94836000000,
+    "revenueEstimated": 92906050000,
+    "lastUpdated": "2026-06-04"
+  },
+  {
+    "symbol": "AAPL",
+    "date": "2023-02-02",
+    "epsActual": 1.88,
+    "epsEstimated": 1.93,
+    "revenueActual": 117154000000,
+    "revenueEstimated": 121333300000,
+    "lastUpdated": "2026-06-04"
+  },
+  {
+    "symbol": "AAPL",
+    "date": "2022-10-27",
+    "epsActual": 1.29,
+    "epsEstimated": 1.27,
+    "revenueActual": 90146000000,
+    "revenueEstimated": 88739280000,
+    "lastUpdated": "2026-06-04"
+  }
+]

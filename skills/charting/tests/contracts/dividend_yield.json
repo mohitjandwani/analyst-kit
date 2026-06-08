@@ -1,0 +1,63 @@
+{
+  "title": "AAPL \u2014 dividend history & yield",
+  "subtitle": "2022\u20132026",
+  "axis": {
+    "type": "category",
+    "categories": [
+      "2022",
+      "2023",
+      "2024",
+      "2025",
+      "2026"
+    ]
+  },
+  "yAxes": [
+    {
+      "id": "div",
+      "name": "Dividend / share",
+      "unit": "",
+      "currency": "$",
+      "decimals": 2
+    },
+    {
+      "id": "yld",
+      "name": "Dividend yield",
+      "percent": true,
+      "opposite": true
+    }
+  ],
+  "series": [
+    {
+      "name": "Dividend / share",
+      "kind": "column",
+      "yAxis": "div",
+      "role": "primary",
+      "data": [
+        0.91,
+        0.95,
+        0.99,
+        1.03,
+        0.53
+      ]
+    },
+    {
+      "name": "Dividend yield",
+      "kind": "line",
+      "yAxis": "yld",
+      "role": "neutral",
+      "data": [
+        2.278,
+        2.187,
+        1.925,
+        1.75,
+        0.737
+      ]
+    }
+  ],
+  "meta": {
+    "currency": "$",
+    "unit": "",
+    "chart": "dividendYield",
+    "symbol": "AAPL"
+  }
+}

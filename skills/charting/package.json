@@ -1,0 +1,21 @@
+{
+  "name": "@hfa/charting",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Financially-correct Highcharts builders: final-data → Highcharts options → self-contained HTML page.",
+  "scripts": {
+    "verify": "python3 -m pipeline.cli && npm run examples",
+    "test": "python3 -m pipeline.cli && python3 -m pytest tests -q && vitest run",
+    "test:hc": "vitest run",
+    "examples": "tsx scripts/gen-examples.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "highcharts": "^12.6.0",
+    "jsdom": "^29.1.1",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "title": "AAPL \u2014 revenue \u2192 net income",
+  "subtitle": "FY2025",
+  "axis": {
+    "type": "category",
+    "categories": [
+      "Revenue",
+      "COGS",
+      "Gross profit",
+      "Op expenses",
+      "Op income",
+      "Non-op income/exp",
+      "Taxes & other",
+      "Net income"
+    ]
+  },
+  "yAxes": [
+    {
+      "id": "money",
+      "name": "Amount",
+      "unit": "B",
+      "currency": "$"
+    }
+  ],
+  "series": [
+    {
+      "name": "Bridge",
+      "kind": "waterfall",
+      "yAxis": "money",
+      "role": "waterfall",
+      "data": [
+        {
+          "name": "Revenue",
+          "role": "total",
+          "y": 416.161
+        },
+        {
+          "name": "COGS",
+          "role": "negative",
+          "y": -220.96
+        },
+        {
+          "name": "Gross profit",
+          "role": "total",
+          "isIntermediateSum": true
+        },
+        {
+          "name": "Op expenses",
+          "role": "negative",
+          "y": -62.151
+        },
+        {
+          "name": "Op income",
+          "role": "total",
+          "isIntermediateSum": true
+        },
+        {
+          "name": "Non-op income/exp",
+          "role": "negative",
+          "y": -0.321
+        },
+        {
+          "name": "Taxes & other",
+          "role": "negative",
+          "y": -20.719
+        },
+        {
+          "name": "Net income",
+          "role": "total",
+          "isSum": true
+        }
+      ]
+    }
+  ],
+  "meta": {
+    "currency": "$",
+    "unit": "B",
+    "chart": "waterfall",
+    "symbol": "AAPL"
+  }
+}

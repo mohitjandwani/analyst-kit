@@ -1,0 +1,68 @@
+{
+  "title": "AAPL \u2014 EPS: estimate vs reported",
+  "subtitle": "Q3'24\u2013Q2'26",
+  "axis": {
+    "type": "category",
+    "categories": [
+      "Q3'24",
+      "Q4'24",
+      "Q1'25",
+      "Q2'25",
+      "Q3'25",
+      "Q4'25",
+      "Q1'26",
+      "Q2'26"
+    ]
+  },
+  "yAxes": [
+    {
+      "id": "v",
+      "name": "EPS",
+      "unit": "",
+      "currency": "$",
+      "decimals": 2
+    }
+  ],
+  "series": [
+    {
+      "name": "Estimate",
+      "kind": "column",
+      "yAxis": "v",
+      "role": "estimate",
+      "data": [
+        1.34,
+        1.6,
+        2.36,
+        1.63,
+        1.44,
+        1.73,
+        2.67,
+        1.95
+      ]
+    },
+    {
+      "name": "Reported",
+      "kind": "column",
+      "yAxis": "v",
+      "role": "primary",
+      "data": [
+        1.4,
+        1.64,
+        2.4,
+        1.65,
+        1.57,
+        1.85,
+        2.85,
+        2.01
+      ]
+    }
+  ],
+  "meta": {
+    "currency": "$",
+    "unit": "",
+    "chart": "estimateVsReported",
+    "variant": "grouped",
+    "metric": "eps",
+    "symbol": "AAPL"
+  }
+}

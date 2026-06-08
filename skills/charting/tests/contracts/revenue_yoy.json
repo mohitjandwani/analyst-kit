@@ -1,0 +1,55 @@
+{
+  "title": "AAPL \u2014 revenue YoY growth",
+  "subtitle": "FY2014\u2013FY2025",
+  "axis": {
+    "type": "category",
+    "categories": [
+      "FY2014",
+      "FY2015",
+      "FY2016",
+      "FY2017",
+      "FY2018",
+      "FY2019",
+      "FY2020",
+      "FY2021",
+      "FY2022",
+      "FY2023",
+      "FY2024",
+      "FY2025"
+    ]
+  },
+  "yAxes": [
+    {
+      "id": "y",
+      "name": "YoY growth",
+      "percent": true
+    }
+  ],
+  "series": [
+    {
+      "name": "Revenue",
+      "kind": "line",
+      "yAxis": "y",
+      "role": "primary",
+      "data": [
+        null,
+        27.8563,
+        -7.7342,
+        6.3045,
+        15.862,
+        -2.0411,
+        5.5121,
+        33.2594,
+        7.7938,
+        -2.8005,
+        2.022,
+        6.4255
+      ]
+    }
+  ],
+  "meta": {
+    "chart": "revenueYoY",
+    "symbol": "AAPL",
+    "unit": ""
+  }
+}

@@ -10,7 +10,7 @@ manifests, and the installer all derive from it.
 
 ## What's inside
 
-Nine skills today, split into **capabilities** (one atomic job) and **composites**
+Ten skills today, split into **capabilities** (one atomic job) and **composites**
 (a workflow that orchestrates capabilities, declared in `requires:`).
 
 | Skill | Type | What it does | Needs |
@@ -20,6 +20,7 @@ Nine skills today, split into **capabilities** (one atomic job) and **composites
 | **company-universe-manager** | capability | Maintain a CSV "company universe" (add / update / soft-delete / list), synced to a GitHub repo | Python |
 | **wiki-builder** | capability | Serve any folder of markdown as a navigable browser wiki (sidebar, table of contents, ECharts) | Bun |
 | **infographics** | capability | Turn source material into a clean one-page infographic | — |
+| **charting** | capability | Financially-correct charts: a thin Python/Polars layer normalizes already-available data → a TypeScript layer emits Highcharts options + a self-contained HTML page (trends, segments, margins, dividends, surprise, waterfalls, price) | Node · Python |
 | **single-stock-deep-dive** | composite | Forensic, decision-useful deep dive on one stock: thesis, valuation, catalysts, variant perception, value-chain adjacencies | — |
 | **thematic-investing** | composite | Map a theme or trend into an investable value chain — who benefits, where value accrues, what's mispriced | — |
 | **company-wiki** | composite | Build a multi-page company-research wiki (overview, products, 5-year financials, model, competitors, citations) | `FMP_API_KEY` |
@@ -74,9 +75,9 @@ FinMind (Taiwan data) is included.
 
 | Plugin | Includes | Skills |
 |--------|----------|:-----:|
-| `us-stock-analyst` | the four research composites + supporting capabilities | 6 |
-| `international-analyst` | the above **+ FinMind** (Taiwan/TWSE market data) | 7 |
-| `taiwan-stock-analyst` | Taiwan-focused: the above **+ FinMind** | 7 |
+| `us-stock-analyst` | the four research composites + supporting capabilities (incl. charting) | 7 |
+| `international-analyst` | the above **+ FinMind** (Taiwan/TWSE market data) | 8 |
+| `taiwan-stock-analyst` | Taiwan-focused: the above **+ FinMind** | 8 |
 
 Run `node bin/hfa.js list --persona <name>` to see a plugin's exact contents.
 
@@ -130,7 +131,7 @@ checks run in CI (`.github/workflows/validate.yml`) on every push and pull reque
 
 ## Roadmap
 
-Planned skills, not yet available: charting, a calendar manager, accounting /
+Planned skills, not yet available: a calendar manager, accounting /
 financial-statement analysis, and PDF report analysis.
 
 ## License

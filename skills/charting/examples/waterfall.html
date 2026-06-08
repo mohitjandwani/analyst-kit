@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AAPL — revenue → net income</title>
+  <script src="https://cdn.jsdelivr.net/npm/highcharts@12/highcharts.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/highcharts@12/highcharts-more.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/highcharts@12/modules/exporting.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/highcharts@12/modules/accessibility.js"></script>
+  <style>html,body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}#c{width:100%;height:520px}</style>
+</head>
+<body>
+  <div id="c"></div>
+  <script>
+
+var HFA = {
+  fmt: function (value, opts) {
+    opts = opts || {};
+    if (value === null || value === undefined || (typeof value === 'number' && isNaN(value))) return '—';
+    if (opts.percent) {
+      var dp = (opts.decimals == null) ? 1 : opts.decimals;
+      return value.toFixed(dp) + '%';
+    }
+    var dp2 = (opts.decimals == null) ? (opts.unit ? 1 : 0) : opts.decimals;
+    var cur = opts.currency || '';
+    var unit = opts.unit || '';
+    if (value === 0) return cur + '0';
+    var body = cur + Math.abs(value).toFixed(dp2) + unit;
+    return (value < 0) ? '(' + body + ')' : body;
+  }
+};
+
+Highcharts.chart('c', {"chart":{"backgroundColor":"#FFFFFF","style":{"fontFamily":"system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif"}},"title":{"text":"AAPL — revenue → net income","style":{"fontSize":"16px","fontWeight":"600"}},"colors":["#5B8FF9","#5AD8A6","#F6BD16","#7262FD","#F6903D","#78D3F8","#9661BC","#269A99"],"credits":{"enabled":false},"legend":{"enabled":false},"tooltip":{"shared":true},"xAxis":{"type":"category","categories":["Revenue","COGS","Gross profit","Op expenses","Op income","Non-op income/exp","Taxes & other","Net income"]},"yAxis":{"title":{"text":"Amount ($B)","style":{"color":"#666666"}},"labels":{"formatter":function(){var v=(this.value!=null?this.value:this.y);return HFA.fmt(v,{"currency":"$","unit":"B"});},"style":{"color":"#666666"}},"opposite":false,"gridLineColor":"#ECECEC"},"series":[{"name":"Bridge","type":"waterfall","data":[{"name":"Revenue","y":416.161},{"name":"COGS","y":-220.96},{"name":"Gross profit","isIntermediateSum":true,"color":"#5B8FF9"},{"name":"Op expenses","y":-62.151},{"name":"Op income","isIntermediateSum":true,"color":"#5B8FF9"},{"name":"Non-op income/exp","y":-0.321},{"name":"Taxes & other","y":-20.719},{"name":"Net income","isSum":true,"color":"#5B8FF9"}],"upColor":"#45B7A0","color":"#EE6677","tooltip":{"valuePrefix":"$","valueSuffix":"B","valueDecimals":1},"dataLabels":{"enabled":true,"formatter":function(){var v=(this.value!=null?this.value:this.y);return HFA.fmt(v,{"currency":"$","unit":"B"});},"style":{"fontSize":"9px","fontWeight":"normal","textOutline":"none"}}}],"plotOptions":{"series":{"animation":false}},"subtitle":{"text":"FY2025","style":{"color":"#666666"}}});
+  </script>
+</body>
+</html>

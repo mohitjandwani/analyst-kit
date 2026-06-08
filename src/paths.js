@@ -11,7 +11,7 @@ export const ENV_EXAMPLE = join(ROOT, '.env.example');
 // Skills intentionally excluded from the shippable registry/plugins
 // (e.g. work-in-progress with an empty SKILL.md). The validator reports these
 // as skipped rather than failing the build.
-export const EXCLUDED_SKILLS = new Set(['charting']);
+export const EXCLUDED_SKILLS = new Set();
 
 // Non-skill entries that live under skills/ but are not skill folders.
 export const NON_SKILL_ENTRIES = new Set([

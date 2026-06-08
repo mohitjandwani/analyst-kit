@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Revenue rebased to 100</title>
+  <script src="https://cdn.jsdelivr.net/npm/highcharts@12/highcharts.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/highcharts@12/modules/exporting.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/highcharts@12/modules/accessibility.js"></script>
+  <style>html,body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}#c{width:100%;height:520px}</style>
+</head>
+<body>
+  <div id="c"></div>
+  <script>
+
+var HFA = {
+  fmt: function (value, opts) {
+    opts = opts || {};
+    if (value === null || value === undefined || (typeof value === 'number' && isNaN(value))) return '—';
+    if (opts.percent) {
+      var dp = (opts.decimals == null) ? 1 : opts.decimals;
+      return value.toFixed(dp) + '%';
+    }
+    var dp2 = (opts.decimals == null) ? (opts.unit ? 1 : 0) : opts.decimals;
+    var cur = opts.currency || '';
+    var unit = opts.unit || '';
+    if (value === 0) return cur + '0';
+    var body = cur + Math.abs(value).toFixed(dp2) + unit;
+    return (value < 0) ? '(' + body + ')' : body;
+  }
+};
+
+Highcharts.chart('c', {"chart":{"backgroundColor":"#FFFFFF","style":{"fontFamily":"system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif"}},"title":{"text":"Revenue rebased to 100","style":{"fontSize":"16px","fontWeight":"600"}},"colors":["#5B8FF9","#5AD8A6","#F6BD16","#7262FD","#F6903D","#78D3F8","#9661BC","#269A99"],"credits":{"enabled":false},"legend":{"enabled":true},"tooltip":{"shared":true},"xAxis":{"type":"category","categories":["FY2021","FY2022","FY2023","FY2024","FY2025"]},"yAxis":{"title":{"text":"Indexed (base 100)","style":{"color":"#666666"}},"labels":{"formatter":function(){var v=(this.value!=null?this.value:this.y);return HFA.fmt(v,{});},"style":{"color":"#666666"}},"opposite":false,"gridLineColor":"#ECECEC"},"series":[{"name":"AAPL","type":"line","data":[100,107.7938,104.7751,106.8936,113.7621],"color":"#5B8FF9","tooltip":{"valuePrefix":"","valueSuffix":"","valueDecimals":1},"dataLabels":{"enabled":true,"formatter":function(){var v=(this.value!=null?this.value:this.y);return HFA.fmt(v,{});},"style":{"fontSize":"9px","fontWeight":"normal","textOutline":"none"}}},{"name":"MSFT","type":"line","data":[100,117.9561,126.0738,145.8296,167.6051],"color":"#5AD8A6","tooltip":{"valuePrefix":"","valueSuffix":"","valueDecimals":1},"dataLabels":{"enabled":true,"formatter":function(){var v=(this.value!=null?this.value:this.y);return HFA.fmt(v,{});},"style":{"fontSize":"9px","fontWeight":"normal","textOutline":"none"}}}],"plotOptions":{"series":{"animation":false}},"subtitle":{"text":"FY2021–FY2025","style":{"color":"#666666"}}});
+  </script>
+</body>
+</html>

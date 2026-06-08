@@ -1,0 +1,96 @@
+{
+  "title": "AAPL \u2014 revenue by segment",
+  "subtitle": "FY2021\u2013FY2025",
+  "axis": {
+    "type": "category",
+    "categories": [
+      "FY2021",
+      "FY2022",
+      "FY2023",
+      "FY2024",
+      "FY2025"
+    ]
+  },
+  "yAxes": [
+    {
+      "id": "money",
+      "name": "Revenue",
+      "unit": "B",
+      "currency": "$"
+    }
+  ],
+  "series": [
+    {
+      "name": "iPhone",
+      "kind": "column",
+      "yAxis": "money",
+      "role": "segment",
+      "data": [
+        191.973,
+        205.489,
+        200.583,
+        201.183,
+        209.586
+      ]
+    },
+    {
+      "name": "Service",
+      "kind": "column",
+      "yAxis": "money",
+      "role": "segment",
+      "data": [
+        68.425,
+        78.129,
+        85.2,
+        96.169,
+        109.158
+      ]
+    },
+    {
+      "name": "Wearables, Home and Accessories",
+      "kind": "column",
+      "yAxis": "money",
+      "role": "segment",
+      "data": [
+        38.367,
+        41.241,
+        39.845,
+        37.005,
+        35.686
+      ]
+    },
+    {
+      "name": "Mac",
+      "kind": "column",
+      "yAxis": "money",
+      "role": "segment",
+      "data": [
+        35.19,
+        40.177,
+        29.357,
+        29.984,
+        33.708
+      ]
+    },
+    {
+      "name": "iPad",
+      "kind": "column",
+      "yAxis": "money",
+      "role": "segment",
+      "data": [
+        31.862,
+        29.292,
+        28.3,
+        26.694,
+        28.023
+      ]
+    }
+  ],
+  "meta": {
+    "currency": "$",
+    "unit": "B",
+    "chart": "segments",
+    "variant": "grouped",
+    "symbol": "AAPL"
+  }
+}

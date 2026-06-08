@@ -1,0 +1,55 @@
+{
+  "title": "AAPL \u2014 revenue",
+  "subtitle": "FY2018\u2013FY2025",
+  "axis": {
+    "type": "category",
+    "categories": [
+      "FY2018",
+      "FY2019",
+      "FY2020",
+      "FY2021",
+      "FY2022",
+      "FY2023",
+      "FY2024",
+      "FY2025"
+    ]
+  },
+  "yAxes": [
+    {
+      "id": "y",
+      "name": "Revenue",
+      "unit": "B",
+      "currency": "$"
+    }
+  ],
+  "series": [
+    {
+      "name": "Revenue",
+      "kind": "line",
+      "yAxis": "y",
+      "role": "primary",
+      "data": [
+        265.595,
+        260.174,
+        274.515,
+        365.817,
+        394.328,
+        383.285,
+        391.035,
+        416.161
+      ]
+    }
+  ],
+  "meta": {
+    "chart": "revenueTrend",
+    "currency": "$",
+    "symbol": "AAPL",
+    "unit": "B"
+  },
+  "flags": [
+    {
+      "x": "FY2020",
+      "title": "COVID"
+    }
+  ]
+}

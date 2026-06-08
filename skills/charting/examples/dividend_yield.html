@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AAPL — dividend history &amp; yield</title>
+  <script src="https://cdn.jsdelivr.net/npm/highcharts@12/highcharts.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/highcharts@12/modules/exporting.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/highcharts@12/modules/accessibility.js"></script>
+  <style>html,body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}#c{width:100%;height:520px}</style>
+</head>
+<body>
+  <div id="c"></div>
+  <script>
+
+var HFA = {
+  fmt: function (value, opts) {
+    opts = opts || {};
+    if (value === null || value === undefined || (typeof value === 'number' && isNaN(value))) return '—';
+    if (opts.percent) {
+      var dp = (opts.decimals == null) ? 1 : opts.decimals;
+      return value.toFixed(dp) + '%';
+    }
+    var dp2 = (opts.decimals == null) ? (opts.unit ? 1 : 0) : opts.decimals;
+    var cur = opts.currency || '';
+    var unit = opts.unit || '';
+    if (value === 0) return cur + '0';
+    var body = cur + Math.abs(value).toFixed(dp2) + unit;
+    return (value < 0) ? '(' + body + ')' : body;
+  }
+};
+
+Highcharts.chart('c', {"chart":{"backgroundColor":"#FFFFFF","style":{"fontFamily":"system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif"}},"title":{"text":"AAPL — dividend history & yield","style":{"fontSize":"16px","fontWeight":"600"}},"colors":["#5B8FF9","#5AD8A6","#F6BD16","#7262FD","#F6903D","#78D3F8","#9661BC","#269A99"],"credits":{"enabled":false},"legend":{"enabled":true},"tooltip":{"shared":true},"xAxis":{"type":"category","categories":["2022","2023","2024","2025","2026"]},"yAxis":[{"title":{"text":"Dividend / share ($)","style":{"color":"#666666"}},"labels":{"formatter":function(){var v=(this.value!=null?this.value:this.y);return HFA.fmt(v,{"currency":"$","decimals":2});},"style":{"color":"#666666"}},"opposite":false,"gridLineColor":"#ECECEC"},{"title":{"text":"Dividend yield (%)","style":{"color":"#666666"}},"labels":{"formatter":function(){var v=(this.value!=null?this.value:this.y);return HFA.fmt(v,{"percent":true});},"style":{"color":"#666666"}},"opposite":true,"gridLineColor":"#ECECEC"}],"series":[{"name":"Dividend / share","type":"column","data":[0.91,0.95,0.99,1.03,0.53],"yAxis":0,"color":"#5B8FF9","tooltip":{"valuePrefix":"$","valueSuffix":"","valueDecimals":2},"dataLabels":{"enabled":true,"formatter":function(){var v=(this.value!=null?this.value:this.y);return HFA.fmt(v,{"currency":"$","decimals":2});},"style":{"fontSize":"9px","fontWeight":"normal","textOutline":"none"}}},{"name":"Dividend yield","type":"line","data":[2.278,2.187,1.925,1.75,0.737],"yAxis":1,"color":"#7262FD","tooltip":{"valueSuffix":"%","valueDecimals":1},"dataLabels":{"enabled":true,"formatter":function(){var v=(this.value!=null?this.value:this.y);return HFA.fmt(v,{"percent":true});},"style":{"fontSize":"9px","fontWeight":"normal","textOutline":"none"}}}],"plotOptions":{"series":{"animation":false}},"subtitle":{"text":"2022–2026","style":{"color":"#666666"}}});
+  </script>
+</body>
+</html>
