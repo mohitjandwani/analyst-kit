@@ -52,6 +52,17 @@
       "runtime": "none"
     },
     {
+      "name": "financialmodellingprep",
+      "folder": "financialmodellingprep",
+      "type": "capability",
+      "description": "Call the Financial Modeling Prep (FMP) REST API to fetch historical daily stock prices, stock news, company profiles, the stock screener, quarterly income statements, fiscal-period information (fiscal year end, calendar/fiscal quarter mapping, earnings announcement dates), and earnings-call transcripts for (primarily US-listed) companies. Documents the exact endpoint paths (v3/v4 plus the newer stable news API), query parameters, response field schemas, and edge cases so an agent can call FMP correctly without guessing. Triggers: \"get historical stock prices for X\", \"fetch the latest stock news\", \"income statement for Y\", \"find the fiscal year end of Z\", \"get the earnings call transcript for AAPL Q2 2024\", \"screen US stocks by market cap\", \"company profile for <ticker>\".",
+      "requires": [],
+      "env": [
+        "FMP_API_KEY"
+      ],
+      "runtime": "none"
+    },
+    {
       "name": "finmind",
       "folder": "finmind",
       "type": "capability",

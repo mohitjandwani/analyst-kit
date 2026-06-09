@@ -1,0 +1,477 @@
+---
+name: financialmodellingprep
+type: capability
+description: >
+  Call the Financial Modeling Prep (FMP) REST API to fetch historical daily stock prices,
+  stock news, company profiles, the stock screener, quarterly income statements, fiscal-period
+  information (fiscal year end, calendar/fiscal quarter mapping, earnings announcement dates),
+  and earnings-call transcripts for (primarily US-listed) companies. Documents the exact
+  endpoint paths (v3/v4 plus the newer stable news API), query parameters, response field
+  schemas, and edge cases so an agent can call FMP correctly without guessing.
+  Triggers: "get historical stock prices for X", "fetch the latest stock news", "income
+  statement for Y", "find the fiscal year end of Z", "get the earnings call transcript for
+  AAPL Q2 2024", "screen US stocks by market cap", "company profile for <ticker>".
+env:
+  - FMP_API_KEY
+---
+
+# Financial Modeling Prep (FMP) API — Agent Reference Guide
+
+> Derived from: `src/ingestion/vendor/fmp_client.py`, `src/ingestion/pipelines/transcripts.py`,
+> `src/ingestion/pipelines/ingest_fiscal_periods.py`, `src/ingestion/pipelines/download.py`.
+> Historical price and stock news are documented from FMP's official API docs.
+
+---
+
+## Summary
+
+This document describes how the Financial Modeling Prep (FMP) API is used in this codebase.
+All requests are authenticated via an `apikey` query parameter. The API key must never be
+stored in the database — it is appended at request time only.
+
+**Base URLs:**
+- `https://financialmodelingprep.com/api/v3` — primary (v3)
+- `https://financialmodelingprep.com/api/v4` — secondary (v4, used for core info and transcript list)
+- `https://financialmodelingprep.com/stable` — newer "stable" API (used for the stock news endpoint)
+
+**Authentication:** All endpoints require `?apikey={FMP_API_KEY}` as a query parameter.
+
+**Scope of FMP coverage in this guide:**
+
+| Use Case | Status | Endpoint(s) |
+|---|---|---|
+| Historical Price | 📄 Documented | `/v3/historical-price-full/{ticker}` |
+| Stock News | 📄 Documented | `/stable/news/stock-latest` |
+| Fiscal Period Information | ✅ Wired | `/v4/company-core-information`, `/v3/income-statement`, `/v3/historical/earning_calendar` |
+| Financial Statements | ⚠️ Partial (income only) | `/v3/income-statement` |
+| Earnings Transcripts | ✅ Wired | `/v4/earning_call_transcript` (list), `/v3/earning_call_transcript/{ticker}` (download) |
+| Company Metadata / Screener | ✅ Wired | `/v3/stock-screener`, `/v3/profile/{ticker}` |
+
+> **Status legend:** `✅ Wired` = called by the host codebase and battle-tested here.
+> `⚠️ Partial` = only part of the endpoint's surface is used. `📄 Documented` = transcribed
+> from FMP's official API docs; not (yet) called by the host pipelines, so treat the schema as
+> authoritative-per-docs rather than verified in production.
+
+---
+
+## Use Cases
+
+### 1. Getting Historical Price
+
+**Purpose:** Fetch historical daily (end-of-day) OHLCV price data for a ticker.
+
+**Endpoint:** `GET /api/v3/historical-price-full/{ticker}`
+
+Use `from`/`to` for an explicit date range, or `timeseries=N` for the last N trading days.
+Add `serietype=line` to get a lightweight `date`+`close` series. The single-ticker response is
+an **object** wrapping a `historical` list — not a bare array. See the schema section below for
+full field details and edge cases.
+
+---
+
+### 2. Stock News
+
+**Purpose:** Fetch the latest market-wide stock news articles, newest first.
+
+**Endpoint (stable API):** `GET /stable/news/stock-latest?page={page}&limit={limit}`
+
+Note this lives on the **stable** host (`/stable/...`), not `/api/v3/`. `page` is 0-based.
+This endpoint is subscription-gated — see the schema section for the HTTP 402 behavior on
+plans that don't include it.
+
+---
+
+### 3. Fiscal Period Information for a Company
+
+**Purpose:** Determine a company's fiscal year end, map quarterly income statement periods
+to fiscal years and quarters, and find earnings announcement dates.
+
+**Workflow (3 API calls, used together):**
+
+```
+Step 1: GET /api/v4/company-core-information         → get fiscalYearEnd
+Step 2: GET /api/v3/income-statement/{ticker}        → get all quarterly periods
+Step 3: GET /api/v3/historical/earning_calendar/{ticker} → get earnings announcement dates
+```
+
+Then cross-reference: match `income_statement.date` (period end date) against
+`earning_calendar.fiscalDateEnding` to find the earnings announcement date for each period.
+
+**Fiscal Year Calculation Logic:**
+
+```
+fiscal_year_end = core_info["fiscalYearEnd"]   # e.g. "0927" = September 27
+period_end_date = income_stmt["date"]          # e.g. "2024-09-28"
+
+if period_end_date > fiscal_year_end_in_same_calendar_year:
+    fiscal_year = calendar_year + 1
+else:
+    fiscal_year = calendar_year
+```
+
+**Edge Cases:**
+- `fiscalYearEnd` is a 4-character string like `"0927"` (MMDD), NOT `"09-27"`. Parse as `int(s[:2])` for month.
+- If `fiscalYearEnd` is `"0229"` (Feb 29) and the year is not a leap year, fall back to Feb 28.
+- If `fiscalYearEnd` is missing or `None`, fall back to `income_stmt["calendarYear"]` as the fiscal year — but this may be inaccurate for companies with non-calendar fiscal years.
+- The earnings calendar is indexed by `fiscalDateEnding`, not by `date`. Use strict key matching only — do not fuzzy-match dates.
+- `income_stmt["fillingDate"]` (note: FMP spells it `fillingDate`, not `filingDate`) is the SEC filing date, distinct from the earnings announcement date.
+
+---
+
+### 4. Financial Statements
+
+**Status: PARTIAL — only quarterly income statements are implemented.**
+
+Balance sheet and cash flow statement endpoints are not called in this codebase.
+
+**What is implemented:** Quarterly income statements, used to extract period dates, fiscal
+periods, and `calendarYear` for fiscal period mapping.
+
+---
+
+### 5. Earnings Transcripts
+
+**Purpose:** Fetch the list of available earnings call transcripts for a ticker, then
+download each transcript by year and quarter.
+
+**Two-step workflow:**
+
+```
+Step 1: GET /api/v4/earning_call_transcript?symbol={ticker}                  → list of available transcripts
+Step 2: GET /api/v3/earning_call_transcript/{ticker}?year={year}&quarter={quarter} → full text
+```
+
+**Edge Cases:**
+- The transcript list response can be either a **list of lists** `[quarter, year, date_str]`
+  OR a **list of dicts** `{quarter, year, date}`. Both formats must be handled.
+- `date_str` may include a time component: `"2025-10-30 17:00:00"`. Truncate to first 10 chars
+  for date parsing: `date_str[:10]`.
+- The API key must NOT be stored in the database URL. It is appended at download time only.
+- Unique ID scheme used in this codebase: `FMP-{ticker}-{year}-Q{quarter}`. A company
+  typically has one earnings call per quarter, so this is safe — but if FMP ever returns
+  multiple calls for the same quarter, this ID will collide.
+- Transcripts are saved as `.json` files (not HTML). The download returns JSON/text directly.
+
+---
+
+## API Calls and Schema
+
+### `GET /api/v3/historical-price-full/{ticker}`
+
+**Purpose:** Fetch historical daily (end-of-day) OHLCV price data for a ticker.
+
+**Path parameter:** `ticker` — uppercase ticker symbol. Up to 3 comma-separated symbols are
+allowed in one request (e.g. `AAPL,MSFT,GOOG`); the response shape changes when more than one
+is requested (see Edge Cases).
+
+**Parameters:**
+
+| Parameter | Type | Required | Notes |
+|---|---|---|---|
+| `from` | string | No | Start date `"YYYY-MM-DD"`. Omit for the full available history. |
+| `to` | string | No | End date `"YYYY-MM-DD"`. |
+| `timeseries` | int | No | Return only the last N trading days. Use instead of `from`/`to`, not alongside. |
+| `serietype` | string | No | `"line"` trims each record to just `date` + `close`. Omit for full OHLCV. |
+| `apikey` | string | Yes | |
+
+**Response (single ticker):** an object, NOT a bare array:
+`{ "symbol": "AAPL", "historical": [ {…}, … ] }`
+
+**Response (2–3 tickers):** the wrapper key changes to `historicalStockList`:
+`{ "historicalStockList": [ { "symbol": …, "historical": [...] }, … ] }`
+
+**Key response fields (each item in `historical`):**
+
+| Field | Type | Notes |
+|---|---|---|
+| `date` | string | Trading date `"YYYY-MM-DD"`. Newest first. |
+| `open` / `high` / `low` / `close` | float | Daily OHLC (unadjusted). |
+| `adjClose` | float | Split/dividend-adjusted close. Prefer this for return calculations. |
+| `volume` | int | Trading volume. |
+| `unadjustedVolume` | int | Pre-adjustment volume. |
+| `change` | float | Daily price change (absolute). |
+| `changePercent` | float | Daily percent change. |
+| `vwap` | float | Volume-weighted average price. |
+| `label` | string | Human-readable date, e.g. `"October 30, 24"`. |
+| `changeOverTime` | float | Cumulative change ratio over the returned window. |
+
+**Edge Cases:**
+- The single-ticker response is an **object** wrapping a `historical` list — do NOT treat the
+  top level as an array. Index `data["historical"]`.
+- Requesting multiple tickers switches the wrapper key to `historicalStockList`. Branch on
+  whichever key is present.
+- Records are returned **newest-first**. Reverse if you need chronological order.
+- Don't combine `from`/`to` with `timeseries`; FMP honors the date range and may ignore
+  `timeseries` when both are sent.
+- An invalid ticker returns `{}` (empty object) or an empty `historical` list — null-check
+  before indexing.
+
+---
+
+### `GET /stable/news/stock-latest` (stable API)
+
+**Purpose:** Fetch the latest stock news articles across the market, most-recent first.
+
+**Host note:** This endpoint is on the **stable** API host (`https://financialmodelingprep.com/stable/...`),
+NOT `/api/v3/`.
+
+**Parameters:**
+
+| Parameter | Type | Required | Notes |
+|---|---|---|---|
+| `page` | int | No | 0-based page index. Default `0`; page `0` is the most recent batch. |
+| `limit` | int | No | Articles per page. |
+| `apikey` | string | Yes | Appended at request time, never stored. |
+
+**Response:** Array of news article objects, newest first.
+
+**Key response fields:**
+
+| Field | Type | Notes |
+|---|---|---|
+| `symbol` | string | Primary ticker the article is tagged to. |
+| `publishedDate` | string | Publish timestamp, ISO-8601 e.g. `"2025-02-04T13:21:00.000Z"`. Use `[:10]` for the date. |
+| `publisher` | string | Source publisher name. |
+| `title` | string | Headline. |
+| `image` | string | Article image URL (FMP-hosted). |
+| `site` | string | Source domain. |
+| `text` | string | Article snippet / summary. |
+| `url` | string | Link to the full article. |
+
+**Edge Cases:**
+- **Subscription-gated.** Verified 2026-06-09: returns **HTTP 402** with body
+  `Restricted Endpoint: This endpoint is not available under your current subscription` on plans
+  that don't include it. Handle 402 explicitly — it's a plan limitation, not a malformed request.
+- The response schema above is from FMP's docs; it could not be verified against a live payload
+  because the test key was gated (402). Treat field names as authoritative-per-docs.
+- A related legacy endpoint `GET /api/v3/stock_news?tickers={csv}&page={n}&limit={n}&from=&to=`
+  accepts a `tickers` filter and a date range if you need per-ticker news on the v3 API.
+
+---
+
+### `GET /api/v3/stock-screener`
+
+**Purpose:** Fetch a list of companies filtered by market cap, exchange, and type.
+
+**Parameters:**
+
+| Parameter | Type | Required | Notes |
+|---|---|---|---|
+| `marketCapMoreThan` | int | No | Raw value in dollars (not millions). Multiply millions × 1,000,000. |
+| `isEtf` | string | No | Pass `"false"` as a string, not boolean. |
+| `country` | string | No | e.g. `"US"` |
+| `exchange` | string | No | Comma-separated: `"NYSE,NASDAQ"` |
+| `limit` | int | No | FMP does not support `"all"`. Use `30000` to approximate all US stocks. |
+| `apikey` | string | Yes | Your FMP API key. |
+
+**Response:** Array of company objects.
+
+**Key response fields:**
+
+| Field | Type | Notes |
+|---|---|---|
+| `symbol` | string | Ticker symbol |
+| `companyName` | string | Company name |
+| `marketCap` | int | Market cap in dollars |
+| `sector` | string | Sector |
+| `isEtf` | bool OR string | **Edge case:** Can be `true` (bool) OR `"true"` (string). Check both. |
+| `isFund` | bool OR string | Same edge case as `isEtf`. |
+
+**Edge Cases:**
+- `isEtf` and `isFund` can be boolean `true` or string `"true"`. Always check both:
+  `not c.get("isEtf", False) and str(c.get("isEtf", "")).lower() != "true"`
+- When requesting N companies, request `N * 2` from the API to account for post-filter
+  losses (ETFs/funds that slip through the server-side filter).
+- Results are not sorted by market cap — sort client-side after filtering.
+
+---
+
+### `GET /api/v3/profile/{ticker}`
+
+**Purpose:** Fetch detailed company profile.
+
+**Path parameter:** `ticker` — uppercase ticker symbol (e.g. `AAPL`)
+
+**Parameters:**
+
+| Parameter | Type | Required | Notes |
+|---|---|---|---|
+| `apikey` | string | Yes | |
+
+**Response:** Array with one object. Always take `data[0]`.
+
+**Edge Cases:**
+- Response is a **list**, not a dict. If the list is empty or the ticker is invalid,
+  the response may be `[]` — check `if data and isinstance(data, list)` before indexing.
+- Returns `None` (after client-side handling) if the ticker is not found.
+
+**Key response fields:**
+
+| Field | Type | Notes |
+|---|---|---|
+| `symbol` | string | Ticker |
+| `companyName` | string | Full name |
+| `sector` | string | |
+| `industry` | string | |
+| `marketCap` | int | |
+| `cik` | string | SEC CIK number |
+| `exchange` | string | |
+| `description` | string | |
+
+---
+
+### `GET /api/v4/company-core-information`
+
+**Purpose:** Fetch core company information including fiscal year end date.
+
+**Parameters:**
+
+| Parameter | Type | Required | Notes |
+|---|---|---|---|
+| `symbol` | string | Yes | Ticker symbol |
+| `apikey` | string | Yes | |
+
+**Response:** Array with one object. Always take `data[0]`.
+
+**Edge Cases:**
+- Response is a **list**. Check `if data and isinstance(data, list)` before indexing.
+- Returns `None` (after client-side handling) if not found.
+- `fiscalYearEnd` is a 4-character MMDD string (e.g. `"0927"` = Sep 27, `"1231"` = Dec 31).
+  It is NOT formatted as `"MM-DD"`. Parse month as `int(s[:2])`.
+- `fiscalYearEnd` can be `None` or missing for some companies. Always null-check before use.
+
+**Key response fields:**
+
+| Field | Type | Notes |
+|---|---|---|
+| `symbol` | string | Ticker |
+| `fiscalYearEnd` | string | 4-char MMDD, e.g. `"0927"`. Can be `None`. |
+| `cik` | string | SEC CIK |
+
+---
+
+### `GET /api/v3/income-statement/{ticker}`
+
+**Purpose:** Fetch quarterly income statements for fiscal period mapping.
+
+**Path parameter:** `ticker` — uppercase ticker symbol
+
+**Parameters:**
+
+| Parameter | Type | Required | Notes |
+|---|---|---|---|
+| `period` | string | Yes | Always `"quarter"` in this codebase. |
+| `limit` | int | No | Default `400` (approx. 100 years of quarterly data). |
+| `apikey` | string | Yes | |
+
+**Response:** Array of income statement objects, newest first.
+
+**Key response fields:**
+
+| Field | Type | Notes |
+|---|---|---|
+| `date` | string | Period end date, `"YYYY-MM-DD"`. Used as the unique period identifier. |
+| `period` | string | Quarter label from FMP, e.g. `"Q1"`, `"Q2"`, `"Q3"`, `"Q4"`. |
+| `calendarYear` | string | Calendar year as string (e.g. `"2024"`). Cast to `int()`. |
+| `fillingDate` | string | SEC filing date, `"YYYY-MM-DD"`. Note: FMP spells this `fillingDate` (double-l). |
+| `fiscalDateEnding` | string | Not always present. Use `date` field for cross-referencing. |
+
+**Edge Cases:**
+- `calendarYear` is a **string**, not an integer. Cast with `int(stmt.get("calendarYear"))`.
+- `fillingDate` is spelled with double-l (`fillingDate`), not `filingDate`.
+- Empty list returned if the ticker has no data. Always null-check before iterating.
+- The `period` field from FMP (e.g. `"Q1"`) reflects the calendar quarter, not necessarily
+  the fiscal quarter. Fiscal quarter must be calculated from `fiscalYearEnd` and `date`.
+
+---
+
+### `GET /api/v3/historical/earning_calendar/{ticker}`
+
+**Purpose:** Fetch historical earnings announcement dates for cross-referencing with income
+statement periods.
+
+**Path parameter:** `ticker` — uppercase ticker symbol
+
+**Parameters:**
+
+| Parameter | Type | Required | Notes |
+|---|---|---|---|
+| `limit` | int | No | Default `400`. |
+| `apikey` | string | Yes | |
+
+**Response:** Array of earnings calendar objects.
+
+**Key response fields:**
+
+| Field | Type | Notes |
+|---|---|---|
+| `fiscalDateEnding` | string | Period end date `"YYYY-MM-DD"`. Use as the join key against `income_statement.date`. |
+| `date` | string | Earnings announcement date `"YYYY-MM-DD"`. |
+| `eps` | float | Reported EPS. |
+| `epsEstimated` | float | Estimated EPS. |
+
+**Edge Cases:**
+- Index this response by `fiscalDateEnding` for O(1) lookup when joining with income statements.
+- Use **strict key matching** only. Do not fuzzy-match dates — a mismatch means no earnings
+  date is available for that period, not that the data is wrong.
+- Some periods may not have a corresponding entry in the earnings calendar (e.g. very old data).
+
+---
+
+### `GET /api/v4/earning_call_transcript` (List)
+
+**Purpose:** Fetch the list of available earnings call transcripts for a ticker.
+
+**Parameters:**
+
+| Parameter | Type | Required | Notes |
+|---|---|---|---|
+| `symbol` | string | Yes | Ticker symbol |
+| `apikey` | string | Yes | |
+
+**Response:** Array of transcript metadata items.
+
+**Edge Cases:**
+- Each item can be either a **list** `[quarter, year, date_str]` OR a **dict**
+  `{quarter, year, date}`. Handle both formats.
+- `date_str` may include time: `"2025-10-30 17:00:00"`. Use `date_str[:10]` for date parsing.
+- `quarter` is an integer (1–4), not a string.
+- `year` is an integer.
+
+---
+
+### `GET /api/v3/earning_call_transcript/{ticker}` (Download)
+
+**Purpose:** Download the full text of a specific earnings call transcript.
+
+**Path parameter:** `ticker` — uppercase ticker symbol
+
+**Parameters:**
+
+| Parameter | Type | Required | Notes |
+|---|---|---|---|
+| `year` | int | Yes | Calendar year of the earnings call. |
+| `quarter` | int | Yes | Quarter number (1–4). |
+| `apikey` | string | Yes | Appended at download time, never stored in DB. |
+
+**Response:** JSON array with transcript content.
+
+**Edge Cases:**
+- The API key must be appended at download time, not stored in the database URL.
+  Store the base URL without the key: `https://financialmodelingprep.com/api/v3/earning_call_transcript/{ticker}?year={year}&quarter={quarter}`
+- Saved as `.json` file (not HTML). The download pipeline handles FMP URLs differently
+  from SEC URLs — no `sec-api` proxy is used; direct HTTP GET with the key appended.
+- Detection: a URL is an FMP request if `"financialmodelingprep.com"` appears in the URL string.
+
+---
+
+## Authentication Pattern
+
+All FMP requests use a query parameter `apikey`. The pattern for appending at request time:
+
+```python
+if "?" in url:
+    url += f"&apikey={FMP_API_KEY}"
+else:
+    url += f"?apikey={FMP_API_KEY}"
+```
