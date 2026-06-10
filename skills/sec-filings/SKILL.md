@@ -1,0 +1,304 @@
+---
+name: sec-filings
+type: capability
+description: >
+  Fetch and read U.S. SEC filings (10-K, 10-Q, 8-K, and any EDGAR form) for any
+  public company — free, no API key — and extract the information that only lives
+  inside filings: declared risk factors, MD&A, material events, segment data,
+  insider transactions, and quarterly earnings press releases / shareholder
+  letters (filed as 8-K EX-99.1 exhibits — the authoritative source for non-GAAP
+  KPIs like bookings, DAUs, and ARR that fundamentals APIs don't carry). Resolve
+  a ticker to its filing entity (CIK), list filings by form and date, decode 8-K
+  item codes, list and fetch exhibits, and — for large filings — index the
+  document and BM25-search it down to the few relevant sections, then read those
+  sections precisely. Fetches are User-Agent-compliant by construction, so the
+  common EDGAR 403 (and the WebFetch trap) never happen. Triggers: "get the 10-K
+  for X", "latest 10-Q / annual report for Y", "any recent 8-K for Z", "material
+  disclosures / recent filings for <company>", "what risks does <company> declare",
+  "risk factors / MD&A from the latest 10-K", "what does <company>'s 10-K say about
+  <topic>", "find the section on <topic> in <company>'s filing", "show <company>'s
+  SEC filings", "did <company> file anything this week", "insider transactions for
+  <ticker>", "earnings press release / shareholder letter for X", "quarterly
+  bookings / DAU / KPI history for Y", "8-K exhibit / EX-99.1 for Z", "fetch a
+  sec.gov URL without a 403".
+---
+
+# SEC filings — fetch & read from EDGAR
+
+This skill answers four families of request, all backed by **SEC EDGAR** (the
+authoritative U.S. filing system — **free, no API key, no account**):
+
+1. **Explicit filing requests** — "get the latest 10-K / 10-Q / 8-K for X."
+2. **Recent material disclosures** — "did anything material happen at X lately?"
+   (almost always an **8-K**, occasionally a 10-Q/10-K item).
+3. **Information that only exists inside filings** — declared **risk factors**,
+   **MD&A**, **segment** breakdowns, legal proceedings, going-concern language,
+   insider trading. This data is *not* in price/fundamentals APIs; you must read
+   the filing.
+4. **Question-answering over a large filing** — "what does the 10-K say about
+   <topic>?" A 10-K is 300+ pages; you cannot read it whole. Use the **two-step
+   parse pipeline** (below) to find and read only the sections that matter.
+
+> **Out of scope:** **13F** institutional-holdings filings have a **dedicated skill
+> (`13f-analysis`)** — route "what does <fund> own", "latest 13F", "fund holdings"
+> there. This skill is for corporate disclosure forms (10-K/10-Q/8-K, etc.) and
+> insider Forms 3/4/5.
+
+---
+
+## ⛔ The one rule that prevents every "it doesn't work": how to fetch
+
+**Never fetch a `*.sec.gov` or `efts.sec.gov` URL with the `WebFetch` tool, and
+never with a bare `curl`.** SEC's fair-access policy **rejects any request without
+a `User-Agent` that names a contact** — you get **HTTP 403**, every time. `WebFetch`
+*cannot* set that header, so it always 403s on SEC. This is the #1 reason naive
+attempts fail.
+
+Instead, **every SEC request goes through the bundled scripts**, which always send
+the required header:
+
+```bash
+# from skills/sec-filings/scripts/  (Python 3, standard library only — no pip, no key)
+python edgar.py cik AAPL                 # ticker -> CIK + title   (verified 200)
+python edgar.py filings AAPL 10-K -n 5   # list filings of a form, newest first
+python edgar.py doc AAPL 10-K            # primary-document URL of the latest 10-K
+```
+
+If you ever must hand-fetch, set the header yourself:
+`curl -H "User-Agent: your-app you@example.com" "https://data.sec.gov/..."`.
+
+- **Contact string:** override the built-in default via `export SEC_EDGAR_UA="your-app
+  your-name you@example.com"` (optional — a valid default ships, so **no `.env` key is
+  required** and this skill declares **no `env:`**).
+- **Rate limit:** stay under **~10 req/sec**. The scripts self-throttle (a short sleep
+  per call); still self-pace on bulk pulls.
+
+---
+
+## The two-step parse pipeline (for reading large filings)
+
+A 10-K/10-Q is far too large to read into context, and "paginate the whole thing"
+buries the answer in boilerplate. Split the job:
+
+**Step 1 — index & BM25-search to find the right sections** (`scripts/parse_filing.py`).
+It fetches the primary document (UA-compliant), strips the iXBRL/HTML to clean prose
+(keeping visible inline facts, dropping the hidden `ix:header` metadata), chunks it into
+section-sized windows tagged with their `Item` label, and ranks chunks against your
+query with **pure-Python Okapi BM25** (no embeddings, no network, no LLM — deterministic
+and dependency-free). It writes the top sections to small files for step 2.
+
+> **Why this is the token-efficiency play (measured on Apple's FY2025 10-K):** raw iXBRL
+> HTML is **441,509 tokens**; the strip alone → **44,274 tokens (10×)**; the top-5 BM25
+> sections for one query → **~6,000 tokens (73× vs raw)**. The strip wins by *deleting
+> iXBRL plumbing* (hidden `ix:header` facts, scripts, styles), not by rendering tables — so
+> for *numbers*, use the XBRL facts API (Scenario 3), not the stripped text. Full converter
+> decision + landscape: **`references/sec-xbrl-and-attachments.md`**.
+
+```bash
+# from skills/sec-filings/scripts/
+python parse_filing.py AAPL --form 10-K \
+    --query "supply chain concentration and single-source suppliers risk" --top 5
+# -> writes sec-output/<accession>/sec_01.txt … sec_NN.txt  + results.json
+#    and prints a ranked table with the Item label and a snippet per section.
+
+python parse_filing.py AAPL --accession 0000320193-25-000079 --query "segment revenue"
+python parse_filing.py --url https://www.sec.gov/Archives/.../aapl-20250927.htm --query "MD&A liquidity"
+python parse_filing.py AAPL --form 10-K          # no --query -> print the section map only
+```
+
+**Step 2 — extract the precise answer with a cheap Haiku sub-agent per section.**
+Each `sec_NN.txt` is ~6 KB (one section). For each top section, **spawn a sub-agent
+pinned to the cheapest model, `claude-haiku-4-5`**, scoped to that one section. This is
+cheap, parallel, and accurate — and it keeps the 300-page filing out of your context.
+
+In Claude Code, use the Task/Agent tool with `model: haiku`, one per section file, e.g.:
+
+> *Spawn (model `claude-haiku-4-5`):* "You are reading **one section** of
+> `<COMPANY>`'s `<FORM>` (file: `sec-output/<acc>/sec_03.txt`). Read it, then answer
+> **only from that text**: `<the user's question>`. Quote the exact sentence(s) and
+> cite the Item number. If the answer is not in this section, reply exactly
+> `NOT IN THIS SECTION`."
+
+Run them in parallel, drop the `NOT IN THIS SECTION` replies, and **synthesize** the
+surviving answers into one response, citing Item + filing date. (Portability note: if
+the host has no sub-agent tool — e.g. Codex — just read the top 1–2 `sec_NN.txt` files
+directly. The win is the same: BM25 already narrowed 300 pages to the right 6 KB.)
+
+> **Why this shape?** BM25 is the right tool for "find the section" (keywords, names,
+> defined terms — exactly how filings are written), and Haiku is the right tool for
+> "read this one section and answer" (cheapest model, tiny input). Splitting them keeps
+> the whole thing fast, cheap, and free of any external indexer or embedding service.
+
+---
+
+## Step 0 — Resolve the company to a CIK (every path starts here)
+
+EDGAR is keyed by **CIK** (Central Index Key), not ticker. `edgar.py` does this for you
+(`python edgar.py cik <ticker>`, or `resolve_cik()` in code). Identity edge cases it
+already handles — and that bite if you resolve by hand:
+
+- **Dotted tickers are stored dash-form.** `BRK.B` is listed as **`BRK-B`** — normalize
+  `.` → `-`. (Verified: `BRK.B` → Berkshire CIK `0001067983`.)
+- **Multi-class tickers share one CIK.** `GOOGL` and `GOOG` both map to **`1652044`** —
+  the company files once; the share class is not a separate filer.
+- **Padding matters.** `data.sec.gov` 404s on an unpadded CIK in the path; pad to 10
+  (`320193` → `CIK0000320193`). `edgar.py` pads automatically; the `efts` full-text API
+  accepts unpadded CIKs.
+- **Not found:** a bogus CIK returns **HTTP 404**.
+
+---
+
+## Scenario 1 — "Get the 10-K / 10-Q / 8-K for X"
+
+```bash
+python edgar.py filings AAPL 10-K -n 5     # newest-first; exact-form match
+python edgar.py doc AAPL 10-K              # -> the primary-document URL
+```
+
+Under the hood the submissions feed (`data.sec.gov/submissions/CIK….json`) is the spine:
+`filings.recent` is **column-oriented** (parallel arrays zipped by index — `edgar.py`
+does the zipping). To read or QA the document, hand its URL to `parse_filing.py`
+(above) rather than fetching it raw — that gets you the search pipeline for free.
+
+**Form cheat-sheet:** `10-K` = annual; `10-Q` = quarterly; `8-K` = current (material
+event); `/A` suffix = amendment (`10-K/A`); `20-F`/`40-F` = foreign annual; `DEF 14A` =
+proxy; `4` = insider transaction. Form matching is **exact and case/space-sensitive**
+("10-K" must not match "10-K/A"; "DEF 14A" has a space).
+
+**The 1000-filing recent cap:** `filings.recent` holds at most ~1000 filings; older
+history lives in overflow files. Pass `--history` to `edgar.py filings` (or
+`include_history=True`) to walk them. If you only read `recent`, you silently miss
+anything older — for an active filer that can be < 1 year.
+
+---
+
+## Scenario 2 — "Recent material disclosures / did anything material happen?"
+
+Material events are **Form 8-K**, usually filed within 4 business days. Each 8-K carries
+one or more **item codes** (in the `items` column) that classify the event — the fastest
+materiality triage without reading prose.
+
+```bash
+python edgar.py filings AAPL 8-K -n 10     # the `items=` field decodes via the table below
+```
+
+| Item | Meaning | Why it's material |
+|---|---|---|
+| 1.01 / 1.02 | Entry into / termination of a material agreement | M&A, big contracts |
+| 2.01 | Completion of acquisition or disposition | Deal closed |
+| **2.02** | **Results of operations** (earnings release) | Quarterly numbers |
+| 2.03 / 2.04 | New debt / triggering of debt acceleration | Leverage, covenant breach |
+| 3.01 | Delisting / failure to satisfy listing rule | Going-concern signal |
+| 4.01 / 4.02 | Auditor change / **non-reliance on prior financials** | **Restatement red flag** |
+| 5.01 | Change in control | |
+| **5.02** | **Departure/appointment of directors or officers** | CEO/CFO change |
+| 7.01 / 8.01 | Reg FD disclosure / Other events | Catch-all |
+| **9.01** | Financial statements & exhibits | Almost always present (the attachments) |
+
+> **Worked example (verified):** AAPL's latest 8-K had `items = "2.02,9.01"` → an
+> earnings release (2.02) with exhibits (9.01).
+
+**Read the 8-K and its attachments.** An 8-K is a *bundle*: the cover-page `.htm` plus
+exhibits. List them, then read the right one:
+```bash
+python edgar.py attachments AAPL 8-K   # exhibits (EX-99.1 press release) + XBRL members
+python edgar.py cover       AAPL 8-K   # the dei cover-page facts (an 8-K's ONLY XBRL)
+```
+- On an **Item 2.02 earnings** 8-K, the numbers live in the **EX-99.1 press release** — and
+  that table is **plain HTML, not XBRL** (verified). Read it as prose: feed its URL (from
+  `attachments`) to `parse_filing.py --url …`.
+- `python edgar.py cover` extracts the cover-page XBRL — but note an 8-K has **no
+  financial XBRL**, only `dei:` cover facts (document type, period, registrant, item flags,
+  registered securities). Don't expect an income statement from `filing.xbrl()` on an 8-K.
+
+(When the MCP server is connected, `analyze_8k` decodes items into described events — see
+*Optional accelerator* below.) Full details: **`references/sec-xbrl-and-attachments.md`**.
+
+---
+
+## Scenario 3 — "Information only found in filings" (risks, MD&A, segments)
+
+This is the highest-value case, and exactly what the **parse pipeline** is for:
+
+1. `python parse_filing.py <ticker> --form 10-K --query "<topic>"` → top sections.
+2. Haiku sub-agent per section → precise, quoted answer (Step 2 above).
+
+Where the topic maps in a 10-K/10-Q (useful as a query hint or to read the section map):
+- **Risk Factors** = 10-K **Item 1A** (updates in 10-Q Part II Item 1A)
+- **MD&A** = Item 7 (10-K) / Part I Item 2 (10-Q)
+- **Business** = Item 1; **Legal Proceedings** = Item 3 / Part II Item 1
+
+**Full-text search across all filers** (you don't know which filing) — `efts.sec.gov`,
+fetched via `edgar.http_get` (UA-compliant), not WebFetch:
+```
+https://efts.sec.gov/LATEST/search-index?q=%22material+weakness%22&forms=8-K&startdt=2024-01-01&enddt=2024-03-31
+```
+Returns Elasticsearch-shaped JSON: `hits.total.value` (capped at 10000 when
+`relation:"gte"`), `hits.hits[]` (100/page; paginate `&from=100`), each `_source` with
+`display_names`, `form`, `file_date`, `items`, `ciks`; `_id` = `"{accession}:{filename}"`.
+**Verified gotchas:** the params are `startdt`/`enddt` (there is **no `dateRange=custom`**
+— it returns HTTP 500); full-text search only covers filings **2001-present**.
+
+**Structured financials (XBRL):** for *numbers* (revenue, segments, EPS) rather than
+prose, use SEC's pre-computed facts API — it has already applied scale/sign/units, so you
+skip the iXBRL parsing traps:
+```bash
+python edgar.py facts   AAPL --grep Revenue   # DISCOVER the company's real tags first
+python edgar.py concept AAPL RevenueFromContractWithCustomerExcludingAssessedTax
+```
+**Trap (verified):** the GAAP tag for revenue is company-specific — Apple's is
+`RevenueFromContractWithCustomerExcludingAssessedTax` (113 facts) and `SalesRevenueNet`
+(210), while `Revenues` has just 11 stale facts. Discover, never hardcode. And the same
+concept returns both **YTD and quarter** facts for one period-end — disambiguate by the
+context's period length, not just the end date. Details + the full gotcha catalog (scale,
+sign, nil, dimensions): **`references/sec-xbrl-and-attachments.md`**.
+
+---
+
+## The big edge cases (the ones that silently produce wrong answers)
+
+1. **403 without a `User-Agent`** — and `WebFetch` can't send one. Use the scripts. (Verified.)
+2. **The 1000-filing recent cap.** Older history needs the overflow files (`--history`).
+3. **Form matching is exact** and case/space-sensitive (`"10-K" != "10-K/A"`).
+4. **`filingDate` vs `reportDate` vs `acceptanceDateTime`.** `filingDate` = when filed;
+   `reportDate` = the period covered (the one you usually want for "Q3 2024");
+   `acceptanceDateTime` = exact timestamp (use for "today's filings").
+5. **iXBRL hidden facts.** Modern filings embed machine-only facts in a hidden
+   `ix:header`/`display:none` block; `parse_filing.py` drops these but keeps the visible
+   inline facts (`ix:nonFraction`/`ix:nonNumeric`). Don't index the raw HTML yourself.
+6. **XBRL tag drift.** Same concept, different tags across companies/years. Discover, don't assume.
+7. **No automatic rate limiting beyond the scripts' per-call sleep.** Self-throttle on bulk.
+
+Full, verified catalog: **`references/sec-edgar-direct-http.md`**.
+
+---
+
+## Optional accelerator — the `sec-edgar-mcp` MCP server
+
+If (and only if) the [`sec-edgar-mcp`](https://github.com/stefanoamorelli/sec-edgar-mcp)
+server is connected, it offers ergonomic conveniences: `get_company_info`,
+`get_recent_filings`, `analyze_8k` (decodes item codes into events),
+`get_filing_sections`, `get_insider_transactions`, XBRL helpers. Use it opportunistically
+**for those conveniences** — but it is **not** required and **not** the spine:
+
+- It needs the user to have configured the server with `SEC_EDGAR_USER_AGENT` (in the
+  MCP launch config; the server refuses to start without it). That setup step is exactly
+  what makes it unreliable in practice.
+- The **bundled scripts are always available** and need no setup, so they are the default
+  path. Treat MCP as a speedup when present; **verify or fall back to the scripts**.
+
+Full tool inventory: **`references/sec-edgar-mcp-tools.md`**.
+
+---
+
+## References
+
+- **`references/sec-edgar-direct-http.md`** — the raw HTTP layer the scripts are built on:
+  every endpoint on `data.sec.gov`, `www.sec.gov/Archives`, and `efts.sec.gov`, with
+  verified request/response shapes and the exhaustive edge-case catalog.
+- **`references/sec-xbrl-and-attachments.md`** — filing→text conversion decision (with
+  measured token wins + the converter landscape), the accession-folder/exhibit map, the
+  verified "8-K = dei cover page only, EX-99.1 = plain HTML" finding, the dei taxonomy, the
+  facts-API-vs-raw-instance call, and the XBRL parsing gotchas (scale/sign/nil/contexts/dims).
+- **`references/sec-edgar-mcp-tools.md`** — complete inventory of the optional MCP tools
+  (names, parameters, return shapes, the SEC endpoint each maps to).

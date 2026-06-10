@@ -83,6 +83,15 @@
       "runtime": "none"
     },
     {
+      "name": "sec-filings",
+      "folder": "sec-filings",
+      "type": "capability",
+      "description": "Fetch and read U.S. SEC filings (10-K, 10-Q, 8-K, and any EDGAR form) for any public company — free, no API key — and extract the information that only lives inside filings: declared risk factors, MD&A, material events, segment data, insider transactions, and quarterly earnings press releases / shareholder letters (filed as 8-K EX-99.1 exhibits — the authoritative source for non-GAAP KPIs like bookings, DAUs, and ARR that fundamentals APIs don't carry). Resolve a ticker to its filing entity (CIK), list filings by form and date, decode 8-K item codes, list and fetch exhibits, and — for large filings — index the document and BM25-search it down to the few relevant sections, then read those sections precisely. Fetches are User-Agent-compliant by construction, so the common EDGAR 403 (and the WebFetch trap) never happen. Triggers: \"get the 10-K for X\", \"latest 10-Q / annual report for Y\", \"any recent 8-K for Z\", \"material disclosures / recent filings for <company>\", \"what risks does <company> declare\", \"risk factors / MD&A from the latest 10-K\", \"what does <company>'s 10-K say about <topic>\", \"find the section on <topic> in <company>'s filing\", \"show <company>'s SEC filings\", \"did <company> file anything this week\", \"insider transactions for <ticker>\", \"earnings press release / shareholder letter for X\", \"quarterly bookings / DAU / KPI history for Y\", \"8-K exhibit / EX-99.1 for Z\", \"fetch a sec.gov URL without a 403\".",
+      "requires": [],
+      "env": [],
+      "runtime": "python"
+    },
+    {
       "name": "single-stock-deep-dive",
       "folder": "single-stock-deep-dive",
       "type": "composite",

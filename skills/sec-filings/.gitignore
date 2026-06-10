@@ -1,0 +1,7 @@
+# Filing text + section files written by parse_filing.py (regenerated on demand)
+sec-output/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
