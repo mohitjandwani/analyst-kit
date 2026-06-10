@@ -14,3 +14,8 @@ build/
 
 # OS / editor
 .DS_Store
+
+# e2e harness run artifacts (test/e2e/.env is already covered by the .env rules above)
+test/e2e/logs/
+test/e2e/pdfs/
+.gstack/

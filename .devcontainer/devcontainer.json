@@ -1,0 +1,21 @@
+{
+  "name": "hfa-skills-e2e",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "."
+  },
+
+  // Non-root: Claude Code's --dangerously-skip-permissions refuses uid 0. `node` is the
+  // image's built-in uid-1000 user; updateRemoteUserUID (default on Linux) syncs it to the
+  // host user so writes into the mounted workspace keep host ownership.
+  "remoteUser": "node",
+
+  // overrideCommand keeps the container running an idle command after create, so it stays
+  // up for inspection / re-runs until you Close Remote Connection or `docker rm -f` it.
+  "overrideCommand": true,
+
+  // Seed Claude config + create artifact dirs once. API keys are NOT set here — the Bun
+  // launcher forwards them per-run (`docker exec -e`) so you can change keys without a
+  // rebuild. Model/quiet env vars are baked into the image (Dockerfile ENV).
+  "postCreateCommand": "bash .devcontainer/post-create.sh"
+}
