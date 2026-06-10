@@ -153,6 +153,42 @@ def test_compare_rebased_starts_at_100(aapl_income, msft_income):
     assert "percent" not in out["yAxes"][0]  # it's an index, not a percent
 
 
+def _kpi_quarters():
+    """Two metrics with known YoY: revenue +10%, bookings +25% in 2024 quarters."""
+    rows = [{"date": f"2023-{m:02d}-{d}", "symbol": "TST", "revenue": 100e6, "bookings": 200e6}
+            for m, d in [(3, "31"), (6, "30"), (9, "30"), (12, "31")]]
+    rows += [{"date": f"2024-{m:02d}-{d}", "symbol": "TST", "revenue": 110e6, "bookings": 250e6}
+             for m, d in [(3, "31"), (6, "30")]]
+    return rows
+
+
+def test_metrics_yoy_multi_metric_trims_lag_window():
+    out = charts.metrics_yoy(_kpi_quarters(), metrics=["revenue", "bookings"], lag=4)
+    # the first 4 quarters have no prior period → trimmed, quarter labels remain
+    assert out["axis"]["categories"] == ["Q1'24", "Q2'24"]
+    assert out["yAxes"][0]["percent"] is True
+    assert [s["name"] for s in out["series"]] == ["Revenue YoY", "Bookings YoY"]
+    assert out["series"][0]["data"] == [10.0, 10.0]      # Polars math, not LLM math
+    assert out["series"][1]["data"] == [25.0, 25.0]
+    assert out["meta"]["chart"] == "metricsYoY" and out["meta"]["zeroLine"]
+
+
+def test_metrics_yoy_no_trim_keeps_leading_gaps():
+    out = charts.metrics_yoy(_kpi_quarters(), metrics=["revenue"], lag=4, trim=False)
+    assert len(out["axis"]["categories"]) == 6
+    assert out["series"][0]["data"][:4] == [None, None, None, None]
+
+
+def test_cli_yoy_roundtrip(tmp_path):
+    data, out = tmp_path / "data.json", tmp_path / "contract.json"
+    data.write_text(json.dumps(_kpi_quarters()))
+    cli.main(["yoy", str(data), "--metrics", "revenue,bookings", "--lag", "4",
+              "--title", "TST — bookings vs revenue YoY", "-o", str(out)])
+    contract = json.loads(out.read_text())
+    assert contract["title"] == "TST — bookings vs revenue YoY"
+    assert contract["series"][1]["data"] == [25.0, 25.0]
+
+
 def test_all_contracts_json_serializable():
     payloads = cli.build_contracts()
     assert len(payloads) >= 12

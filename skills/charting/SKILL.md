@@ -73,6 +73,25 @@ boundary **already scaled**; the TS layer formats and draws.
 
 ## Use it
 
+**Agent fast-path — two commands, no setup, no hand-written code.** Where `python3` (with
+polars) and `bun` already exist (e.g. the e2e container), go raw records → finished HTML
+without writing any Python/TS/HTML yourself:
+
+```bash
+# 1. raw records → contract (YoY math runs in Polars — never compute growth "by hand")
+python3 -m pipeline.cli yoy data.json --metrics revenue,bookings --lag 4 -o contract.json
+# 2. contract → self-contained chart page (vendored Highcharts inlined; PDF-safe offline)
+bun scripts/render.ts contract.json chart.html        # also runs under tsx
+```
+
+`data.json` is `[{"date": "YYYY-MM-DD", "revenue": 655300000, "bookings": 773800000}, …]`
+with absolute values — the pipeline scales units, labels quarters, trims the lag window,
+and colors series. Metric columns are arbitrary, so non-GAAP KPIs (bookings, DAUs, ARR)
+work the same as GAAP fields. For other chart shapes, call the builders from Python and
+render the same way.
+
+Dev setup (only for hacking on the skill itself):
+
 ```bash
 pip install -r requirements.txt        # polars, pytest
 npm install                            # highcharts builders + vitest
@@ -86,15 +105,22 @@ contract = charts.revenue_margins(income_records)   # records → contract dict
 ```
 ```ts
 import { renderChartPage, buildOptions } from "@hfa/charting";
-const html = renderChartPage(contract);   // standalone .html (Highcharts via CDN)
-const opts = buildOptions(contract);       // Highcharts options object — change anything you want
+const html = renderChartPage(contract);              // standalone .html — Highcharts inlined (self-contained, no network)
+const htmlCdn = renderChartPage(contract, { cdnScripts: true }); // lightweight CDN version for browser preview
+const opts = buildOptions(contract);                 // Highcharts options object — change anything you want
 ```
+
+> **CDN rule for hand-written HTML:** if you write `<script src>` tags directly, always use
+> `https://cdn.jsdelivr.net/npm/highcharts@12/` — **never `code.highcharts.com`**, which returns
+> 403 for headless browser requests and will produce a blank chart in the PDF.
+> The vendored scripts are also available at `vendor/highcharts/` relative to the skill root.
 
 ## Intent → chart
 
 | The question | Chart | Builder | Notes |
 |---|---|---|---|
 | How has X trended? growth? | line / YoY line | `revenue_trend`, `revenue_yoy` | per-series **shift** for lead/lag; **event flags** for context |
+| Growth of several metrics? (incl. non-GAAP KPIs) | YoY % lines | `metrics_yoy` | arbitrary metric columns (bookings, DAUs…); CLI: `pipeline.cli yoy` |
 | What happened *when*? | line + event flags | `revenue_trend(flags=…)` | caller-provided dashed vertical markers |
 | Segment size over time? | stacked bar | `segments(variant="stacked")` | total + composition |
 | Segment **mix** shift? | 100% stacked bar | `segments(variant="percent")` | reads mix even as total grows |
@@ -122,6 +148,10 @@ parentheses (`($2.5M)`), percent with one dp.
 3. **Compact, accounting labels** — see the units table; tooltip always available.
 4. **Missing = gap** (`null`), not zero; a never-reported segment is a real `0`.
 5. **Compare like with like** — rebase unequal companies to 100; growth uses YoY, not levels.
+6. **Compute, don't reason; render, don't hand-write** — growth/margins/rebasing come from
+   the Polars pipeline (`pipeline.cli yoy`, `process.yoy/margin/rebase`) and the page comes
+   from `scripts/render.ts`. LLM arithmetic and hand-rolled Highcharts boilerplate are
+   slower and error-prone; the pipeline is deterministic and tested.
 
 Chart selection detail: [`references/chart-types.md`](references/chart-types.md).
 

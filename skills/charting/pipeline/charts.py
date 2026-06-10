@@ -109,6 +109,37 @@ def revenue_yoy(income_records, *, n=12, lag=1, currency="$", flags=None) -> dic
                  flags=flags, meta={"chart": "revenueYoY", "symbol": sym})
 
 
+def metrics_yoy(records, *, metrics: Sequence[str], lag=4, title=None, currency="$",
+                flags=None, trim=True) -> dict:
+    """YoY % growth lines for one or more metric columns of the same records.
+
+    `records` are raw rows `{"date": "YYYY-MM-DD", "<metric>": <absolute value>, …}`
+    in any order (sorted here); `lag` is periods per year (4 = quarterly, 1 = annual).
+    Periods label as Q1'24-style quarters when lag=4, else FY<year>. With `trim`,
+    the leading lag window (where every metric's growth is None) is dropped, so
+    "last 3 years of quarterly YoY" = feed 4 years of raw data, get 12 points back.
+    """
+    df = process.frame(records)
+    dates = df["date"].to_list()
+    growths = {m: process.yoy(df[m].to_list(), lag=lag) for m in metrics}
+    start = 0
+    if trim:
+        start = next((i for i in range(len(dates))
+                      if any(growths[m][i] is not None for m in metrics)), len(dates))
+    periods = [process.quarter_label(d) if lag == 4 else f"FY{str(d)[:4]}"
+               for d in dates[start:]]
+    roles = ["primary", "secondary", "neutral", "estimate"]
+    series_defs = [{"name": m.replace("_", " ").capitalize() + " YoY",
+                    "values": growths[m][start:], "role": roles[i % len(roles)]}
+                   for i, m in enumerate(metrics)]
+    sym = _symbol(records)
+    return _line(periods, series_defs, percent=True, currency=currency,
+                 title=title or (f"{sym} — YoY growth" if sym else "YoY growth"),
+                 subtitle=f"{periods[0]}–{periods[-1]}" if periods else "",
+                 value_label="YoY growth", flags=flags,
+                 meta={"chart": "metricsYoY", "symbol": sym, "zeroLine": True})
+
+
 def compare_rebased(named_income: Sequence[tuple[str, list[dict]]], *, n=5) -> dict:
     """Multiple companies' revenue rebased to 100 — relative growth, not size."""
     roles = ["primary", "secondary", "neutral", "estimate"]

@@ -3,15 +3,30 @@
  *
  * `optionsToJs` serializes the options object to a JS source string, hydrating the
  * `{__fn__:'fmt'}` formatter descriptors into real `function(){…}` that call the
- * embedded `HFA.fmt`. The page loads Highcharts (Stock for time-series) from CDN,
- * so it opens in a browser with no build step.
+ * embedded `HFA.fmt`. By default the page inlines the vendored Highcharts scripts so
+ * it renders in any headless/sandboxed environment with no outbound network access.
+ * Pass `opts.cdnScripts = true` to emit lightweight `<script src>` tags instead
+ * (good for browser preview; uses jsDelivr, never code.highcharts.com).
  */
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { buildOptions } from './charts/build.js';
 import { HELPERS_JS } from './format.js';
 import type { BuildOpts, FinalData } from './types.js';
 
-// jsDelivr (not code.highcharts.com, which is blocked on some networks). Pinned major version.
+// jsDelivr (not code.highcharts.com, which returns 403 for headless requests).
 const CDN = 'https://cdn.jsdelivr.net/npm/highcharts@12';
+
+// Vendored scripts live at ../vendor/highcharts/ relative to this source file.
+// That path survives skill installation (vendor/ is not in the installer's SKIP_DIRS).
+const VENDOR = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'vendor', 'highcharts');
+const _cache = new Map<string, string>();
+function readVendor(rel: string): string {
+  if (!_cache.has(rel)) _cache.set(rel, readFileSync(resolve(VENDOR, rel), 'utf8'));
+  return _cache.get(rel)!;
+}
 
 /** Serialize options to JS, turning formatter descriptors into functions. */
 export function optionsToJs(node: unknown): string {
@@ -43,12 +58,23 @@ export function scriptsFor(useStock: boolean, needsMore = false): string[] {
   return out;
 }
 
+/** Inline the vendored Highcharts scripts as `<script>…</script>` blocks.
+ *  Makes the page self-contained — no network access required at render time. */
+function inlineTagsFor(useStock: boolean, needsMore: boolean): string {
+  const files = [useStock ? 'highstock.js' : 'highcharts.js'];
+  if (needsMore) files.push('highcharts-more.js');
+  files.push('modules/exporting.js', 'modules/accessibility.js');
+  return files.map((f) => `<script>${readVendor(f)}</script>`).join('\n  ');
+}
+
 export function renderChartPage(d: FinalData, opts: BuildOpts = {}): string {
   const options = buildOptions(d, opts);
   const useStock = opts.stock ?? !!d.meta?.stock;
   const needsMore = d.series.some((s) => s.kind === 'waterfall');
   const ctor = useStock ? 'stockChart' : 'chart';
-  const tags = scriptsFor(useStock, needsMore).map((s) => `<script src="${s}"></script>`).join('\n  ');
+  const tags = opts.cdnScripts
+    ? scriptsFor(useStock, needsMore).map((s) => `<script src="${s}"></script>`).join('\n  ')
+    : inlineTagsFor(useStock, needsMore);
   return `<!doctype html>
 <html lang="en">
 <head>

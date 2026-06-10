@@ -15,6 +15,6 @@ mkdirSync(OUT, { recursive: true });
 for (const f of readdirSync(FX).filter((x) => x.endsWith('.json'))) {
   const data = JSON.parse(readFileSync(join(FX, f), 'utf8')) as FinalData;
   const name = basename(f, '.json') + '.html';
-  writeFileSync(join(OUT, name), renderChartPage(data));
+  writeFileSync(join(OUT, name), renderChartPage(data, { cdnScripts: true }));
   console.log('wrote examples/' + name);
 }

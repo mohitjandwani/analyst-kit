@@ -75,4 +75,11 @@ export interface BuildOpts {
   navigator?: boolean;
   /** On-chart data labels. Defaults on for category charts, off for datetime. */
   dataLabels?: boolean;
+  /**
+   * Emit `<script src="cdn">` tags instead of inlining the vendored scripts.
+   * Default false (inline) — inline makes the HTML self-contained so it renders
+   * in headless/sandboxed environments with no outbound network access.
+   * Pass `true` when generating files for browser preview (smaller page size).
+   */
+  cdnScripts?: boolean;
 }
