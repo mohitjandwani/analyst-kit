@@ -36,6 +36,10 @@ const taskFilter = flagValue(argv, '--task');
 // After a host run finishes, auto-start a local server for the JSONL log viewer.
 // Off in CI / when piping, or via --no-viewer / E2E_NO_VIEWER.
 const NO_VIEWER = argv.includes('--no-viewer') || !!process.env.E2E_NO_VIEWER || !!process.env.CI;
+// --verbose streams `devcontainer up` build output live and traces every Claude stream
+// event (tool calls, text, result) as a one-liner. The flag rides through to the
+// container via `passthrough`; E2E_VERBOSE only affects the side it's set on.
+const VERBOSE = argv.includes('--verbose') || !!process.env.E2E_VERBOSE;
 
 if (IN_CONTAINER) {
   await runInContainer(taskFilter);
@@ -62,8 +66,12 @@ function hostMode(passthrough: string[]) {
 
   const present = FORWARD_KEYS.filter((k) => process.env[k]);
 
-  console.error('▶ bringing the dev container up …');
-  const up = spawnSync('devcontainer', ['up', '--workspace-folder', REPO_ROOT], { encoding: 'utf8' });
+  console.error(`▶ bringing the dev container up …${VERBOSE ? '' : ' (silent; can take minutes on a rebuild — pass --verbose to stream build output)'}`);
+  // stdout must stay piped (we parse its JSON result); stderr carries the build log, so
+  // under --verbose inherit it and let it stream to the terminal in real time.
+  const up = spawnSync('devcontainer', ['up', '--workspace-folder', REPO_ROOT], {
+    encoding: 'utf8', stdio: ['ignore', 'pipe', VERBOSE ? 'inherit' : 'pipe'],
+  });
   if (up.status !== 0) {
     process.stderr.write(up.stdout || '');
     process.stderr.write(up.stderr || '');
@@ -200,7 +208,8 @@ async function runInContainer(filter: string | null) {
   pointLatest(logsRoot, ts);
 
   const report: any = { startedAt: ts, ok: false, phases: {}, tasks: [] };
-  const log = (m: string) => { console.log(m); appendFileSync(join(runDir, 'run.log'), m + '\n'); };
+  const stamp = () => new Date().toISOString().slice(11, 19);
+  const log = (m: string) => { const l = `[${stamp()}] ${m}`; console.log(l); appendFileSync(join(runDir, 'run.log'), l + '\n'); };
 
   const skills: any[] = getSkills();
   const folderByName = new Map(skills.map((s) => [s.name, s.folder]));
@@ -374,7 +383,13 @@ function runClaude(prompt: string, cwd: string, streamPath: string, timeoutMs: n
     let buf = '';
     let lastResult: any = null;
     let timedOut = false;
+    let lastActivity = '(no events yet)';
     const timer = setTimeout(() => { timedOut = true; child.kill('SIGKILL'); }, timeoutMs);
+    // Heartbeat: a silent `claude -p` and a hung one look identical from outside. Every
+    // 30s, say how long we've been running and the last stream event we saw.
+    const pulse = setInterval(() => {
+      console.error(`  · still running (${Math.round((Date.now() - start) / 1000)}s) — last: ${lastActivity}`);
+    }, 30_000);
 
     child.stdout.on('data', (d) => {
       out.write(d);
@@ -383,12 +398,17 @@ function runClaude(prompt: string, cwd: string, streamPath: string, timeoutMs: n
       while ((nl = buf.indexOf('\n')) >= 0) {
         const line = buf.slice(0, nl); buf = buf.slice(nl + 1);
         if (!line.trim()) continue;
-        try { const ev = JSON.parse(line); if (ev?.type === 'result') lastResult = ev; } catch { /* partial/non-JSON */ }
+        try {
+          const ev = JSON.parse(line);
+          if (ev?.type === 'result') lastResult = ev;
+          lastActivity = describeEvent(ev) ?? lastActivity;
+          if (VERBOSE) traceEvent(ev);
+        } catch { /* partial/non-JSON */ }
       }
     });
     child.stderr.on('data', (d) => out.write(d));
     const done = (code: number | null, summary?: string) => {
-      clearTimeout(timer); out.end();
+      clearTimeout(timer); clearInterval(pulse); out.end();
       resolve({
         code, timedOut, durationMs: Date.now() - start,
         costUsd: lastResult?.total_cost_usd ?? null,
@@ -398,6 +418,37 @@ function runClaude(prompt: string, cwd: string, streamPath: string, timeoutMs: n
     child.on('close', (code) => done(code));
     child.on('error', (err) => done(null, `spawn error: ${err.message}`));
   });
+}
+
+// One-line description of a stream-json event — used for the heartbeat's "last:" field.
+function describeEvent(ev: any): string | null {
+  if (ev?.type === 'system' && ev.subtype === 'init') return `session start (model ${ev.model})`;
+  if (ev?.type === 'assistant') {
+    const tool = (ev.message?.content ?? []).find((c: any) => c.type === 'tool_use');
+    if (tool) return `${tool.name}${tool.name === 'Agent' || tool.name === 'Task' ? ` → ${tool.input?.subagent_type ?? '?'}` : ''}`;
+    const text = (ev.message?.content ?? []).find((c: any) => c.type === 'text' && c.text?.trim());
+    if (text) return 'assistant text';
+  }
+  if (ev?.type === 'result') return `result (${ev.subtype})`;
+  return null;
+}
+
+// --verbose: one line per interesting stream event, prefixed so it reads distinctly from
+// phase logs. Tool inputs are truncated — the full record is always in the .stream.jsonl.
+function traceEvent(ev: any) {
+  if (ev?.type === 'system' && ev.subtype === 'init') {
+    console.error(`    ∙ init: model=${ev.model} session=${(ev.session_id || '').slice(0, 8)}`);
+  } else if (ev?.type === 'assistant') {
+    for (const c of ev.message?.content ?? []) {
+      if (c.type === 'tool_use') {
+        console.error(`    ⚒ ${c.name} ${JSON.stringify(c.input ?? {}).slice(0, 140)}`);
+      } else if (c.type === 'text' && c.text?.trim()) {
+        console.error(`    ✎ ${c.text.trim().replace(/\s+/g, ' ').slice(0, 160)}`);
+      }
+    }
+  } else if (ev?.type === 'result') {
+    console.error(`    ∙ result: ${ev.subtype} cost=$${typeof ev.total_cost_usd === 'number' ? ev.total_cost_usd.toFixed(4) : '?'} turns=${ev.num_turns ?? '?'}`);
+  }
 }
 
 // Best-effort: copy the freshest Claude transcript for post-mortem (stream-json is primary).

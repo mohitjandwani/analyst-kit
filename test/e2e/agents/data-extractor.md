@@ -23,19 +23,27 @@ or editorialize — extraction only.
   Full endpoint reference: `~/.claude/skills/financialmodellingprep/SKILL.md`.
 - **Non-GAAP KPIs** (bookings, DAUs, hours engaged, ARR, …): FMP does not carry these.
   Companies publish them in their quarterly **earnings press release / shareholder
-  letter**, which is filed on SEC EDGAR as an **8-K exhibit (EX-99.1)**. Get it with the
-  sec-filings skill's scripts (Python 3 stdlib, no key — they send the User-Agent SEC
-  requires, so they never 403):
+  letter**, filed on SEC EDGAR as an **8-K exhibit (EX-99.1 or EX-99.2 — list, don't
+  assume the number)**. Get every quarter's exhibit URLs in ONE call, then narrow each
+  exhibit and read only the narrowed sections (the scripts are Python 3 stdlib, no key —
+  they send the User-Agent SEC requires, so they never 403):
 
   ```bash
-  python3 ~/.claude/skills/sec-filings/scripts/edgar.py filings RBLX 8-K -n 12     # newest first; earnings 8-Ks have items=2.02
-  python3 ~/.claude/skills/sec-filings/scripts/edgar.py attachments RBLX 8-K       # list exhibits -> EX-99.1 press-release URL
-  python3 ~/.claude/skills/sec-filings/scripts/parse_filing.py --url <EX-99.1 url> --query "bookings"   # read it
+  # one labeled EX-99.x URL set per earnings 8-K (items=2.02), newest first
+  python3 ~/.claude/skills/sec-filings/scripts/edgar.py exhibits RBLX 8-K --items 2.02 -n 17
+  # per exhibit: BM25-narrow to the metric's sections, then Read ONLY the top sec_0*.txt.
+  # Repeat --query with 2-3 phrasings (rank-fused) — one phrasing misses sections that
+  # use different vocabulary across quarters:
+  python3 ~/.claude/skills/sec-filings/scripts/parse_filing.py --url <exhibit url> \
+      --query "bookings three months ended" \
+      --query "reconciliation of revenue to bookings"
   ```
 
-  Each quarterly release restates the year-ago figure — ~four releases per two years
-  of data. Fall back to WebSearch + WebFetch on the company's IR site only for the
-  rare company whose releases aren't filed on EDGAR.
+  Each release restates the year-ago figure, so every other quarter is usually enough.
+  Take values from the **"Three Months Ended"** column — never the six/nine-months YTD
+  column beside it. **Never hand-construct an exhibit URL** (names are arbitrary; a 404
+  means re-list with `exhibits --accession <acc>`). Fall back to WebSearch + WebFetch on
+  the company's IR site only for the rare company whose releases aren't filed on EDGAR.
 - **Never fetch a sec.gov URL with WebFetch or bare curl** — SEC rejects any request
   without a contact-identifying `User-Agent` header (HTTP 403, every time), and
   WebFetch cannot set one. If a web search surfaces a `sec.gov/Archives/...` link,
