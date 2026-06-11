@@ -117,7 +117,7 @@ function chartHtml(slot: ChartSlot, contractPath: string, heightPx: number): str
   const data = JSON.parse(readFileSync(p, 'utf8')) as FinalData;
   const stock = !!data.meta?.stock;
   needsStock ||= stock;
-  needsMore ||= data.series.some((s) => s.kind === 'waterfall');
+  needsMore ||= data.series.some((s) => s.kind === 'waterfall' || s.kind === 'arearange');
   // Print-tuned: no navigator/range-selector chrome (meaningless in a PDF), fixed height.
   const options = buildOptions(data, { navigator: false, rangeSelector: false });
   options.chart = { ...options.chart, height: heightPx, width: null };
@@ -152,6 +152,24 @@ function need(slots: Record<string, any>, tpl: string, keys: string[]): void {
   for (const k of keys) if (slots[k] === undefined) fail(`template "${tpl}" requires slot "${k}"`);
 }
 
+/** The point of the page — required on every data page. Rendered as a prominent
+ *  banner under the title so a reader gets the conclusion before the evidence. */
+function storyBanner(slots: Record<string, any>): string {
+  return `<div class="story">${mdLite(slots.story)}</div>`;
+}
+
+/** Key-number chips (entry/exit price, latest YoY, …) — available on every template. */
+function statsRow(slots: Record<string, any>): string {
+  if (!slots.stats?.length) return '';
+  return `<div class="stats-row">${slots.stats.map((s: any) =>
+    `<span class="stat"><b>${escapeHtml(s.label)}</b> ${escapeHtml(s.value)}</span>`).join('')}</div>`;
+}
+
+/** Shared page top: brand strip, title, the page's story, key stats. */
+function pageTop(slots: Record<string, any>, ctx: Ctx): string {
+  return `${brandStrip(ctx)}${titleBlock(slots)}${storyBanner(slots)}${statsRow(slots)}`;
+}
+
 const RATING_KEYS = ['narrative', 'revenue', 'profit', 'purity'] as const;
 const RATING_LABELS = ['Narrative', 'Revenue sens.', 'Profit sens.', 'Purity'];
 
@@ -168,7 +186,7 @@ const templates: Record<string, (slots: Record<string, any>, ctx: Ctx) => string
   },
 
   comparison(slots, ctx) {
-    need(slots, 'comparison', ['title', 'companies']);
+    need(slots, 'comparison', ['title', 'story', 'companies']);
     const rows: any[] = slots.companies;
     if (rows.length < 2 || rows.length > 7)
       fail(`comparison takes 2–7 companies (got ${rows.length}) — split across two pages`);
@@ -178,14 +196,14 @@ const templates: Record<string, (slots: Record<string, any>, ctx: Ctx) => string
       <td>${escapeHtml(c.mechanism ?? '')}</td>
       ${RATING_KEYS.map((k) => `<td>${c.ratings?.[k] ? pill(c.ratings[k]) : '—'}</td>`).join('')}
     </tr>`).join('');
-    return `${brandStrip(ctx)}${titleBlock(slots)}<div class="page-body">
+    return `${pageTop(slots, ctx)}<div class="page-body">
       <table class="matrix"><thead><tr><th>Company</th><th>Mechanism</th>${
         RATING_LABELS.map((l) => `<th>${l}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>
       ${slots.takeaway ? `<div class="takeaway">${textBlock(slots.takeaway)}</div>` : ''}</div>`;
   },
 
   'industry-breakdown'(slots, ctx) {
-    need(slots, 'industry-breakdown', ['title', 'layers']);
+    need(slots, 'industry-breakdown', ['title', 'story', 'layers']);
     const layers: any[] = slots.layers;
     if (layers.length < 2 || layers.length > 9)
       fail(`industry-breakdown takes 2–9 layers (got ${layers.length})`);
@@ -198,32 +216,31 @@ const templates: Record<string, (slots: Record<string, any>, ctx: Ctx) => string
       <span><i style="background:#15803d"></i>scarce</span>
       <span><i style="background:#b45309"></i>contested</span>
       <span><i style="background:var(--muted)"></i>commoditized</span></div>`;
-    return `${brandStrip(ctx)}${titleBlock(slots)}<div class="page-body">${legend}
+    return `${pageTop(slots, ctx)}<div class="page-body">${legend}
       <div class="layers">${cards}</div>
       ${slots.takeaway ? `<div class="takeaway">${textBlock(slots.takeaway)}</div>` : ''}</div>`;
   },
 
   'price-chart-technicals'(slots, ctx) {
-    need(slots, 'price-chart-technicals', ['title', 'chart', 'commentary']);
+    need(slots, 'price-chart-technicals', ['title', 'story', 'chart', 'commentary']);
     const blocks: TextBlock[] = slots.commentary;
     if (blocks.length < 1 || blocks.length > 4)
       fail(`price-chart-technicals takes 1–4 commentary blocks (got ${blocks.length})`);
-    const height = ctx.deck ? 380 : 480; // px; deck slide is 720px tall, A4 content ~1030px
-    return `${brandStrip(ctx)}${titleBlock(slots)}<div class="page-body">
+    // Deck slide is 720px tall; A4 content ~990px. Story+stats live at the top now.
+    const height = ctx.deck ? 330 : 520;
+    return `${pageTop(slots, ctx)}<div class="page-body">
       <div class="chart-zone">${chartHtml(slots.chart, ctx.contractPath, height)}</div>
-      <div class="commentary-cols">${blocks.map(textBlock).join('')}</div>
-      ${slots.stats ? `<div class="stats-row">${slots.stats.map((s: any) =>
-        `<span class="stat"><b>${escapeHtml(s.label)}</b> ${escapeHtml(s.value)}</span>`).join('')}</div>` : ''}</div>`;
+      <div class="commentary-cols">${blocks.map(textBlock).join('')}</div></div>`;
   },
 
   'table-commentary'(slots, ctx) {
-    need(slots, 'table-commentary', ['title', 'table', 'commentary']);
+    need(slots, 'table-commentary', ['title', 'story', 'table', 'commentary']);
     const { columns, rows } = slots.table as { columns: string[]; rows: string[][] };
     if (ctx.deck && rows.length > 10)
       fail(`table-commentary in presentation mode takes ≤10 rows (got ${rows.length}) — split across two slides`);
     const table = `<table class="data"><thead><tr>${columns.map((c) => `<th>${escapeHtml(c)}</th>`).join('')}</tr></thead>
       <tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${escapeHtml(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
-    return `${brandStrip(ctx)}${titleBlock(slots)}<div class="page-body"><div class="tc-split">
+    return `${pageTop(slots, ctx)}<div class="page-body"><div class="tc-split">
       <div class="tc-table">${table}</div>
       <div class="tc-note">${textBlock(slots.commentary)}</div></div></div>`;
   },

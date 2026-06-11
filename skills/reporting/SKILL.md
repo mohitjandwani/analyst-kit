@@ -15,19 +15,43 @@ requires:
   - charting
 ---
 
-# Reporting — charts + tables + text → branded PDF
+# Reporting — storyline → branded PDF
 
-A JSON **report contract** describes the document as pages that reference shipped
-templates. One script assembles a self-contained HTML document (Highcharts vendored
-from the sibling charting skill, inlined once — no network at render time) and prints
-it to PDF with Playwright. This is a working default, not a requirement — extend the
-contract or templates rather than hand-writing report HTML.
+**This skill does exactly one job**: take a *storyline* — an ordered set of pages,
+each with its point, plus the already-generated UI elements (chart contracts) and
+data (tables, text) — and turn it into a beautiful PDF. It does **not** decide what
+the report should say: the storyline arrives pre-decided (from the user, the
+orchestrating agent, or an upstream skill). Reporting owns only the layout and the
+rendering.
 
 ```
-analysis output (chart contracts / tables / text)
+storyline (pages, each: point + modules + data)
         ─► report contract (JSON)
         ─► bun scripts/render.ts contract.json out/report.pdf
 ```
+
+A JSON **report contract** encodes the storyline against shipped templates. One
+script assembles a self-contained HTML document (Highcharts vendored from the
+sibling charting skill, inlined once — no network at render time) and prints it to
+PDF with Playwright.
+
+## Designing a page — think in this order
+
+For every page of the storyline, answer three questions **in order**:
+
+1. **What is the main point of this page?** One sentence. It goes in the page's
+   `story` slot (required on every data page) and renders as a banner under the
+   title — the reader gets the conclusion before the evidence. Put the headline
+   numbers the user actually asked for (entry/exit price, latest YoY, the verdict)
+   in `stats` chips right below it.
+2. **Which modules does the point need?** Chart, table, commentary, rating matrix,
+   layer cards — pick the template whose modules match.
+3. **How do the modules arrange?** Pick the mode (`report` = portrait A4 document,
+   `presentation` = 16:9 deck) and let the template lay the modules out. One point
+   per page — if a page is making two points, split it.
+
+A page with lots of empty space or no `story` is a page whose point was never
+decided — fix the storyline, not the CSS.
 
 ## Fast path
 
@@ -102,12 +126,17 @@ so it survives skill reinstalls and is reused across reports:
 | Template | Required slots | Optional slots | Typical source |
 |---|---|---|---|
 | `cover` | `title` | `subtitle`, `kicker`, `date` | — |
-| `comparison` | `title`, `companies` (2–7) | `subtitle`, `takeaway` | thematic-investing sensitivity / exposure tables |
-| `industry-breakdown` | `title`, `layers` (2–9) | `subtitle`, `takeaway` | thematic-investing value-chain map |
-| `price-chart-technicals` | `title`, `chart`, `commentary` (1–4 blocks) | `subtitle`, `stats`, `source` | charting `price` builder |
-| `table-commentary` | `title`, `table`, `commentary` | `subtitle`, `source` | sec-filings KPIs, any tabular data |
+| `comparison` | `title`, `story`, `companies` (2–7) | `subtitle`, `stats`, `takeaway`, `source` | thematic-investing sensitivity / exposure tables |
+| `industry-breakdown` | `title`, `story`, `layers` (2–9) | `subtitle`, `stats`, `takeaway`, `source` | thematic-investing value-chain map |
+| `price-chart-technicals` | `title`, `story`, `chart`, `commentary` (1–4 blocks) | `subtitle`, `stats`, `source` | charting `price` builder |
+| `table-commentary` | `title`, `story`, `table`, `commentary` | `subtitle`, `stats`, `source` | sec-filings KPIs, any tabular data |
 
 Slot shapes:
+
+- **story** — *required on every data page.* The one-sentence point of the page,
+  conclusion-first (supports `**bold**`). Renders as a banner under the title.
+- **stats** — `[{ "label": "Entry", "value": "$215" }]` key-number chips rendered
+  under the story on any template. Put the numbers the user asked for here.
 
 - **chart** — a path to a charting **contract** JSON (preferred), or
   `{ "image": "chart.png" }` as an escape hatch. Never pass charting's pre-rendered
@@ -123,18 +152,22 @@ Slot shapes:
   negatives) per charting's data-unit conventions.
 - **commentary / takeaway** — `{ "heading", "body" }`; body supports `**bold**`,
   `*italic*`, and `- ` bullet lines only.
-- **stats** — `[{ "label": "52-wk range", "value": "$169 – $242" }]` chip row.
 
-Default skeleton when the user just says "make a report": `cover` → one chart page →
-`table-commentary`. For "make a deck/presentation", same content with
-`meta.mode: "presentation"` and one idea per slide.
+Default skeleton when the storyline isn't fully specified: `cover` → one chart page →
+`table-commentary`. For "make a deck/presentation", same storyline with
+`meta.mode: "presentation"` and one point per slide.
 
 ## Rules
 
+- **Storyline in, PDF out — nothing else.** Don't gather data, build charts, or
+  invent narrative here; that happens upstream. If the storyline is missing a page's
+  point, push back upstream rather than padding the page.
+- **Every data page states its point.** `story` is required; the renderer errors
+  without it. Headline numbers go in `stats`, not buried in prose.
 - **Compute upstream, never in prose.** Numbers come from the data pipelines
   (charting's Polars layer, sec-filings extracts) already formatted; this skill only
   lays them out.
-- **One idea per slide** in presentation mode. Respect the row caps (7 companies,
+- **One point per page/slide.** Respect the row caps (7 companies,
   10 table rows per slide) — the renderer errors past them; split across pages.
 - **Always cite `source`** on data-bearing pages (renders in the footer).
 - **Don't hand-write report HTML.** If a layout doesn't exist, add a template function

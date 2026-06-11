@@ -61,8 +61,20 @@ footer.pg .src { flex: 1; }
 .tb ul { padding-left: 1.2em; }
 .tb li { margin-bottom: 0.2em; }
 
+/* The point of the page — conclusion before evidence. */
+.story {
+  background: var(--panel);
+  border-left: 4px solid var(--primary);
+  padding: 0.6em 1em;
+  border-radius: 4px;
+  margin-bottom: 0.9em;
+  font-size: 1.05em;
+}
+.story strong { color: var(--primary); }
+.story p { margin: 0; }
+
 .takeaway {
-  margin-top: auto;
+  margin-top: 1em;
   background: var(--panel);
   border-left: 4px solid var(--accent);
   padding: 0.7em 1em;
@@ -98,7 +110,7 @@ table.matrix .co .tk { color: var(--muted); font-weight: 500; font-size: 0.85em;
 .pill.low    { background: #fee2e2; color: #b91c1c; }
 
 /* ── industry-breakdown ─────────────────────────────────────── */
-.layers { display: flex; flex-direction: column; gap: 0.45em; flex: 1; min-height: 0; }
+.layers { display: flex; flex-direction: column; gap: 0.45em; }
 .layer-card {
   background: var(--panel); border-left: 5px solid var(--muted);
   border-radius: 4px; padding: 0.5em 0.9em;
@@ -127,7 +139,7 @@ table.matrix .co .tk { color: var(--muted); font-weight: 500; font-size: 0.85em;
   grid-auto-flow: column; grid-auto-columns: 1fr;
 }
 body.report .commentary-cols { grid-auto-flow: row; grid-template-columns: 1fr 1fr; }
-.stats-row { display: flex; gap: 0.6em; margin-top: 0.8em; flex-wrap: wrap; }
+.stats-row { display: flex; gap: 0.6em; margin: 0 0 0.9em; flex-wrap: wrap; }
 .stat {
   background: var(--panel); border-radius: 4px; padding: 0.3em 0.8em; font-size: 0.8em;
 }
