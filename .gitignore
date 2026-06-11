@@ -19,3 +19,6 @@ build/
 test/e2e/logs/
 test/e2e/pdfs/
 .gstack/
+
+# manual-test UI run artifacts (prices, charts, PDFs per run)
+tools/ta-tester/runs/
