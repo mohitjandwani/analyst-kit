@@ -11,6 +11,15 @@
       "runtime": "python"
     },
     {
+      "name": "analyst-playbook",
+      "folder": "analyst-playbook",
+      "type": "capability",
+      "description": "How to structure any financial analysis before fetching a single number: decide the deliverable (report/deck vs financial-model update), align fiscal calendars and data frequencies, normalize units, route each data series to the right skill, and apply sector-specific conventions (reporting calendars, KPIs, seasonality, valuation norms) from per-sector playbooks loaded on demand. Triggers: \"how should I structure this analysis\", \"compare X and Y\", \"analyze <company> properly\", \"what matters for this sector\", \"which metrics should I use for X\", \"build an analysis plan for Y\".",
+      "requires": [],
+      "env": [],
+      "runtime": "none"
+    },
+    {
       "name": "charting",
       "folder": "charting",
       "type": "capability",
@@ -123,5 +132,7 @@
       "runtime": "bun"
     }
   ],
-  "skipped": []
+  "skipped": [
+    "model-updater"
+  ]
 }
