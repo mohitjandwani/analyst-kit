@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Skill + packaging linter. Enforces the house contract (ARCHITECTURE.md §3, §7)
+// Skill + packaging linter. Enforces the house contract (CLAUDE.md "Skill contract")
 // so the repo stays installable. Exits non-zero on any error.
 
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
@@ -27,23 +27,23 @@ const declaredEnv = new Set(Object.keys(parseEnvFile(ENV_EXAMPLE)));
 for (const s of skills) {
   if (s.name !== s.folder) err(`[${s.folder}] name "${s.name}" must equal folder name`);
   if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(s.name)) err(`[${s.name}] name must be kebab-case`);
-  if (s.type !== 'capability' && s.type !== 'composite') err(`[${s.name}] type must be capability|composite (got "${s.type}")`);
+  if (s.type !== 'capability' && s.type !== 'workflow') err(`[${s.name}] type must be capability|workflow (got "${s.type}")`);
   if (!s.description || s.description.length < 40) err(`[${s.name}] description too short`);
   if (!/Triggers:/.test(s.description)) err(`[${s.name}] description must contain a "Triggers:" clause`);
   if (s.bodyLength === 0) err(`[${s.name}] SKILL.md has an empty body`);
-  if (s.type === 'capability' && s.requires.length) err(`[${s.name}] capability must not declare requires`);
 
   for (const dep of s.requires) {
     const d = byName.get(dep);
     if (!d) err(`[${s.name}] requires "${dep}" which does not exist`);
-    else if (d.type !== 'capability') err(`[${s.name}] requires "${dep}" but it is a ${d.type} (composites may only require capabilities)`);
+    else if (d.type !== 'capability') err(`[${s.name}] requires "${dep}" but it is a ${d.type} (nothing may require a workflow)`);
   }
   for (const v of s.env) {
     if (!declaredEnv.has(v)) err(`[${s.name}] env var ${v} not declared in .env.example`);
   }
 }
 
-// Cycle check (composite → capability only, so this is mostly a guard)
+// Cycle check — load-bearing: capabilities may require capabilities, so a
+// requires chain (e.g. reporting → charting) could loop without this.
 function hasCycle() {
   const state = new Map();
   const visit = (name, trail) => {

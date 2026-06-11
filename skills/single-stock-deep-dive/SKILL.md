@@ -1,6 +1,6 @@
 ---
 name: single-stock-deep-dive
-type: composite
+type: workflow
 description: >
   Forensic, decision-useful single-stock deep dive for investors and traders. Covers
   analysis/research on any individual stock, short theses, catalyst identification,

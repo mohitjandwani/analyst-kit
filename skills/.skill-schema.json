@@ -11,7 +11,7 @@
       "description": "kebab-case; MUST equal the skill folder name"
     },
     "type": {
-      "enum": ["capability", "composite"]
+      "enum": ["capability", "workflow"]
     },
     "description": {
       "type": "string",
@@ -22,7 +22,7 @@
     "requires": {
       "type": "array",
       "items": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
-      "description": "composite only — capability skill names this composite uses"
+      "description": "skill names this skill uses — must all be capabilities (nothing may require a workflow); cycles are rejected by the validator"
     },
     "env": {
       "type": "array",
@@ -30,11 +30,5 @@
       "description": "environment variables / API keys the skill needs"
     }
   },
-  "allOf": [
-    {
-      "if": { "properties": { "type": { "const": "capability" } } },
-      "then": { "not": { "required": ["requires"] } }
-    }
-  ],
   "additionalProperties": true
 }
