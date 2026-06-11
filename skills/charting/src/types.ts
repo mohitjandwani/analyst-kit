@@ -9,7 +9,7 @@ export type Role =
   | 'positive' | 'negative' | 'estimate' | 'total'
   | 'segment' | 'signed' | 'waterfall';
 
-export type SeriesKind = 'line' | 'column' | 'area' | 'waterfall' | 'candlestick';
+export type SeriesKind = 'line' | 'column' | 'area' | 'arearange' | 'waterfall' | 'candlestick';
 
 export interface YAxisSpec {
   id: string;
@@ -19,6 +19,9 @@ export interface YAxisSpec {
   percent?: boolean;
   opposite?: boolean;  // secondary axis on the right
   decimals?: number;   // fixed decimals (e.g. 2 for EPS/per-share); omit = convention default
+  /** Extra Highcharts yAxis options merged verbatim — e.g. `top`/`height` percentages
+   *  to stack panes (price / volume / RSI) on one chart, or `plotBands` for zones. */
+  opts?: Record<string, any>;
 }
 
 export interface AxisSpec {

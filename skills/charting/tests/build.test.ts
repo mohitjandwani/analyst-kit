@@ -166,6 +166,28 @@ describe('buildOptions — financial correctness', () => {
       expect(o.title.text, name).toBeTruthy();
     }
   });
+
+  it('stacked panes: yAxis opts (top/height) pass through; arearange band maps natively', () => {
+    const o = buildOptions({
+      title: 'AAPL — technicals',
+      axis: { type: 'datetime' },
+      yAxes: [
+        { id: 'price', name: 'Price', currency: '$', decimals: 2, opts: { top: '0%', height: '70%' } },
+        { id: 'rsi', name: 'RSI', opts: { top: '72%', height: '28%', plotBands: [{ from: 30, to: 70 }] } },
+      ],
+      series: [
+        { name: 'Price', kind: 'candlestick', yAxis: 'price', role: 'primary', data: [[0, 1, 2, 0.5, 1.5]] },
+        { name: 'BB', kind: 'arearange', yAxis: 'price', role: 'neutral', data: [[0, 0.8, 1.8]] },
+        { name: 'RSI(14)', kind: 'line', yAxis: 'rsi', role: 'secondary', data: [[0, 55]] },
+      ],
+      meta: { stock: true },
+    });
+    expect(o.yAxis[0]).toMatchObject({ top: '0%', height: '70%' });
+    expect(o.yAxis[1]).toMatchObject({ top: '72%', height: '28%' });
+    expect(o.yAxis[1].plotBands).toHaveLength(1);
+    expect(o.series[1].type).toBe('arearange');
+    expect(o.series[2].yAxis).toBe(1); // RSI series bound to its pane
+  });
 });
 
 function data_len(name: string): number {

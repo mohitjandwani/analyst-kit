@@ -31,6 +31,20 @@ describe('scriptsFor', () => {
     expect(scriptsFor(false, true).some((s) => s.includes('highcharts-more'))).toBe(true);
     expect(scriptsFor(false, false).some((s) => s.includes('highcharts-more'))).toBe(false);
   });
+
+  it('arearange (e.g. Bollinger band) also pulls in highcharts-more', () => {
+    const html = renderChartPage(
+      {
+        title: 'band',
+        axis: { type: 'datetime' },
+        yAxes: [{ id: 'p', name: 'Price' }],
+        series: [{ name: 'BB', kind: 'arearange', yAxis: 'p', role: 'neutral', data: [[0, 1, 2]] }],
+        meta: { stock: true },
+      },
+      { cdnScripts: true },
+    );
+    expect(html).toContain('highcharts-more.js');
+  });
 });
 
 describe('renderChartPage — self-contained HTML', () => {

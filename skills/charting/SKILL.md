@@ -66,8 +66,12 @@ boundary **already scaled**; the TS layer formats and draws.
 
 - **`role`** → color in the TS layer: `primary` · `secondary` · `neutral` · `positive` ·
   `negative` · `estimate` · `total` · `segment` · `signed` · `waterfall`.
-- **`kind`** → Highcharts series type: `line` · `column` · `area` · `waterfall` · `candlestick`.
+- **`kind`** → Highcharts series type: `line` · `column` · `area` · `arearange` (shaded
+  band, e.g. Bollinger — points are `[ts, low, high]`) · `waterfall` · `candlestick`.
 - **`yAxes[]`** carry `unit` / `currency` / `percent` / `decimals` (see the units table).
+  An optional `opts` object passes Highcharts yAxis options through verbatim — set
+  `top`/`height` percentages to stack panes (price / volume / RSI / MACD on one chart)
+  or `plotBands` for indicator zones.
 - **`meta`**: `variant` (`stacked|percent|grouped`) drives column stacking; `stock: true`
   selects Highcharts Stock (navigator + range selector); `zeroLine: true` draws a 0 baseline.
 

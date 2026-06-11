@@ -15,7 +15,7 @@ import {
 import type { BuildOpts, ChartOptions, FinalData, SeriesSpec, YAxisSpec } from '../types.js';
 
 const HC_TYPE: Record<string, string> = {
-  line: 'line', column: 'column', area: 'area',
+  line: 'line', column: 'column', area: 'area', arearange: 'arearange',
   waterfall: 'waterfall', candlestick: 'candlestick',
 };
 
@@ -72,6 +72,8 @@ export function buildOptions(d: FinalData, opts: BuildOpts = {}): ChartOptions {
     if (a.percent && d.meta?.zeroLine) {
       ax.plotLines = [{ value: 0, color: AXIS_LABEL, width: 1, zIndex: 3 }];
     }
+    // passthrough Highcharts yAxis options from the contract (top/height for panes, plotBands…)
+    if (a.opts) Object.assign(ax, a.opts);
     return ax;
   });
 

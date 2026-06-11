@@ -70,7 +70,7 @@ function inlineTagsFor(useStock: boolean, needsMore: boolean): string {
 export function renderChartPage(d: FinalData, opts: BuildOpts = {}): string {
   const options = buildOptions(d, opts);
   const useStock = opts.stock ?? !!d.meta?.stock;
-  const needsMore = d.series.some((s) => s.kind === 'waterfall');
+  const needsMore = d.series.some((s) => s.kind === 'waterfall' || s.kind === 'arearange');
   const ctor = useStock ? 'stockChart' : 'chart';
   const tags = opts.cdnScripts
     ? scriptsFor(useStock, needsMore).map((s) => `<script src="${s}"></script>`).join('\n  ')
