@@ -112,6 +112,17 @@
       "runtime": "none"
     },
     {
+      "name": "technical-analysis",
+      "folder": "technical-analysis",
+      "type": "workflow",
+      "description": "Run a disciplined technical analysis of a stock and produce concrete entry and exit levels. Classifies the market regime first (trend vs range via ADX + long-MA), scores a three-layer confluence stack (regime → momentum → trigger), and computes ATR-based stops, position size, trailing exits, and targets — all from a zero-dependency Python indicator engine (RSI, MACD, Bollinger, ATR, ADX, Donchian, Supertrend, OBV). Emits chart contracts for the charting skill (multi-pane price/volume/MACD/RSI dashboard, levels chart) and report-ready tables for a branded PDF via the reporting skill. Market data is pluggable: any installed data skill that yields daily OHLCV works (financialmodellingprep, finmind). Adapts to the user's daily or weekly trading timeframe. Triggers: \"technical analysis of X\", \"good entry point for Y\", \"entry and exit points for Z\", \"where should I set my stop\", \"is X overbought\", \"chart Y with RSI and MACD\", \"should I buy this breakout\", \"technical setup for <ticker>\", \"support and resistance levels for X\".",
+      "requires": [
+        "charting"
+      ],
+      "env": [],
+      "runtime": "python"
+    },
+    {
       "name": "thematic-investing",
       "folder": "thematic-investing",
       "type": "workflow",

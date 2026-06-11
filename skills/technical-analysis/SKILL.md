@@ -1,0 +1,213 @@
+---
+name: technical-analysis
+type: workflow
+description: >
+  Run a disciplined technical analysis of a stock and produce concrete entry and exit
+  levels. Classifies the market regime first (trend vs range via ADX + long-MA), scores a
+  three-layer confluence stack (regime → momentum → trigger), and computes ATR-based
+  stops, position size, trailing exits, and targets — all from a zero-dependency Python
+  indicator engine (RSI, MACD, Bollinger, ATR, ADX, Donchian, Supertrend, OBV). Emits
+  chart contracts for the charting skill (multi-pane price/volume/MACD/RSI dashboard,
+  levels chart) and report-ready tables for a branded PDF via the reporting skill.
+  Market data is pluggable: any installed data skill that yields daily OHLCV works
+  (financialmodellingprep, finmind). Adapts to the user's daily or weekly trading
+  timeframe. Triggers: "technical analysis of X", "good entry point for Y", "entry and
+  exit points for Z", "where should I set my stop", "is X overbought", "chart Y with
+  RSI and MACD", "should I buy this breakout", "technical setup for <ticker>",
+  "support and resistance levels for X".
+requires:
+  - charting
+---
+
+# Technical analysis — regime-first entries & exits
+
+Match the indicator to the market regime, demand confluence across three layers, and
+define the exit before the entry. A pure-Python engine computes every number; you read
+`analysis.json` and interpret — **never compute an indicator, stop, or position size in
+your head**.
+
+```
+daily OHLCV (any market-data skill) ─► scripts/indicators.py ─► analysis.json
+                                                              ├► dashboard-contract.json ─► charting render
+                                                              └► levels-contract.json    ─► reporting PDF
+```
+
+Full playbook (indicator selection, failure handling, confluence method):
+[`references/playbook.md`](references/playbook.md). Read it before interpreting results
+for the first time in a session.
+
+## Step 0 — trader profile (ask once, persist)
+
+Profile lives in the **project working directory** at `ta-profile.json` so it survives
+skill reinstalls:
+
+```json
+{ "timeframe": "daily", "risk_pct": 1.0, "capital": 100000, "currency": "$" }
+```
+
+- **First use**: if `./ta-profile.json` doesn't exist, ask once: *"Do you trade off the
+  daily or weekly chart? What % of capital do you risk per trade (default 1%), and
+  roughly what capital base — or say skip?"* Write the file with their answers; on
+  "skip" use `{"timeframe": "daily", "risk_pct": 1.0}` and don't ask again this session.
+- **Present**: use it silently; mention the timeframe in your summary.
+- `timeframe` drives everything: the engine analyzes the trading timeframe and
+  automatically computes the regime one timeframe up (daily→weekly, weekly→monthly),
+  per the playbook's multi-timeframe rule. Without `capital`, levels still come out —
+  only share counts are omitted.
+
+## Step 1 — market data (pluggable)
+
+This skill does **not** fetch prices. Get daily OHLCV from whichever market-data skill
+is installed, then hand the engine a JSON file shaped as:
+
+```json
+[{ "date": "YYYY-MM-DD", "open": 1.0, "high": 1.2, "low": 0.9, "close": 1.1, "volume": 1000 }]
+```
+
+| Installed skill | How to get it | Notes |
+|---|---|---|
+| `financialmodellingprep` | `GET /api/v3/historical-price-full/{ticker}?from=…&to=…` | Save the raw response as-is — the engine auto-unwraps `{symbol, historical}` and adjusts OHLC by `adjClose` (disable with `--no-adjust`) |
+| `finmind` | `TaiwanStockPrice` dataset for the stock id | Rename fields to the contract shape if they differ |
+| anything else | any source of daily bars | Normalise to the contract shape above |
+
+**History depth:** fetch ≥ 2 years of daily bars for daily analysis (the 200-SMA layer
+plus the weekly regime need ~300; the engine warns when short). For a weekly trading
+timeframe fetch ≥ 5 years. More history never hurts; the engine resamples internally —
+**always feed it daily bars**.
+
+## Step 2 — run the engine
+
+```bash
+python3 scripts/indicators.py prices.json --out-dir out/ \
+  --timeframe daily --symbol AAPL --currency '$' --risk-pct 1.0 --capital 100000
+```
+
+Writes three files and prints a one-line verdict:
+
+- **`analysis.json`** — everything you need to talk about the setup:
+  `regime_higher_tf` + `regime` (ADX, close-vs-long-MA, squeeze flag), `scorecard`
+  (the 4-check confluence vote and verdict), `signals` (recent triggers: Donchian
+  breakout, RSI(2) dip, supertrend flip, MACD cross, band re-entry…), `levels`
+  (long *and* short plans: ATR/structural stops, suggested stop, 2R/3R targets,
+  chandelier + supertrend trails, position sizing), pre-formatted `tables` for
+  reporting, and a `recent` 10-bar indicator snapshot.
+- **`dashboard-contract.json`** — 4-pane chart contract (candles + EMA20/SMA50/long-SMA
+  + Bollinger band, volume, MACD, RSI) with recent signals as flags.
+- **`levels-contract.json`** — recent closes + Supertrend + Donchian channel with
+  entry/stop/target/trail drawn as labelled plotLines.
+
+## Step 3 — interpret (regime first, confluence second)
+
+1. **State the regime** — higher timeframe first, then trading timeframe. Trend tools
+   in trends, mean-reversion in ranges; if they disagree, trade only in the higher
+   timeframe's direction (or stand aside).
+2. **Read the scorecard** — trade only at |score| ≥ 2. Score < 2 means "no edge — stand
+   aside" and you should say exactly that; a flat call is a complete, honest answer.
+3. **Match signals to regime** — a Donchian breakout matters in a squeeze/trend;
+   RSI(2) dips only above the long MA; band fades only in a range. RSI >70/<30 is
+   *trend strength* in a trend, a fade only in a range.
+4. **Always give the exit with the entry** — suggested stop (and why: structural vs
+   ATR), position size from the profile's risk %, the trail rule (chandelier or
+   supertrend flip), and the invalidation ("close back inside the range kills the
+   breakout thesis — exit, don't wait for the stop").
+5. When a setup fails or the user reports losses, diagnose with the playbook's failure
+   table (regime mismatch → costs → overfit), in that order.
+
+## Step 4 — charts
+
+Render either contract with the charting skill (sibling install):
+
+```bash
+cd ../charting && bun scripts/render.ts ../technical-analysis/out/dashboard-contract.json out/dashboard.html
+```
+
+The contracts already use charting's pane (`yAxes[].opts.top/height`) and `arearange`
+band support — adapt them freely (charting's SKILL.md documents the format).
+
+## Step 5 — PDF report (reporting skill, if installed)
+
+Assemble a report contract: cover → dashboard chart page → levels page → tables. Use
+`analysis.json`'s pre-formatted `tables` verbatim — never re-derive numbers in prose.
+Every data page needs a one-sentence `story` (the page's conclusion) and the headline
+numbers as `stats` chips — pull both straight from `analysis.json`'s verdict and levels.
+A top-level `references` array is required (the data source belongs there).
+
+```json
+{
+  "meta": { "mode": "report", "title": "AAPL — Technical Analysis" },
+  "pages": [
+    { "template": "cover", "slots": { "title": "AAPL", "kicker": "Technical Analysis",
+        "subtitle": "Daily timeframe · regime: trending-up" } },
+    { "template": "price-chart-technicals", "slots": {
+        "title": "Dashboard — price, volume, MACD, RSI",
+        "story": "Weekly and daily agree: **uptrend** with confluence score +3 — long setups only.",
+        "chart": "./out/dashboard-contract.json",
+        "levels": [ { "value": 214.30, "label": "Entry $214.30", "kind": "entry" },
+                    { "value": 205.10, "label": "Stop $205.10", "kind": "exit" } ],
+        "commentary": [
+          { "heading": "Regime (weekly → daily)", "body": "…your read…" },
+          { "heading": "Momentum", "body": "…" },
+          { "heading": "Trigger", "body": "…" } ],
+        "stats": [ { "label": "Score", "value": "+3 — long bias" },
+                   { "label": "ADX(14)", "value": "31" } ],
+        "sources": [1] } },
+    { "template": "price-chart-technicals", "slots": {
+        "title": "Entry & exit levels",
+        "story": "Enter near $214 with a structural stop at $205; the plan risks 1R for a 2R first target.",
+        "chart": "./out/levels-contract.json",
+        "commentary": [ { "heading": "The plan", "body": "…entry, stop, target, trail…" } ],
+        "stats": [ { "label": "Entry", "value": "$214.30" }, { "label": "Stop", "value": "$205.10" },
+                   { "label": "Target 2R", "value": "$232.70" } ],
+        "sources": [1, 2] } },
+    { "template": "table-commentary", "slots": {
+        "title": "Trade plan",
+        "story": "The trade is invalid below the swing low — exit there, not at hope.",
+        "table": "<analysis.tables.levels here>",
+        "commentary": { "heading": "Invalidation", "body": "…scorecard bullets + exit rules…" },
+        "sources": [2] } }
+  ],
+  "references": [
+    { "label": "Daily OHLCV, AAPL", "detail": "Financial Modeling Prep, adjusted close" },
+    { "label": "Indicator & level computation", "detail": "technical-analysis engine (ATR-based stops, fractal swing structure)" }
+  ]
+}
+```
+
+Slot shapes to respect: `price-chart-technicals` takes a **list** of 1–4 commentary
+blocks; `table-commentary` takes a **single** block. The `levels` slot draws
+entry/stop lines **on the chart's price pane** — use it on the dashboard page (the
+engine's `levels-contract.json` already embeds its own lines, so don't double-draw
+there). Cite data sources via `sources: [n]` into `references`.
+
+Then `bun scripts/render.ts report.json out/report.pdf` from the reporting skill.
+Commentary is yours to write — grounded in `analysis.json` values only.
+
+## Rules
+
+1. **Regime first.** Never recommend an oscillator fade in a trend or a breakout chase
+   in a dead range. Cause #1 of failed signals is regime mismatch.
+2. **One indicator per layer.** RSI + Stochastic + Williams %R is one opinion three
+   times. The scorecard already picks one per layer — don't pile on more.
+3. **No exit, no entry.** Every recommendation states stop, size, trail, and
+   invalidation before discussing upside. Strict entries, fast exits.
+4. **Compute, don't reason.** Every number you quote exists in `analysis.json`. If you
+   need a number that isn't there, extend the engine — don't do arithmetic in prose.
+5. **Probabilistic framing.** Signals fail ~half the time; say so. Judge a method over
+   50+ trades (expectancy), never one. This is educational analysis, not financial
+   advice — say that once per report (the PDF footer is a good place).
+
+## Files
+
+```
+technical-analysis/
+  SKILL.md
+  scripts/indicators.py     ← the engine (pure Python, no deps)
+  references/playbook.md    ← full indicator playbook: when to use what, failure handling
+  tests/test_indicators.py  ← pytest: indicator math, resampling, regime, contracts
+```
+
+## Tests
+
+```bash
+python3 -m pytest tests -q    # offline, synthetic data
+```
