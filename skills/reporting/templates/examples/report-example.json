@@ -1,0 +1,56 @@
+{
+  "meta": {
+    "mode": "report",
+    "title": "Apple Inc. (AAPL) — Quarterly Review",
+    "subtitle": "Price action and revenue snapshot",
+    "date": "June 2026",
+    "footer": "For internal use only"
+  },
+  "pages": [
+    {
+      "template": "cover",
+      "slots": {
+        "kicker": "Equity Research",
+        "title": "Apple Inc. (AAPL)",
+        "subtitle": "Quarterly review — price action and revenue snapshot"
+      }
+    },
+    {
+      "template": "price-chart-technicals",
+      "slots": {
+        "title": "AAPL — price action",
+        "subtitle": "Daily candles, 2023–2026",
+        "chart": "../../../charting/tests/contracts/price_candlestick.json",
+        "commentary": [
+          { "heading": "Trend", "body": "Primary uptrend intact above the 200-day average. Higher lows since the October trough; momentum **constructive** but extended." },
+          { "heading": "Levels", "body": "- Support: $215 (prior breakout), $198 (200-dma)\n- Resistance: $242 all-time high\n- Risk/reward favors waiting for a pullback toward support" }
+        ],
+        "stats": [
+          { "label": "52-wk range", "value": "$169 – $242" },
+          { "label": "vs 200-dma", "value": "+9.4%" }
+        ],
+        "source": "Daily OHLC, company data"
+      }
+    },
+    {
+      "template": "table-commentary",
+      "slots": {
+        "title": "Revenue snapshot",
+        "table": {
+          "columns": ["Quarter", "Revenue", "YoY"],
+          "rows": [
+            ["Q3 FY25", "$85.8B", "+4.9%"],
+            ["Q4 FY25", "$94.9B", "+6.1%"],
+            ["Q1 FY26", "$124.3B", "+3.9%"],
+            ["Q2 FY26", "$90.8B", "+5.1%"]
+          ]
+        },
+        "commentary": {
+          "heading": "Analyst view",
+          "body": "Growth re-accelerated on Services strength while Products stayed flat. Watch:\n- Services mix now above one quarter of revenue\n- Gross margin tailwind from mix shift\n- FX drag fading into H2"
+        },
+        "source": "Company 10-Q filings"
+      }
+    }
+  ]
+}

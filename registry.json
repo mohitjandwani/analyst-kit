@@ -74,13 +74,15 @@
       "runtime": "python"
     },
     {
-      "name": "infographics",
-      "folder": "infographics",
-      "type": "capability",
-      "description": "It helps you generate beautiful infographics for our hedge fund analyst knowledge base. Triggers: want to visualize a concept, need an infographic for a topic.",
-      "requires": [],
+      "name": "reporting",
+      "folder": "reporting",
+      "type": "composite",
+      "description": "Assemble charts, tables, and analyst text into a beautiful, branded PDF — either a multi-page portrait report (A4) or a 16:9 landscape presentation deck like Google Slides. Ships page templates (comparison matrix, industry breakdown, full-bleed price chart with technical commentary, data table with commentary) that consume output from the charting, thematic-investing, and sec-filings skills. Remembers your logo and brand colors after first use. Triggers: \"generate a PDF report\", \"turn this analysis into a deck\", \"make a presentation of these charts\", \"client-ready report\", \"export to PDF\", \"slides comparing these companies\", \"branded research report\", \"investment memo PDF\".",
+      "requires": [
+        "charting"
+      ],
       "env": [],
-      "runtime": "none"
+      "runtime": "bun"
     },
     {
       "name": "sec-filings",

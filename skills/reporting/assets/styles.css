@@ -1,0 +1,155 @@
+/* Reporting skill — print stylesheet for both modes.
+   Brand colors/fonts arrive as CSS custom properties emitted by render.ts.
+   Page size (@page) is emitted by render.ts per mode; this file owns layout. */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  font-family: var(--font-body);
+  color: var(--text);
+  background: var(--bg);
+  font-size: 11pt;
+  line-height: 1.45;
+}
+
+/* ── Page boxes ─────────────────────────────────────────────── */
+.page {
+  position: relative;
+  overflow: hidden;
+  break-after: page;
+  display: flex;
+  flex-direction: column;
+}
+.page:last-child { break-after: auto; }
+
+body.report .page { width: 210mm; height: 297mm; padding: 16mm 16mm 14mm; }
+body.presentation .page { width: 13.333in; height: 7.5in; padding: 0.45in 0.55in 0.4in; }
+body.presentation { font-size: 12pt; }
+
+/* ── Shared chrome: brand strip, title block, footer ────────── */
+.brand-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.6em;
+}
+.brand-strip img.logo { height: 26px; }
+body.presentation .brand-strip img.logo { height: 30px; }
+.brand-strip .company { font-size: 0.8em; font-weight: 600; color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase; }
+
+.title-block { border-bottom: 2.5px solid var(--accent); padding-bottom: 0.4em; margin-bottom: 1em; }
+.title-block h1 { font-family: var(--font-heading); font-size: 1.7em; color: var(--primary); line-height: 1.15; }
+.title-block .subtitle { color: var(--muted); margin-top: 0.2em; font-size: 1em; }
+
+.page-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+
+footer.pg {
+  display: flex;
+  justify-content: space-between;
+  gap: 1em;
+  margin-top: 0.8em;
+  padding-top: 0.5em;
+  border-top: 1px solid var(--panel);
+  font-size: 0.72em;
+  color: var(--muted);
+}
+footer.pg .src { flex: 1; }
+
+/* ── Text ───────────────────────────────────────────────────── */
+.tb { margin-bottom: 0.8em; }
+.tb h3 { font-family: var(--font-heading); color: var(--primary); font-size: 1em; margin-bottom: 0.25em; }
+.tb ul { padding-left: 1.2em; }
+.tb li { margin-bottom: 0.2em; }
+
+.takeaway {
+  margin-top: auto;
+  background: var(--panel);
+  border-left: 4px solid var(--accent);
+  padding: 0.7em 1em;
+  border-radius: 4px;
+}
+.takeaway h3 { color: var(--primary); font-size: 0.95em; margin-bottom: 0.2em; }
+
+/* ── cover ──────────────────────────────────────────────────── */
+.tpl-cover .page-body { justify-content: center; align-items: flex-start; }
+.tpl-cover img.logo-lg { height: 56px; margin-bottom: 2.5em; }
+.tpl-cover .kicker { color: var(--accent); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; font-size: 0.9em; margin-bottom: 0.8em; }
+.tpl-cover h1 { font-family: var(--font-heading); font-size: 3em; color: var(--primary); line-height: 1.1; margin-bottom: 0.35em; }
+.tpl-cover .subtitle { font-size: 1.3em; color: var(--muted); margin-bottom: 1.6em; }
+.tpl-cover .date { color: var(--muted); border-top: 2.5px solid var(--accent); padding-top: 0.8em; font-size: 0.95em; }
+
+/* ── comparison ─────────────────────────────────────────────── */
+table.matrix { width: 100%; border-collapse: collapse; font-size: 0.85em; }
+table.matrix th {
+  text-align: left; color: #fff; background: var(--primary);
+  padding: 0.5em 0.6em; font-weight: 600;
+}
+table.matrix td { padding: 0.55em 0.6em; border-bottom: 1px solid var(--panel); vertical-align: top; }
+table.matrix tr:nth-child(even) td { background: var(--panel); }
+table.matrix .co { font-weight: 700; white-space: nowrap; }
+table.matrix .co .tk { color: var(--muted); font-weight: 500; font-size: 0.85em; }
+
+.pill {
+  display: inline-block; padding: 0.1em 0.7em; border-radius: 999px;
+  font-size: 0.85em; font-weight: 600; white-space: nowrap;
+}
+.pill.high   { background: #dcfce7; color: #15803d; }
+.pill.medium { background: #fef3c7; color: #b45309; }
+.pill.low    { background: #fee2e2; color: #b91c1c; }
+
+/* ── industry-breakdown ─────────────────────────────────────── */
+.layers { display: flex; flex-direction: column; gap: 0.45em; flex: 1; min-height: 0; }
+.layer-card {
+  background: var(--panel); border-left: 5px solid var(--muted);
+  border-radius: 4px; padding: 0.5em 0.9em;
+  display: flex; align-items: baseline; gap: 1em;
+}
+.layer-card.scarce       { border-left-color: #15803d; }
+.layer-card.contested    { border-left-color: #b45309; }
+.layer-card.commoditized { border-left-color: var(--muted); }
+.layer-card .lname { font-weight: 700; color: var(--primary); min-width: 11em; }
+.layer-card .lrole { flex: 1; font-size: 0.9em; }
+.layer-card .chips { white-space: nowrap; }
+.chip {
+  display: inline-block; background: #fff; border: 1px solid var(--muted);
+  border-radius: 3px; padding: 0 0.45em; margin-left: 0.3em;
+  font-size: 0.78em; font-weight: 600; color: var(--primary);
+}
+.scarcity-legend { display: flex; gap: 1.5em; font-size: 0.78em; color: var(--muted); margin: 0.5em 0; }
+.scarcity-legend i { display: inline-block; width: 0.9em; height: 0.9em; border-radius: 2px; margin-right: 0.35em; vertical-align: -0.1em; }
+
+/* ── price-chart-technicals ─────────────────────────────────── */
+.chart-zone { flex: 0 0 auto; }
+.chart-mount { width: 100%; }
+.chart-zone img { width: 100%; object-fit: contain; }
+.commentary-cols {
+  display: grid; gap: 1.2em; margin-top: 1em;
+  grid-auto-flow: column; grid-auto-columns: 1fr;
+}
+body.report .commentary-cols { grid-auto-flow: row; grid-template-columns: 1fr 1fr; }
+.stats-row { display: flex; gap: 0.6em; margin-top: 0.8em; flex-wrap: wrap; }
+.stat {
+  background: var(--panel); border-radius: 4px; padding: 0.3em 0.8em; font-size: 0.8em;
+}
+.stat b { color: var(--primary); }
+
+/* ── table-commentary ───────────────────────────────────────── */
+table.data { width: 100%; border-collapse: collapse; font-size: 0.85em; }
+table.data thead { display: table-header-group; }
+table.data th {
+  text-align: left; color: #fff; background: var(--primary);
+  padding: 0.45em 0.6em; font-weight: 600;
+}
+table.data td { padding: 0.45em 0.6em; border-bottom: 1px solid var(--panel); }
+table.data tr:nth-child(even) td { background: var(--panel); }
+table.data td:not(:first-child), table.data th:not(:first-child) { text-align: right; }
+
+.tc-split { display: flex; gap: 1.4em; flex: 1; min-height: 0; }
+.tc-split .tc-table { flex: 3; }
+.tc-split .tc-note {
+  flex: 2; background: var(--panel); border-radius: 6px; padding: 1em 1.1em;
+  border-top: 4px solid var(--accent); align-self: flex-start;
+}
+body.report .tc-split { flex-direction: column; flex: 0 0 auto; }
+body.report .tc-split .tc-table, body.report .tc-split .tc-note { flex: 0 0 auto; }
+body.report .tc-split .tc-note { align-self: stretch; }

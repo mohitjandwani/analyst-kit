@@ -1,0 +1,18 @@
+{
+  "company": "",
+  "logo": null,
+  "logoPlacement": "top-left",
+  "colors": {
+    "primary": "#1a3c6e",
+    "accent": "#e8a33d",
+    "text": "#1f2430",
+    "muted": "#6b7280",
+    "background": "#ffffff",
+    "panel": "#f5f7fa"
+  },
+  "fonts": {
+    "body": "system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    "heading": "inherit"
+  },
+  "footerText": ""
+}

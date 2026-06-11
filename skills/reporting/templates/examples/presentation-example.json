@@ -1,0 +1,85 @@
+{
+  "meta": {
+    "mode": "presentation",
+    "title": "AI Datacenter Buildout — Where Value Accrues",
+    "subtitle": "Thematic review",
+    "date": "June 2026",
+    "footer": "Internal — not investment advice"
+  },
+  "pages": [
+    {
+      "template": "cover",
+      "slots": {
+        "kicker": "Thematic Investing",
+        "title": "AI Datacenter Buildout",
+        "subtitle": "Where value accrues across the chain"
+      }
+    },
+    {
+      "template": "industry-breakdown",
+      "slots": {
+        "title": "Value chain — upstream to operators",
+        "layers": [
+          { "name": "Advanced packaging", "role": "CoWoS/SoIC capacity gates accelerator supply", "scarcity": "scarce", "tickers": ["TSM", "ASX"] },
+          { "name": "Accelerators", "role": "Training + inference compute; pricing power at the bleeding edge", "scarcity": "scarce", "tickers": ["NVDA", "AMD"] },
+          { "name": "Networking", "role": "Scale-out fabric; share shifting to Ethernet", "scarcity": "contested", "tickers": ["ANET", "AVGO"] },
+          { "name": "Power & cooling", "role": "Grid interconnects and liquid cooling as new bottleneck", "scarcity": "contested", "tickers": ["VRT", "ETN"] },
+          { "name": "Hyperscale operators", "role": "Capex deployers; capture value only if AI revenue follows", "scarcity": "commoditized", "tickers": ["MSFT", "GOOGL", "AMZN"] }
+        ],
+        "takeaway": {
+          "heading": "Takeaway",
+          "body": "Scarcity sits **upstream** — packaging and accelerators. Operators carry the capex risk."
+        }
+      }
+    },
+    {
+      "template": "comparison",
+      "slots": {
+        "title": "Narrative vs earnings sensitivity",
+        "companies": [
+          { "name": "Nvidia", "ticker": "NVDA", "mechanism": "Accelerator ASP × volume; near-monopoly at training", "ratings": { "narrative": "high", "revenue": "high", "profit": "high", "purity": "high" } },
+          { "name": "Vertiv", "ticker": "VRT", "mechanism": "Thermal + power per rack rises with density", "ratings": { "narrative": "medium", "revenue": "high", "profit": "high", "purity": "medium" } },
+          { "name": "Arista", "ticker": "ANET", "mechanism": "Ethernet share gains in AI fabrics", "ratings": { "narrative": "medium", "revenue": "high", "profit": "medium", "purity": "medium" } },
+          { "name": "Microsoft", "ticker": "MSFT", "mechanism": "AI revenue must outrun depreciation of buildout", "ratings": { "narrative": "high", "revenue": "low", "profit": "low", "purity": "low" } }
+        ],
+        "takeaway": {
+          "heading": "Takeaway",
+          "body": "High narrative + low profit sensitivity (MSFT) is where disappointment risk concentrates; VRT keeps the best ratio of earnings torque to narrative crowding."
+        }
+      }
+    },
+    {
+      "template": "price-chart-technicals",
+      "slots": {
+        "title": "AAPL — price action",
+        "chart": "../../../charting/tests/contracts/price_candlestick.json",
+        "commentary": [
+          { "heading": "Trend", "body": "Uptrend intact above the 200-day; momentum constructive but extended." },
+          { "heading": "Levels", "body": "- Support $215 / $198\n- Resistance $242" },
+          { "heading": "Risk", "body": "Crowded long; a capex digestion headline is the obvious de-rating trigger." }
+        ],
+        "source": "Daily OHLC"
+      }
+    },
+    {
+      "template": "table-commentary",
+      "slots": {
+        "title": "Hyperscaler capex — the demand signal",
+        "table": {
+          "columns": ["Company", "FY26 capex", "YoY"],
+          "rows": [
+            ["Microsoft", "$96B", "+22%"],
+            ["Alphabet", "$85B", "+18%"],
+            ["Amazon", "$105B", "+25%"],
+            ["Meta", "$72B", "+31%"]
+          ]
+        },
+        "commentary": {
+          "heading": "Read-through",
+          "body": "Aggregate capex still accelerating — supports the upstream scarcity thesis for **2–3 more quarters**. The thesis breaker is two consecutive guides of decelerating capex."
+        },
+        "source": "Company guidance, earnings calls"
+      }
+    }
+  ]
+}
