@@ -19,4 +19,6 @@ renders:
    where the two series diverged, and the filing/exhibit each number came from in
    `source`.
 
-Plus a cover page. Every data page must have a `story`; the report must cite sources.
+Plus a cover page, and the auto-appended References page listing every filing and
+data source — each data page cites into it via `sources`. Every data page must have
+a `story`.

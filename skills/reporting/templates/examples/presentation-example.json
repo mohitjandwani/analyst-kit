@@ -71,7 +71,10 @@
           "heading": "Takeaway",
           "body": "Scarcity sits **upstream** — packaging and accelerators. Operators carry the capex risk."
         },
-        "story": "**The point:** Scarcity sits upstream — packaging and accelerators gate the entire buildout."
+        "story": "**The point:** Scarcity sits upstream — packaging and accelerators gate the entire buildout.",
+        "sources": [
+          3
+        ]
       }
     },
     {
@@ -128,7 +131,10 @@
           "heading": "Takeaway",
           "body": "High narrative + low profit sensitivity (MSFT) is where disappointment risk concentrates; VRT keeps the best ratio of earnings torque to narrative crowding."
         },
-        "story": "**The point:** VRT has the best ratio of earnings torque to narrative crowding; MSFT the worst."
+        "story": "**The point:** VRT has the best ratio of earnings torque to narrative crowding; MSFT the worst.",
+        "sources": [
+          3
+        ]
       }
     },
     {
@@ -150,8 +156,22 @@
             "body": "Crowded long; a capex digestion headline is the obvious de-rating trigger."
           }
         ],
-        "source": "Daily OHLC",
-        "story": "**The point:** Uptrend intact but crowded — size entries on pullbacks to $215."
+        "story": "**The point:** Uptrend intact but crowded — size entries on pullbacks to $215.",
+        "sources": [
+          2
+        ],
+        "levels": [
+          {
+            "value": 242,
+            "label": "Resistance $242",
+            "kind": "resistance"
+          },
+          {
+            "value": 215,
+            "label": "Support $215",
+            "kind": "support"
+          }
+        ]
       }
     },
     {
@@ -191,7 +211,6 @@
           "heading": "Read-through",
           "body": "Aggregate capex still accelerating — supports the upstream scarcity thesis for **2–3 more quarters**. The thesis breaker is two consecutive guides of decelerating capex."
         },
-        "source": "Company guidance, earnings calls",
         "story": "**The point:** Aggregate capex still accelerating — the upstream thesis holds for 2–3 more quarters.",
         "stats": [
           {
@@ -202,8 +221,25 @@
             "label": "YoY",
             "value": "+24%"
           }
+        ],
+        "sources": [
+          1
         ]
       }
+    }
+  ],
+  "references": [
+    {
+      "label": "Hyperscaler FY26 capex guidance",
+      "detail": "MSFT, GOOGL, AMZN, META earnings calls, Q1–Q2 2026"
+    },
+    {
+      "label": "Daily OHLC price data, AAPL 2023–2026",
+      "detail": "Exchange consolidated tape via data vendor"
+    },
+    {
+      "label": "Internal thematic framework — AI datacenter chain",
+      "detail": "thematic-investing skill output, June 2026"
     }
   ]
 }

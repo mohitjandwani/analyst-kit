@@ -71,9 +71,14 @@ Minimal contract (`templates/examples/` has full ones for both modes):
     { "template": "cover", "slots": { "title": "Roblox (RBLX)", "kicker": "Equity Research" } },
     { "template": "price-chart-technicals", "slots": {
         "title": "RBLX — price action",
+        "story": "Price is consolidating above the 200-day — the uptrend is intact.",
         "chart": "./out/price-contract.json",
+        "levels": [ { "value": 42, "label": "Support $42", "kind": "support" } ],
         "commentary": [ { "heading": "Trend", "body": "Uptrend intact above the 200-day." } ],
-        "source": "Daily OHLC" } }
+        "sources": [1] } }
+  ],
+  "references": [
+    { "label": "Daily OHLC price data, RBLX", "detail": "Exchange consolidated tape" }
   ]
 }
 ```
@@ -82,6 +87,9 @@ Minimal contract (`templates/examples/` has full ones for both modes):
 - Paths inside the contract (chart contracts, brand, logo) resolve **relative to the
   contract file**.
 - `meta.footer` text repeats on every page; page numbers are automatic (skipped on cover).
+- `references` (top-level) is **required** — the renderer auto-appends a References
+  page as the always-last page. Pages cite into it with `sources: [1, 3]` (1-based);
+  citations render as `[n]` links in the page footer, anchored to the reference entry.
 
 ## One-time setup
 
@@ -128,8 +136,10 @@ so it survives skill reinstalls and is reused across reports:
 | `cover` | `title` | `subtitle`, `kicker`, `date` | — |
 | `comparison` | `title`, `story`, `companies` (2–7) | `subtitle`, `stats`, `takeaway`, `source` | thematic-investing sensitivity / exposure tables |
 | `industry-breakdown` | `title`, `story`, `layers` (2–9) | `subtitle`, `stats`, `takeaway`, `source` | thematic-investing value-chain map |
-| `price-chart-technicals` | `title`, `story`, `chart`, `commentary` (1–4 blocks) | `subtitle`, `stats`, `source` | charting `price` builder |
-| `table-commentary` | `title`, `story`, `table`, `commentary` | `subtitle`, `stats`, `source` | sec-filings KPIs, any tabular data |
+| `price-chart-technicals` | `title`, `story`, `chart`, `commentary` (1–4 blocks) | `subtitle`, `stats`, `levels`, `sources` | charting `price` builder + technical-analysis levels |
+| `table-commentary` | `title`, `story`, `table`, `commentary` | `subtitle`, `stats`, `sources` | sec-filings KPIs, any tabular data |
+
+(`references` is not a template you place — the renderer always appends it last.)
 
 Slot shapes:
 
@@ -137,6 +147,12 @@ Slot shapes:
   conclusion-first (supports `**bold**`). Renders as a banner under the title.
 - **stats** — `[{ "label": "Entry", "value": "$215" }]` key-number chips rendered
   under the story on any template. Put the numbers the user asked for here.
+- **levels** — `[{ "value": 215, "label": "Support $215", "kind": "support" }]` on
+  `price-chart-technicals`: horizontal lines drawn **on the chart** with colored
+  labels. `kind`: `support`/`entry` = green, `resistance`/`exit` = red, omitted =
+  gray. Always plot the levels the commentary talks about.
+- **sources** — `[1, 3]`, 1-based indices into the top-level `references` array;
+  rendered as linked `[n]` citations in the page footer.
 
 - **chart** — a path to a charting **contract** JSON (preferred), or
   `{ "image": "chart.png" }` as an escape hatch. Never pass charting's pre-rendered
@@ -169,7 +185,11 @@ Default skeleton when the storyline isn't fully specified: `cover` → one chart
   lays them out.
 - **One point per page/slide.** Respect the row caps (7 companies,
   10 table rows per slide) — the renderer errors past them; split across pages.
-- **Always cite `source`** on data-bearing pages (renders in the footer).
+- **Information-dense, not airy.** These are professional research documents — a
+  half-empty page means the storyline gave that page too little to say.
+- **Always cite.** Top-level `references` is required (the renderer errors without
+  it); every data page should carry `sources: [n]` pointing into it. Levels the
+  commentary mentions must also be drawn on the chart via `levels`.
 - **Don't hand-write report HTML.** If a layout doesn't exist, add a template function
   to `scripts/render.ts` and styles to `assets/styles.css`.
 - The renderer fails loudly: unknown templates, missing slots, missing chart contract

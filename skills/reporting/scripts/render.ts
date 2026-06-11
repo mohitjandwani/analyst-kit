@@ -38,6 +38,8 @@ interface Brand {
 interface TextBlock { heading?: string; body: string }
 type ChartSlot = string | { contract?: string; image?: string };
 interface Page { template: string; slots: Record<string, any> }
+interface Ref { label: string; url?: string; detail?: string }
+interface Level { value: number; label?: string; kind?: 'support' | 'resistance' | 'entry' | 'exit' }
 
 interface ReportContract {
   meta: {
@@ -49,6 +51,9 @@ interface ReportContract {
   };
   brand?: string | Brand;
   pages: Page[];
+  /** Numbered source list — required. Rendered as the always-last References page;
+   *  pages cite into it with `sources: [1, 3]` (1-based). */
+  references: Ref[];
 }
 
 function fail(msg: string): never {
@@ -103,8 +108,13 @@ const chartJobs: ChartJob[] = [];
 let needsStock = false;
 let needsMore = false;
 
-/** Returns the HTML for a chart slot; queues Highcharts boot code when it's a contract. */
-function chartHtml(slot: ChartSlot, contractPath: string, heightPx: number): string {
+const LEVEL_COLORS: Record<string, string> = {
+  support: '#15803d', entry: '#15803d', resistance: '#b91c1c', exit: '#b91c1c',
+};
+
+/** Returns the HTML for a chart slot; queues Highcharts boot code when it's a contract.
+ *  `levels` draws horizontal price lines (support/resistance/entry/exit) on the chart. */
+function chartHtml(slot: ChartSlot, contractPath: string, heightPx: number, levels?: Level[]): string {
   const spec = typeof slot === 'string' ? { contract: slot } : slot;
   if (spec.image) {
     const p = resolveFrom(contractPath, spec.image);
@@ -121,6 +131,21 @@ function chartHtml(slot: ChartSlot, contractPath: string, heightPx: number): str
   // Print-tuned: no navigator/range-selector chrome (meaningless in a PDF), fixed height.
   const options = buildOptions(data, { navigator: false, rangeSelector: false });
   options.chart = { ...options.chart, height: heightPx, width: null };
+  if (levels?.length) {
+    const plotLines = levels.map((l) => {
+      const color = LEVEL_COLORS[l.kind ?? ''] ?? '#6b7280';
+      return {
+        value: l.value, color, dashStyle: 'Dash', width: 1.5, zIndex: 4,
+        label: {
+          text: l.label ?? String(l.value), align: 'left', x: 6, y: -5,
+          style: { color, fontWeight: '600', fontSize: '11px' },
+        },
+      };
+    });
+    const axes = Array.isArray(options.yAxis) ? options.yAxis : [options.yAxis ?? {}];
+    axes[0] = { ...axes[0], plotLines: [...(axes[0]?.plotLines ?? []), ...plotLines] };
+    options.yAxis = Array.isArray(options.yAxis) ? axes : axes[0];
+  }
   const id = `chart-${chartJobs.length}`;
   chartJobs.push({ id, js: optionsToJs(options), stock });
   return `<div id="${id}" class="chart-mount" style="height:${heightPx}px"></div>`;
@@ -226,10 +251,10 @@ const templates: Record<string, (slots: Record<string, any>, ctx: Ctx) => string
     const blocks: TextBlock[] = slots.commentary;
     if (blocks.length < 1 || blocks.length > 4)
       fail(`price-chart-technicals takes 1–4 commentary blocks (got ${blocks.length})`);
-    // Deck slide is 720px tall; A4 content ~990px. Story+stats live at the top now.
-    const height = ctx.deck ? 330 : 520;
+    // Deck slide is 720px tall; A4 content ~1010px. Story+stats live at the top now.
+    const height = ctx.deck ? 340 : 560;
     return `${pageTop(slots, ctx)}<div class="page-body">
-      <div class="chart-zone">${chartHtml(slots.chart, ctx.contractPath, height)}</div>
+      <div class="chart-zone">${chartHtml(slots.chart, ctx.contractPath, height, slots.levels)}</div>
       <div class="commentary-cols">${blocks.map(textBlock).join('')}</div></div>`;
   },
 
@@ -284,25 +309,50 @@ function loadBrand(contract: ReportContract, contractPath: string, brandFlag?: s
   return { brand: merged, logoUri };
 }
 
+/** The always-last References page. Every citation in the report anchors here. */
+function referencesSection(refs: Ref[], ctx: Ctx, pageNo: number, total: number, footerText: string): string {
+  const items = refs.map((r, i) => `<li id="ref-${i + 1}">
+    <span class="ref-label">${escapeHtml(r.label)}</span>${
+      r.detail ? `<span class="ref-detail"> — ${escapeHtml(r.detail)}</span>` : ''}${
+      r.url ? `<div class="ref-url"><a href="${escapeHtml(r.url)}">${escapeHtml(r.url)}</a></div>` : ''}
+  </li>`).join('');
+  return `<section class="page tpl-references">${brandStrip(ctx)}
+    <div class="title-block"><h1>References</h1></div>
+    <div class="page-body"><ol class="refs">${items}</ol></div>
+    <footer class="pg"><span>${escapeHtml(footerText)}</span><span>${pageNo} / ${total}</span></footer>
+  </section>`;
+}
+
 function assemble(contract: ReportContract, contractPath: string, brandFlag?: string): string {
-  const { meta, pages } = contract;
+  const { meta, pages, references } = contract;
   if (!meta?.title || !Array.isArray(pages) || pages.length === 0) fail('contract needs meta.title and a non-empty pages array');
+  if (!Array.isArray(references) || references.length === 0)
+    fail('contract needs a non-empty top-level "references" array — the last page is always the reference list; cite per page with sources: [1, 2]');
   const mode = meta.mode === 'presentation' ? 'presentation' : 'report';
   const deck = mode === 'presentation';
   const { brand, logoUri } = loadBrand(contract, contractPath, brandFlag);
+  const ctx: Ctx = { meta, brand, logoUri, contractPath, deck };
+  const footerText = meta.footer ?? brand.footerText ?? '';
+  const total = pages.length + 1; // + the auto-appended References page
 
   const sections = pages.map((page, i) => {
     const render = templates[page.template];
     if (!render) fail(`unknown template "${page.template}" (have: ${Object.keys(templates).join(', ')})`);
-    const ctx: Ctx = { meta, brand, logoUri, contractPath, deck };
     const inner = render(page.slots ?? {}, ctx);
-    const footerText = meta.footer ?? brand.footerText ?? '';
+    const srcNums: number[] = page.slots?.sources ?? [];
+    for (const n of srcNums)
+      if (!Number.isInteger(n) || n < 1 || n > references.length)
+        fail(`page ${i + 1} cites source [${n}] but references has ${references.length} entries`);
+    const cites = srcNums.map((n) => `<a class="cite" href="#ref-${n}">[${n}]</a>`).join(' ');
+    const src = [page.slots?.source ? `Source: ${escapeHtml(page.slots.source)}` : '', cites]
+      .filter(Boolean).join(' ');
     const footer = page.template === 'cover' ? '' :
       `<footer class="pg"><span>${escapeHtml(footerText)}</span>${
-        page.slots?.source ? `<span class="src">Source: ${escapeHtml(page.slots.source)}</span>` : ''
-      }<span>${i + 1} / ${pages.length}</span></footer>`;
+        src ? `<span class="src">${src}</span>` : ''
+      }<span>${i + 1} / ${total}</span></footer>`;
     return `<section class="page tpl-${page.template}">${inner}${footer}</section>`;
   });
+  sections.push(referencesSection(references, ctx, total, total, footerText));
 
   // Highcharts inlined once; highstock is a superset of highcharts.
   const hcTags = chartJobs.length
@@ -406,10 +456,11 @@ const htmlOnly = flags.has('--html-only') || extname(outPath) === '.html';
 const htmlPath = htmlOnly ? outPath : `${outPath.replace(/\.pdf$/, '')}.html`;
 writeFileSync(htmlPath, html);
 
+const pageCount = contract.pages.length + 1; // + auto-appended References page
 if (htmlOnly) {
-  console.error(`reporting: wrote ${htmlPath} (${contract.pages.length} pages, ${Math.round(statSync(htmlPath).size / 1024)} KB)`);
+  console.error(`reporting: wrote ${htmlPath} (${pageCount} pages, ${Math.round(statSync(htmlPath).size / 1024)} KB)`);
 } else {
   await printPdf(htmlPath, outPath);
   if (!flags.has('--keep-html')) { const { unlinkSync } = await import('node:fs'); unlinkSync(htmlPath); }
-  console.error(`reporting: wrote ${outPath} (${contract.pages.length} pages, ${Math.round(statSync(outPath).size / 1024)} KB)`);
+  console.error(`reporting: wrote ${outPath} (${pageCount} pages, ${Math.round(statSync(outPath).size / 1024)} KB)`);
 }

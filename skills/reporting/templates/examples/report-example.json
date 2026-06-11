@@ -41,8 +41,26 @@
             "value": "+9.4%"
           }
         ],
-        "source": "Daily OHLC, company data",
-        "story": "**The point:** Uptrend intact, but extended — wait for a pullback toward $215 before adding."
+        "story": "**The point:** Uptrend intact, but extended — wait for a pullback toward $215 before adding.",
+        "sources": [
+          2
+        ],
+        "levels": [
+          {
+            "value": 242,
+            "label": "Resistance $242",
+            "kind": "resistance"
+          },
+          {
+            "value": 215,
+            "label": "Support $215",
+            "kind": "support"
+          },
+          {
+            "value": 198,
+            "label": "200-dma $198"
+          }
+        ]
       }
     },
     {
@@ -89,8 +107,11 @@
           "heading": "Takeaway",
           "body": "Apple's **profit sensitivity** to its own ecosystem is the cleanest of the three — the others carry more narrative than earnings torque."
         },
-        "source": "Company filings, internal framework",
-        "story": "**The point:** Apple converts ecosystem strength into profit more reliably than either peer."
+        "story": "**The point:** Apple converts ecosystem strength into profit more reliably than either peer.",
+        "sources": [
+          1,
+          3
+        ]
       }
     },
     {
@@ -147,8 +168,10 @@
           "heading": "Takeaway",
           "body": "Profit pools concentrate at the **platform layer** — the chain exists to feed it."
         },
-        "source": "Internal value-chain framework",
-        "story": "**The point:** Profit pools concentrate at the platform layer — AAPL and TSM are the only scarce nodes."
+        "story": "**The point:** Profit pools concentrate at the platform layer — AAPL and TSM are the only scarce nodes.",
+        "sources": [
+          3
+        ]
       }
     },
     {
@@ -188,9 +211,26 @@
           "heading": "Analyst view",
           "body": "Growth re-accelerated on Services strength while Products stayed flat. Watch:\n- Services mix now above one quarter of revenue\n- Gross margin tailwind from mix shift\n- FX drag fading into H2"
         },
-        "source": "Company 10-Q filings",
-        "story": "**The point:** Growth re-accelerated to +5.1% YoY on Services mix — the quality of revenue is improving."
+        "story": "**The point:** Growth re-accelerated to +5.1% YoY on Services mix — the quality of revenue is improving.",
+        "sources": [
+          1
+        ]
       }
+    }
+  ],
+  "references": [
+    {
+      "label": "Apple Form 10-Q, Q2 FY2026",
+      "detail": "Revenue, YoY growth",
+      "url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0000320193&type=10-Q"
+    },
+    {
+      "label": "Daily OHLC price data, AAPL 2023–2026",
+      "detail": "Exchange consolidated tape via data vendor"
+    },
+    {
+      "label": "Internal value-chain & ecosystem framework",
+      "detail": "thematic-investing skill output, June 2026"
     }
   ]
 }
