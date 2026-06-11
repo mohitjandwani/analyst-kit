@@ -22,6 +22,10 @@ CLI:
     # latest 10-K of a ticker, find supply-chain risk language:
     python parse_filing.py AAPL --form 10-K --query "supply chain concentration risk" --top 5
 
+    # BM25 is lexical — repeat --query with rephrasings for recall (rank-fused):
+    python parse_filing.py RBLX --form 8-K --query "bookings three months ended" \
+        --query "reconciliation of revenue to bookings" --query "key metrics bookings growth"
+
     # a specific filing by accession, or a direct document URL:
     python parse_filing.py AAPL --accession 0000320193-25-000079 --query "segment revenue"
     python parse_filing.py --url https://www.sec.gov/Archives/.../aapl-20250927.htm --query "MD&A liquidity"
@@ -231,30 +235,60 @@ class BM25:
         return [(i, sc) for sc, i in scored[:top] if sc > 0]
 
 
-def search_text(text, query, top=5, chunk_chars=6000, overlap=800):
-    """End-to-end on raw text (no network): chunk -> BM25 -> ranked sections.
+def fuse_search(text, queries, top=5, chunk_chars=6000, overlap=800, rrf_k=60):
+    """Multi-query BM25 with Reciprocal Rank Fusion (chunk + index built ONCE).
 
-    Returns a list of result dicts (rank, score, item, start, end, snippet, text).
-    Importable and fully offline — this is what the unit tests exercise.
+    BM25 is purely lexical, so one phrasing misses sections that say the same
+    thing in other words ("bookings" vs "reconciliation of bookings to revenue").
+    Run several query variants and fuse: each variant ranks the chunks, and a
+    chunk's fused score is sum(1 / (rrf_k + rank)) over the variants that
+    surfaced it. Fusion is by RANK, not raw score — BM25 scores are not
+    comparable across queries (idf changes with the terms), ranks always are.
+    A section that any single variant ranks highly therefore still surfaces,
+    which is the recall win; a section several variants agree on outranks it.
+
+    Returns result dicts shaped like search_text() plus `rrf` (fused score) and
+    `queries` (which variants hit the chunk). `score` is the chunk's best BM25
+    across variants, kept for display only — order is decided by `rrf`.
     """
     chunks = chunk_text(text, chunk_chars=chunk_chars, overlap=overlap)
     if not chunks:
         return []
     bm = BM25([tokenize(c["text"]) for c in chunks])
-    q = tokenize(query)
+    fused = {}  # chunk idx -> accumulator
+    for q in queries:
+        qt = tokenize(q)
+        for rank, (i, score) in enumerate(bm.rank(qt, top=top), 1):
+            e = fused.setdefault(i, {"rrf": 0.0, "best": 0.0, "queries": [], "qtok": set()})
+            e["rrf"] += 1.0 / (rrf_k + rank)
+            e["best"] = max(e["best"], score)
+            e["queries"].append(q)
+            e["qtok"].update(qt)
+    ranked = sorted(fused.items(), key=lambda kv: (-kv[1]["rrf"], kv[0]))[:top]
     results = []
-    for rank, (i, score) in enumerate(bm.rank(q, top=top), 1):
+    for rank, (i, e) in enumerate(ranked, 1):
         c = chunks[i]
         results.append({
             "rank": rank,
-            "score": round(score, 4),
+            "score": round(e["best"], 4),
+            "rrf": round(e["rrf"], 4),
+            "queries": e["queries"],
             "item": c["item"],
             "start": c["start"],
             "end": c["end"],
-            "snippet": _snippet(c["text"], q),
+            "snippet": _snippet(c["text"], sorted(e["qtok"])),
             "text": c["text"],
         })
     return results
+
+
+def search_text(text, query, top=5, chunk_chars=6000, overlap=800):
+    """Single-query convenience over fuse_search() — same result shape.
+
+    With one query, RRF ordering is identical to plain BM25 ordering (1/(k+rank)
+    is monotonic in rank), so this stays exactly backward-compatible.
+    """
+    return fuse_search(text, [query], top=top, chunk_chars=chunk_chars, overlap=overlap)
 
 
 def _snippet(text, query_tokens, width=240):
@@ -304,7 +338,9 @@ def main(argv):
     p.add_argument("--form", default="10-K", help="exact form to fetch (default 10-K)")
     p.add_argument("--accession", help="specific filing accession (else: latest of --form)")
     p.add_argument("--url", help="direct primary-document URL (skips resolution)")
-    p.add_argument("--query", help="what to search for; omit to print the section map")
+    p.add_argument("--query", action="append",
+                   help="what to search for; REPEAT the flag with rephrasings to boost "
+                        "recall (results are rank-fused); omit to print the section map")
     p.add_argument("--top", type=int, default=5)
     p.add_argument("--chunk-chars", type=int, default=6000)
     p.add_argument("--overlap", type=int, default=800)
@@ -316,6 +352,11 @@ def main(argv):
     html = edgar.http_get(url)
     if not html:
         print("Fetch failed (see error above). Is SEC_EDGAR_UA reachable?", file=sys.stderr)
+        if a.url:
+            print("hint: a 404 here usually means a GUESSED filename — exhibit names are "
+                  "arbitrary and never predictable. List the real URLs instead:\n"
+                  "  python edgar.py exhibits <ticker> <form> --accession <acc>\n"
+                  "Do NOT fall back to WebFetch (sec.gov 403s it).", file=sys.stderr)
         return 1
     text = html_to_text(html)
     out = os.path.join(a.out_dir, _slug(meta))
@@ -333,10 +374,11 @@ def main(argv):
         print(f"\nFull text written to {out}/filing.txt")
         return 0
 
-    results = search_text(text, a.query, top=a.top,
+    queries = a.query
+    results = fuse_search(text, queries, top=a.top,
                           chunk_chars=a.chunk_chars, overlap=a.overlap)
     if not results:
-        print(f"No BM25 matches for {a.query!r} in this filing.", file=sys.stderr)
+        print(f"No BM25 matches for {queries!r} in this filing.", file=sys.stderr)
         return 2
 
     # Write each top section to its own file for the Haiku sub-agents to read.
@@ -346,23 +388,27 @@ def main(argv):
         header = (f"# {meta.get('company','')} {meta.get('form','')} "
                   f"({meta.get('filed','')}) — {r['item'] or 'section'}\n"
                   f"# source: {url}\n"
-                  f"# chars {r['start']}-{r['end']}  rank {r['rank']}  bm25 {r['score']}\n"
-                  f"# query: {a.query}\n\n")
+                  f"# chars {r['start']}-{r['end']}  rank {r['rank']}  rrf {r['rrf']}  "
+                  f"bm25 {r['score']}\n"
+                  f"# queries: {' | '.join(r['queries'])}\n\n")
         with open(fname, "w") as f:
             f.write(header + r["text"])
         r["file"] = fname
         written.append(r)
 
     with open(os.path.join(out, "results.json"), "w") as f:
-        json.dump({"filing": meta, "query": a.query,
+        json.dump({"filing": meta, "queries": queries,
                    "results": [{k: v for k, v in r.items() if k != "text"} for r in written]},
                   f, indent=2)
 
     print(f"# {meta.get('company','')} {meta.get('form','')} "
-          f"({meta.get('filed','')})  query: {a.query!r}")
+          f"({meta.get('filed','')})  {len(queries)} quer{'y' if len(queries) == 1 else 'ies'}: "
+          + " | ".join(repr(q) for q in queries))
     print(f"# top {len(written)} sections -> {out}/  (also results.json)\n")
     for r in written:
-        print(f"  [{r['rank']}] bm25={r['score']:<8} {r['item'] or 'section':<10} {r['file']}")
+        hits = f"  ({len(r['queries'])}/{len(queries)} queries)" if len(queries) > 1 else ""
+        print(f"  [{r['rank']}] rrf={r['rrf']:<7} bm25={r['score']:<8} "
+              f"{r['item'] or 'section':<10} {r['file']}{hits}")
         print(f"      …{r['snippet']}…\n")
     print("Next: spawn one claude-haiku-4-5 sub-agent per sec_NN.txt to extract the "
           "answer (see SKILL.md → 'Step 2').", file=sys.stderr)

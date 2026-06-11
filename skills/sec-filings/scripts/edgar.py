@@ -16,8 +16,10 @@ cannot set a User-Agent and SEC will 403 it.
 CLI (so the agent never needs WebFetch for lookups):
     python edgar.py cik AAPL                 # ticker -> CIK + title
     python edgar.py filings AAPL 10-K -n 5   # list filings of a form, newest first
+    python edgar.py filings RBLX 8-K --items 2.02   # only earnings-release 8-Ks
     python edgar.py doc AAPL 10-K            # primary-document URL of the latest 10-K
-    python edgar.py attachments AAPL 8-K     # accession folder: exhibits (EX-99.1) + XBRL members
+    python edgar.py exhibits RBLX 8-K --items 2.02 -n 17  # EX-99.x URL per earnings 8-K, one call
+    python edgar.py attachments AAPL 8-K     # one accession folder: every file incl. XBRL members
     python edgar.py cover AAPL 8-K           # dei cover-page XBRL facts (an 8-K's ONLY XBRL)
     python edgar.py concept AAPL NetIncomeLoss   # one financial concept across periods (facts API)
     python edgar.py facts AAPL --grep Revenue    # discover which XBRL tags a company exposes
@@ -219,21 +221,39 @@ def accession_files(cik10, accession):
     return items
 
 
-def find_exhibits(cik10, accession):
-    """Accession files that are exhibits (EX-*), newest filings name them e.g.
-    `a8-kex991...htm`. Returns the human-readable HTML exhibits; on an Item 2.02
-    earnings 8-K, EX-99.1 is the press release with the financial tables.
+def find_exhibits(cik10, accession, primary_doc=None):
+    """Human-readable exhibit documents in a filing's accession folder.
+
+    On an Item 2.02 earnings 8-K the financial tables live in EX-99.1 *or*
+    EX-99.2 — some companies (e.g. Roblox) file the press release as 99.1 and the
+    shareholder letter with the KPI tables as 99.2 — and older filings use
+    arbitrary names with no "ex" in them at all (`a05-09330pmq123sharehold.htm`).
+    So this matches the common ex-name patterns first, then falls back to every
+    other top-level .htm that is not the primary document or XBRL-viewer noise.
+    NEVER construct an exhibit URL from a guessed filename — names are arbitrary;
+    a 404 on a hand-built URL is the symptom. List with this function instead.
 
     Hand an exhibit's `url` to parse_filing.py (`--url`) to read it — those tables
     are PLAIN HTML, not XBRL (verified), so the facts API won't have them until the
     matching 10-Q/10-K is filed.
+
+    Returns items each with `name`, `url`, and `label` ("EX-99.1" when the name
+    encodes an exhibit number, else ""), labeled exhibits first.
     """
     out = []
     for it in accession_files(cik10, accession):
         name = it["name"].lower()
-        if name.endswith((".htm", ".html")) and ("ex99" in name or "ex-99" in name
-                                                  or re.search(r"ex\d", name)):
-            out.append(it)
+        if not name.endswith((".htm", ".html")):
+            continue
+        # Skip the filing's own cover page and the rendered-XBRL viewer pages.
+        if primary_doc and it["name"] == primary_doc:
+            continue
+        if re.fullmatch(r"r\d+\.htm", name) or re.search(r"-index(-headers)?\.html?$", name):
+            continue
+        m = re.search(r"ex(?:hibit)?[-_]?(\d{1,2})[._-]?(\d)?", name)
+        it["label"] = (f"EX-{m.group(1)}" + (f".{m.group(2)}" if m.group(2) else "")) if m else ""
+        out.append(it)
+    out.sort(key=lambda x: (x["label"] == "", x["name"]))
     return out
 
 
@@ -331,6 +351,23 @@ def companyfacts(cik10):
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
+def _filtered_filings(cik, a):
+    """Filing rows for a CLI invocation, honoring an optional --items filter.
+
+    The item filter must run BEFORE the -n cap (fetch unlimited, filter, slice) —
+    otherwise "the last 17 earnings 8-Ks" would only see item 2.02 rows that
+    happened to fall inside the first N filings of any kind.
+    """
+    items = getattr(a, "items", None)
+    rows = filings(cik, form=a.form, limit=0 if items else a.limit,
+                   include_history=a.history)
+    if items:
+        rows = [r for r in rows
+                if items in [s.strip() for s in (r["items"] or "").split(",")]]
+        rows = rows[:a.limit] if a.limit else rows
+    return rows
+
+
 def _main(argv):
     p = argparse.ArgumentParser(description="SEC EDGAR lookups (UA-compliant; no WebFetch).")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -342,6 +379,7 @@ def _main(argv):
     pf.add_argument("identifier")
     pf.add_argument("form", nargs="?", default=None)
     pf.add_argument("-n", "--limit", type=int, default=10)
+    pf.add_argument("--items", help="only filings whose 8-K item codes include this (e.g. 2.02)")
     pf.add_argument("--history", action="store_true", help="include pre-1000 overflow history")
 
     pd_ = sub.add_parser("doc", help="primary-document URL of the latest filing of a form")
@@ -352,6 +390,16 @@ def _main(argv):
     pa.add_argument("identifier")
     pa.add_argument("form", nargs="?", default="8-K")
     pa.add_argument("--accession", help="specific accession (else: latest of form)")
+
+    pe = sub.add_parser("exhibits", help="exhibit URLs across the last N filings of a form "
+                        "(the batch way to get every earnings press release / shareholder letter)")
+    pe.add_argument("identifier")
+    pe.add_argument("form", nargs="?", default="8-K")
+    pe.add_argument("-n", "--limit", type=int, default=8)
+    pe.add_argument("--items", help="only filings whose 8-K item codes include this "
+                    "(2.02 = earnings release)")
+    pe.add_argument("--accession", help="just this accession")
+    pe.add_argument("--history", action="store_true", help="include pre-1000 overflow history")
 
     pcov = sub.add_parser("cover", help="dei cover-page XBRL facts (an 8-K's only XBRL)")
     pcov.add_argument("identifier")
@@ -373,9 +421,10 @@ def _main(argv):
     if a.cmd == "cik":
         print(f"{cik}\t{title}")
     elif a.cmd == "filings":
-        rows = filings(cik, form=a.form, limit=a.limit, include_history=a.history)
+        rows = _filtered_filings(cik, a)
         print(f"# {title} (CIK {cik}) — {len(rows)} filing(s)"
-              + (f" of {a.form}" if a.form else ""))
+              + (f" of {a.form}" if a.form else "")
+              + (f" with item {a.items}" if a.items else ""))
         for r in rows:
             extra = f"  items={r['items']}" if r["items"] else ""
             print(f"{r['filed']}  {r['form']:<10} {r['accession']}  period={r['period']}{extra}")
@@ -387,6 +436,26 @@ def _main(argv):
         url = document_url(cik, row)
         print(f"# {title} — {a.form} filed {row['filed']} (period {row['period']})", file=sys.stderr)
         print(url)
+
+    elif a.cmd == "exhibits":
+        if a.accession:
+            row = latest_filing(cik, form=a.form, accession=a.accession)
+            rows = [row] if row else []
+        else:
+            rows = _filtered_filings(cik, a)
+        if not rows:
+            print(f"No matching {a.form} for {title} (CIK {cik}).", file=sys.stderr)
+            return 1
+        print(f"# {title} (CIK {cik}) — exhibits of {len(rows)} {a.form} filing(s)"
+              + (f" with item {a.items}" if getattr(a, 'items', None) else ""))
+        for r in rows:
+            extra = f"  items={r['items']}" if r["items"] else ""
+            print(f"{r['filed']}  period={r['period']}  {r['accession']}{extra}")
+            exs = find_exhibits(cik, r["accession"], primary_doc=r.get("primary_doc"))
+            for it in exs:
+                print(f"    {it['label'] or '(unlabeled)':<11} {it['url']}")
+            if not exs:
+                print("    (no exhibit-like .htm files in this accession)")
 
     elif a.cmd in ("attachments", "cover"):
         row = latest_filing(cik, form=a.form, accession=a.accession)

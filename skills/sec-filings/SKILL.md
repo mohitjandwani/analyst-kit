@@ -6,12 +6,13 @@ description: >
   public company — free, no API key — and extract the information that only lives
   inside filings: declared risk factors, MD&A, material events, segment data,
   insider transactions, and quarterly earnings press releases / shareholder
-  letters (filed as 8-K EX-99.1 exhibits — the authoritative source for non-GAAP
-  KPIs like bookings, DAUs, and ARR that fundamentals APIs don't carry). Resolve
-  a ticker to its filing entity (CIK), list filings by form and date, decode 8-K
-  item codes, list and fetch exhibits, and — for large filings — index the
-  document and BM25-search it down to the few relevant sections, then read those
-  sections precisely. Fetches are User-Agent-compliant by construction, so the
+  letters (filed as 8-K exhibits, EX-99.1 or EX-99.2 — the authoritative source
+  for non-GAAP KPIs like bookings, DAUs, and ARR that fundamentals APIs don't
+  carry; one command lists the exhibit URLs for N quarters of earnings 8-Ks).
+  Resolve a ticker to its filing entity (CIK), list filings by form, date, and
+  8-K item code, batch-list exhibits, and — for large filings — index the
+  document and BM25-search it down to the few relevant sections, then extract
+  from those sections with cheap sub-agents. Fetches are User-Agent-compliant by construction, so the
   common EDGAR 403 (and the WebFetch trap) never happen. Triggers: "get the 10-K
   for X", "latest 10-Q / annual report for Y", "any recent 8-K for Z", "material
   disclosures / recent filings for <company>", "what risks does <company> declare",
@@ -100,6 +101,13 @@ python parse_filing.py AAPL --form 10-K \
     --query "supply chain concentration and single-source suppliers risk" --top 5
 # -> writes sec-output/<accession>/sec_01.txt … sec_NN.txt  + results.json
 #    and prints a ranked table with the Item label and a snippet per section.
+
+# BM25 is lexical — REPEAT --query with 2-4 rephrasings; results are rank-fused
+# (RRF), so a section that any one phrasing finds still surfaces. One pass, same cost:
+python parse_filing.py AAPL --form 10-K --top 5 \
+    --query "supply chain concentration single-source suppliers" \
+    --query "manufacturing outsourcing partners dependence" \
+    --query "component shortages supplier risk"
 
 python parse_filing.py AAPL --accession 0000320193-25-000079 --query "segment revenue"
 python parse_filing.py --url https://www.sec.gov/Archives/.../aapl-20250927.htm --query "MD&A liquidity"
@@ -201,12 +209,20 @@ python edgar.py filings AAPL 8-K -n 10     # the `items=` field decodes via the 
 **Read the 8-K and its attachments.** An 8-K is a *bundle*: the cover-page `.htm` plus
 exhibits. List them, then read the right one:
 ```bash
-python edgar.py attachments AAPL 8-K   # exhibits (EX-99.1 press release) + XBRL members
+python edgar.py exhibits    AAPL 8-K   # just the exhibit URLs, labeled (EX-99.1, EX-99.2, …)
+python edgar.py attachments AAPL 8-K   # the whole accession folder, incl. XBRL members
 python edgar.py cover       AAPL 8-K   # the dei cover-page facts (an 8-K's ONLY XBRL)
 ```
-- On an **Item 2.02 earnings** 8-K, the numbers live in the **EX-99.1 press release** — and
-  that table is **plain HTML, not XBRL** (verified). Read it as prose: feed its URL (from
-  `attachments`) to `parse_filing.py --url …`.
+- On an **Item 2.02 earnings** 8-K, the numbers live in **EX-99.1 *or* EX-99.2** — some
+  companies (e.g. Roblox) file the press release as 99.1 and the shareholder letter that
+  carries the KPI tables as 99.2 (verified). List both and pick by content, never by
+  number alone. The tables are **plain HTML, not XBRL** (verified): feed the exhibit URL
+  to `parse_filing.py --url …`.
+- ⛔ **Never construct an exhibit URL from a guessed filename.** Exhibit names are
+  arbitrary and era-dependent (`ex991-q12026earningsshar.htm`, `q225shletterex992.htm`,
+  `a05-09330pmq123sharehold.htm` are all real Roblox exhibits). A 404 on a hand-built
+  URL means *list the folder* (`exhibits --accession <acc>`) — it is never a reason to
+  fall back to WebFetch (sec.gov 403s it).
 - `python edgar.py cover` extracts the cover-page XBRL — but note an 8-K has **no
   financial XBRL**, only `dei:` cover facts (document type, period, registrant, item flags,
   registered securities). Don't expect an income statement from `filing.xbrl()` on an 8-K.
@@ -216,11 +232,48 @@ python edgar.py cover       AAPL 8-K   # the dei cover-page facts (an 8-K's ONLY
 
 ---
 
-## Scenario 3 — "Information only found in filings" (risks, MD&A, segments)
+## Scenario 2b — a KPI time series from earnings releases (bookings, DAUs, ARR, …)
+
+Non-GAAP KPIs are not in any fundamentals API and not in XBRL — they only exist in the
+quarterly earnings exhibits. Getting "metric X for the last N quarters" is a **three-step
+batch job**, not N rounds of discovery:
+
+**1. One call for every exhibit URL** (item `2.02` = earnings release):
+```bash
+python edgar.py exhibits RBLX 8-K --items 2.02 -n 17   # one labeled EX-99.x URL set per quarter
+```
+
+**2. BM25-narrow each exhibit** to the sections that carry the metric (each quarterly
+release restates the year-ago figure, so every other quarter is enough when budget-bound).
+Use 2–3 query phrasings — companies move KPIs between a "highlights" block, a
+"reconciliation" table, and a "key metrics" table across quarters, and one phrasing
+won't match all eras:
+```bash
+python parse_filing.py --url <exhibit-url> \
+    --query "<metric> three months ended" \
+    --query "reconciliation of revenue to <metric>" \
+    --query "key metrics highlights <metric> growth"
+# -> sec-output/<slug>/sec_01.txt … (one section each, ~6 KB, rank-fused across queries)
+```
+
+**3. Extract with a Haiku sub-agent per section — do NOT read the sections yourself.**
+Reading `sec_NN.txt` files in your own context burns premium-model tokens on table
+boilerplate; this is exactly Step 2 of the parse pipeline (above). Spawn one sub-agent
+(model `claude-haiku-4-5`) per exhibit, e.g.:
+
+> *Spawn (model `claude-haiku-4-5`):* "Read the section files `sec-output/<slug>/sec_0*.txt`
+> from `<COMPANY>`'s `<period>` earnings exhibit. Return ONLY a JSON object
+> `{"period": "YYYY-MM-DD", "<metric>": <absolute USD number>}` using the
+> three-months-ended column (not six/nine-months YTD). Use `null` if absent — never guess."
+
+Run them in parallel and assemble the array. The YTD-column trap is the #1 wrong-answer
+source here: shareholder letters print "Three Months Ended" next to "Six Months Ended" —
+the sub-agent prompt must pin the column.
 
 This is the highest-value case, and exactly what the **parse pipeline** is for:
 
-1. `python parse_filing.py <ticker> --form 10-K --query "<topic>"` → top sections.
+1. `python parse_filing.py <ticker> --form 10-K --query "<topic>" --query "<rephrasing>"`
+   → top sections (repeat `--query` 2–4× with different vocabulary; rank-fused).
 2. Haiku sub-agent per section → precise, quoted answer (Step 2 above).
 
 Where the topic maps in a 10-K/10-Q (useful as a query hint or to read the section map):
@@ -268,6 +321,8 @@ sign, nil, dimensions): **`references/sec-xbrl-and-attachments.md`**.
    inline facts (`ix:nonFraction`/`ix:nonNumeric`). Don't index the raw HTML yourself.
 6. **XBRL tag drift.** Same concept, different tags across companies/years. Discover, don't assume.
 7. **No automatic rate limiting beyond the scripts' per-call sleep.** Self-throttle on bulk.
+8. **Exhibit filenames are arbitrary** — never build one from a pattern; list them
+   (`edgar.py exhibits`). And the earnings exhibit may be EX-99.1 *or* EX-99.2.
 
 Full, verified catalog: **`references/sec-edgar-direct-http.md`**.
 

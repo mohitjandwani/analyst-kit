@@ -88,5 +88,31 @@ def test_no_match_returns_empty():
     assert pf.search_text(text, "cryptocurrency staking derivatives") == []
 
 
+def test_fuse_search_multi_query_improves_recall():
+    text = pf.html_to_text(SAMPLE_HTML)
+    # One phrasing only surfaces the risk section; the fused pair must surface
+    # BOTH the risk section and the MD&A liquidity section in a single pass.
+    single = pf.search_text(text, "supply chain concentration risk",
+                            top=3, chunk_chars=120, overlap=20)
+    assert all(r["item"] != "Item 7" for r in single)
+    fused = pf.fuse_search(text,
+                           ["supply chain concentration risk",
+                            "liquidity cash marketable securities"],
+                           top=4, chunk_chars=120, overlap=20)
+    items = {r["item"] for r in fused}
+    assert {"Item 1A", "Item 7"} <= items
+    # Each result records which variants surfaced it.
+    for r in fused:
+        assert r["queries"] and r["rrf"] > 0
+
+
+def test_fuse_search_single_query_matches_search_text_order():
+    text = pf.html_to_text(SAMPLE_HTML)
+    q = "liquidity cash marketable securities"
+    a = [(r["start"], r["end"]) for r in pf.search_text(text, q, top=3, chunk_chars=120, overlap=20)]
+    b = [(r["start"], r["end"]) for r in pf.fuse_search(text, [q], top=3, chunk_chars=120, overlap=20)]
+    assert a == b
+
+
 def test_tokenize_drops_single_chars_and_lowercases():
     assert pf.tokenize("A Supply-Chain, 2024!") == ["supply", "chain", "2024"]
