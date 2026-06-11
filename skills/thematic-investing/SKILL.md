@@ -1,6 +1,6 @@
 ---
 name: "thematic-investing"
-type: composite
+type: workflow
 description: "Forensic thematic investing research skill. Use this whenever the user asks about investable themes, secular trends, technology transitions, industrial buildouts, commodity cycles, policy-driven opportunities, or value chain analysis. Triggers: 'map the value chain for X', 'what are the plays on X', 'who benefits from X', 'hidden beneficiaries of X', 'fake exposures to X', 'where does value accrue in X', 'which layer is mispriced', 'best stocks for X theme', 'picks and shovels for X', 'ETF for X theme', 'is X theme real or overhyped', 'bottlenecks in X'. Covers AI, semis, defense, electrification, energy transition, reshoring, infrastructure, shipping, biotech platforms, robotics, power grid, payments, and any other thematic or structural market story. Always use this skill before answering thematic investing questions — never give a generic stock list without running this framework first."
 requires:
   - company-universe-manager

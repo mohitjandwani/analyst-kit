@@ -1,6 +1,6 @@
 ---
 name: reporting
-type: composite
+type: capability
 description: >
   Assemble charts, tables, and analyst text into a beautiful, branded PDF — either a
   multi-page portrait report (A4) or a 16:9 landscape presentation deck like Google

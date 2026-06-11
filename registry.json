@@ -31,7 +31,7 @@
     {
       "name": "company-wiki",
       "folder": "company-wiki",
-      "type": "composite",
+      "type": "workflow",
       "description": "Build a comprehensive, multi-page company research wiki as a deployed web application. Use for: researching any publicly listed company from any region (US, Europe, Japan, Taiwan, India, or other) and producing a structured wiki covering company overview/history, individual product pages (sourced from earnings calls and investor presentations), 5-year financials, analyst reports, stock price and technical analysis, financial modelling with growth scenarios and forward P/E and P/S multiples, competitor comparison, and a sourced citations page. The wiki is built with React + Tailwind using the webdev tools and deployed on Manus hosting. Triggers: 'build a company wiki for X', 'research wiki on Y', 'make a company research site for Z', 'deep research wiki for <ticker>'.",
       "requires": [
         "wiki-builder",
@@ -45,7 +45,7 @@
     {
       "name": "data-analysis",
       "folder": "data-analysis",
-      "type": "composite",
+      "type": "capability",
       "description": "End-to-end data analysis assistant for any structured dataset (CSV, JSON, Excel, SQL). Use whenever the user wants to analyze, explore, profile, clean, or model a dataset; build visualizations or dashboards; generate reproducible analysis code (Python, R, SQL, JavaScript); write an analysis report; run data-quality checks; or generate testable research hypotheses. Triggers: \"analyze this data/CSV\", \"explore this dataset\", \"what patterns are in X\", \"visualize / chart / plot this data\", \"build a dashboard\", \"write analysis code for X\", \"generate a report on this data\", \"check the data quality of X\", \"clean this dataset\", \"what hypotheses can we test\", \"EDA on X\", \"find correlations / outliers / segments / trends in X\". Adapted from the claude-data-analysis multi-agent project (github.com/liangdabiao/claude-data-analysis). Run this skill before producing ad-hoc data analysis — follow its pipeline and specialist roles instead of jumping straight to a one-off script.",
       "requires": [],
       "env": [],
@@ -76,7 +76,7 @@
     {
       "name": "reporting",
       "folder": "reporting",
-      "type": "composite",
+      "type": "capability",
       "description": "Assemble charts, tables, and analyst text into a beautiful, branded PDF — either a multi-page portrait report (A4) or a 16:9 landscape presentation deck like Google Slides. Ships page templates (comparison matrix, industry breakdown, full-bleed price chart with technical commentary, data table with commentary) that consume output from the charting, thematic-investing, and sec-filings skills. Remembers your logo and brand colors after first use. Triggers: \"generate a PDF report\", \"turn this analysis into a deck\", \"make a presentation of these charts\", \"client-ready report\", \"export to PDF\", \"slides comparing these companies\", \"branded research report\", \"investment memo PDF\".",
       "requires": [
         "charting"
@@ -96,7 +96,7 @@
     {
       "name": "single-stock-deep-dive",
       "folder": "single-stock-deep-dive",
-      "type": "composite",
+      "type": "workflow",
       "description": "Forensic, decision-useful single-stock deep dive for investors and traders. Covers analysis/research on any individual stock, short theses, catalyst identification, valuation, variant-perception work, and proxy / adjacency / value-chain expansion on a stock. Always use before producing stock research — never produce a generic company summary without running this framework first. Triggers: \"analyze X\", \"deep dive on Y\", \"is Z a buy\", \"bull/bear case on X\", \"thesis on Y\", \"what does the market miss about Z\", \"what else moves with X\", \"upstream/downstream plays for Y\", \"picks-and-shovels for Z\", \"pair trade for X\".",
       "requires": [],
       "env": [],
@@ -105,7 +105,7 @@
     {
       "name": "thematic-investing",
       "folder": "thematic-investing",
-      "type": "composite",
+      "type": "workflow",
       "description": "Forensic thematic investing research skill. Use this whenever the user asks about investable themes, secular trends, technology transitions, industrial buildouts, commodity cycles, policy-driven opportunities, or value chain analysis. Triggers: 'map the value chain for X', 'what are the plays on X', 'who benefits from X', 'hidden beneficiaries of X', 'fake exposures to X', 'where does value accrue in X', 'which layer is mispriced', 'best stocks for X theme', 'picks and shovels for X', 'ETF for X theme', 'is X theme real or overhyped', 'bottlenecks in X'. Covers AI, semis, defense, electrification, energy transition, reshoring, infrastructure, shipping, biotech platforms, robotics, power grid, payments, and any other thematic or structural market story. Always use this skill before answering thematic investing questions — never give a generic stock list without running this framework first.",
       "requires": [
         "company-universe-manager"

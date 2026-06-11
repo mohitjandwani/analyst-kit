@@ -1,6 +1,6 @@
 ---
 name: company-wiki
-type: composite
+type: workflow
 description: "Build a comprehensive, multi-page company research wiki as a deployed web application. Use for: researching any publicly listed company from any region (US, Europe, Japan, Taiwan, India, or other) and producing a structured wiki covering company overview/history, individual product pages (sourced from earnings calls and investor presentations), 5-year financials, analyst reports, stock price and technical analysis, financial modelling with growth scenarios and forward P/E and P/S multiples, competitor comparison, and a sourced citations page. The wiki is built with React + Tailwind using the webdev tools and deployed on Manus hosting. Triggers: 'build a company wiki for X', 'research wiki on Y', 'make a company research site for Z', 'deep research wiki for <ticker>'."
 requires:
   - wiki-builder

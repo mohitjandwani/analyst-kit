@@ -1,6 +1,6 @@
 ---
 name: data-analysis
-type: composite
+type: capability
 description: >
   End-to-end data analysis assistant for any structured dataset (CSV, JSON, Excel, SQL).
   Use whenever the user wants to analyze, explore, profile, clean, or model a dataset;

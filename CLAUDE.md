@@ -75,9 +75,11 @@ resolution, and the validator. Never hand-edit `registry.json`; edit frontmatter
 ### Skill contract (enforced by `scripts/validate.js`)
 
 - `name` must equal the folder name and be kebab-case.
-- `type` is `capability` (one atomic job, **no `requires`**) or `composite` (a workflow
-  that orchestrates capabilities via `requires:`). Composites may only require
-  capabilities, never other composites.
+- `type` is `capability` (a requirable unit — data source, engine, deliverable, or
+  knowledge like `analyst-playbook` — which may itself `require:` other capabilities,
+  e.g. `reporting` → `charting`) or `workflow` (an engagement entry point that
+  orchestrates capabilities via `requires:`). The one dependency rule: **nothing may
+  require a workflow**; the validator also rejects dependency cycles.
 - `description` ≥ 40 chars and **must contain a `Triggers:` clause** of natural-language
   phrases — agents only see `name` + `description`, so discoverability lives there.
 - `SKILL.md` body must be non-empty; no dependency cycles; no **dependency-manager**
@@ -87,7 +89,7 @@ resolution, and the validator. Never hand-edit `registry.json`; edit frontmatter
   PDF-safe rendering) are allowed and **should** be committed — they are not "vendored
   dirs" in the dependency sense and `copyTree` ships them on install.
 - Plugin manifests must reference existing skills **and include each referenced skill's
-  full dependency closure** (a composite without its capabilities fails validation).
+  full dependency closure** (a workflow without its capabilities fails validation).
 
 ## Making changes
 
