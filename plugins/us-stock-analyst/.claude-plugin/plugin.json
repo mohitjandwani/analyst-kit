@@ -1,16 +1,18 @@
 {
   "name": "us-stock-analyst",
   "version": "0.1.0",
-  "description": "US-market equity research: forensic single-stock deep dives, thematic value-chain mapping, company research wikis, and data analysis.",
+  "description": "US-market equity research: forensic single-stock deep dives, thematic value-chain mapping, technical analysis with entry/exit levels, company research wikis, and data analysis.",
   "author": { "name": "Mohit Kumar" },
   "skills": [
     "../../skills/single-stock-deep-dive",
     "../../skills/thematic-investing",
+    "../../skills/technical-analysis",
     "../../skills/company-wiki",
     "../../skills/data-analysis",
     "../../skills/charting",
     "../../skills/reporting",
     "../../skills/wiki-builder",
-    "../../skills/company-universe-manager"
+    "../../skills/company-universe-manager",
+    "../../skills/financialmodellingprep"
   ]
 }
