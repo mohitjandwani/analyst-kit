@@ -53,6 +53,41 @@ For every page of the storyline, answer three questions **in order**:
 A page with lots of empty space or no `story` is a page whose point was never
 decided — fix the storyline, not the CSS.
 
+## Style defaults
+
+These are the house style. Apply them on **every** report unless the user
+explicitly overrides one for a given report — and a per-report override never
+changes the defaults themselves.
+
+1. **Information-dense.** Professional research layout: 10pt body, tight vertical
+   rhythm, evidence (charts/tables) gets the reclaimed space. Never pad a page to
+   fill it. The cover is the one deliberately airy page.
+2. **Conclusion first.** Every data page opens with the `story` banner, then
+   `stats` chips carrying the headline numbers the user asked for (entry/exit,
+   latest YoY, the verdict).
+3. **Levels live on the chart.** Any price level the commentary mentions
+   (support, resistance, entry, exit, moving averages) is also drawn on the chart
+   via `levels` — green for support/entry, red for resistance/exit, gray otherwise.
+4. **References are always the last page.** The renderer appends it automatically
+   from the required top-level `references` array; every data page cites into it
+   with `sources: [n]`, rendered as linked `[n]` footnote marks in the footer.
+5. **One point per page.** Two points = two pages. Row caps (7 companies, 10 table
+   rows per slide) are enforced.
+6. **Modes.** `report` = portrait A4 multi-page document; `presentation` = 16:9
+   landscape deck (Google Slides geometry). Default to `report` unless the user
+   asks for a deck/presentation/slides.
+7. **Branding.** Persisted `report-brand/brand.json` applies silently; built-in
+   default theme otherwise. Page numbers on (skipped on cover); `meta.footer`
+   repeats on every page.
+8. **Charts are print-tuned.** No navigator/range selector/animation; vendored
+   Highcharts inlined so the PDF renders offline; chart contracts in, never
+   pre-rendered chart HTML.
+
+When the user overrides ("make it airy", "skip the references page", "no story
+banners"), honor it for that report only and say so in your summary. The
+renderer hard-enforces #4 and the `story` slot — for those, an override means
+filling them minimally (e.g. a single reference), not skipping them.
+
 ## Fast path
 
 ```bash
