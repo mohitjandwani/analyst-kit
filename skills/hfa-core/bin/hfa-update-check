@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# hfa-update-check — compare the installed VERSION to the published one.
+# Prints "UPGRADE_AVAILABLE <local> <remote>" or nothing. Never exits non-zero
+# in the normal path; safe to call from every preamble.
+#
+# Network discipline: at most one fetch per day (cached in
+# ~/.hfa/last-update-check, including failed fetches), curl --max-time 3.
+# Declines are snoozed 7 days per version (~/.hfa/update-snoozed).
+set -uo pipefail
+
+DIR="$(cd "$(dirname "$0")" && pwd)"
+CORE="$(dirname "$DIR")"
+HFA_HOME="${HFA_HOME:-$HOME/.hfa}"
+CACHE="$HFA_HOME/last-update-check"     # "<epoch> <remote-version|fetch-failed>"
+SNOOZE="$HFA_HOME/update-snoozed"       # "<version> <epoch>"
+URL="${HFA_REMOTE_VERSION_URL:-https://raw.githubusercontent.com/MohitKumar1991/hedge-fund-analyst/main/VERSION}"
+
+FORCE=no
+case "${1:-}" in
+  --force) FORCE=yes ;;
+  --snooze)
+    mkdir -p "$HFA_HOME" 2>/dev/null || true
+    echo "${2:-unknown} $(date +%s)" > "$SNOOZE" 2>/dev/null || true
+    exit 0 ;;
+esac
+
+[ "$("$DIR/hfa-config" get update_check 2>/dev/null)" = "false" ] && exit 0
+
+LOCAL="$(tr -d '[:space:]' < "$CORE/VERSION" 2>/dev/null)"
+[ -n "$LOCAL" ] || exit 0
+
+NOW=$(date +%s)
+mkdir -p "$HFA_HOME" 2>/dev/null || true
+
+# Cache-first: reuse a result < 1 day old unless --force.
+REMOTE=""
+if [ "$FORCE" = "no" ] && [ -f "$CACHE" ]; then
+  read -r C_TS C_VER < "$CACHE" 2>/dev/null || true
+  if [ -n "${C_TS:-}" ] && [ $(( NOW - C_TS )) -lt 86400 ] 2>/dev/null; then
+    REMOTE="${C_VER:-}"
+  fi
+fi
+if [ -z "$REMOTE" ]; then
+  REMOTE="$(curl -sf --max-time 3 "$URL" 2>/dev/null | head -1 | tr -d '[:space:]')"
+  echo "$NOW ${REMOTE:-fetch-failed}" > "$CACHE" 2>/dev/null || true
+fi
+[ -n "$REMOTE" ] || exit 0
+[ "$REMOTE" = "fetch-failed" ] && exit 0
+[ "$REMOTE" = "$LOCAL" ] && exit 0
+
+# Only nag when remote sorts higher (semver-ish numeric sort).
+HIGHEST="$(printf '%s\n%s\n' "$LOCAL" "$REMOTE" | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)"
+[ "$HIGHEST" = "$REMOTE" ] || exit 0
+
+# Honor a 7-day snooze for this exact remote version.
+if [ "$FORCE" = "no" ] && [ -f "$SNOOZE" ]; then
+  read -r S_VER S_TS < "$SNOOZE" 2>/dev/null || true
+  if [ "${S_VER:-}" = "$REMOTE" ] && [ -n "${S_TS:-}" ] && [ $(( NOW - S_TS )) -lt 604800 ] 2>/dev/null; then
+    exit 0
+  fi
+fi
+
+echo "UPGRADE_AVAILABLE $LOCAL $REMOTE"
+exit 0

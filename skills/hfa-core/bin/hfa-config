@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# hfa-config — get/set/list over the ~/.hfa/config key=value store.
+# Never used for secrets (API keys live in ~/.hfa/.env, chmod 600).
+set -uo pipefail
+
+HFA_HOME="${HFA_HOME:-$HOME/.hfa}"
+CFG="$HFA_HOME/config"
+
+default() {
+  case "$1" in
+    telemetry) echo "off" ;;       # off | anonymous | community
+    update_check) echo "true" ;;
+    *) echo "" ;;
+  esac
+}
+
+case "${1:-}" in
+  get)
+    [ -n "${2:-}" ] || { echo "usage: hfa-config get <key>" >&2; exit 1; }
+    v=$(grep -E "^${2}=" "$CFG" 2>/dev/null | tail -1 | cut -d= -f2-)
+    if [ -n "$v" ]; then echo "$v"; else default "$2"; fi
+    ;;
+  set)
+    [ -n "${2:-}" ] && [ -n "${3:-}" ] || { echo "usage: hfa-config set <key> <value>" >&2; exit 1; }
+    mkdir -p "$HFA_HOME" 2>/dev/null || true
+    grep -vE "^${2}=" "$CFG" 2>/dev/null > "$CFG.tmp" || true
+    echo "${2}=${3}" >> "$CFG.tmp"
+    mv "$CFG.tmp" "$CFG"
+    ;;
+  list)
+    cat "$CFG" 2>/dev/null || true
+    ;;
+  *)
+    echo "usage: hfa-config get <key> | set <key> <value> | list" >&2
+    exit 1
+    ;;
+esac

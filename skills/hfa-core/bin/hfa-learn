@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# hfa-learn — append/recall the per-user learnings log (~/.hfa/learnings.jsonl)
+# so skills stop repeating mistakes already made for this user.
+#
+#   hfa-learn add '{"skill":"finmind","type":"pitfall","ticker":"2330","insight":"...","confidence":8,"ts":"..."}'
+#   hfa-learn recent [--skill S] [--topic T] [--limit N]
+set -uo pipefail
+
+HFA_HOME="${HFA_HOME:-$HOME/.hfa}"
+LOG="$HFA_HOME/learnings.jsonl"
+
+case "${1:-}" in
+  add)
+    LINE="${2:-}"
+    case "$LINE" in
+      "{"*) ;;
+      *) echo "rejected: not a JSON object" >&2; exit 1 ;;
+    esac
+    case "$LINE" in
+      *$'\n'*) echo "rejected: multiline" >&2; exit 1 ;;
+    esac
+    printf '%s' "$LINE" | grep -q '"skill"' || { echo 'rejected: missing "skill"' >&2; exit 1; }
+    printf '%s' "$LINE" | grep -qE '"type"[[:space:]]*:[[:space:]]*"(pattern|pitfall|preference)"' \
+      || { echo 'rejected: type must be pattern|pitfall|preference' >&2; exit 1; }
+    # Refuse entries that read like prompt injection — this file is fed back to agents.
+    if printf '%s' "$LINE" | grep -qiE 'ignore (all |any )?previous instructions|you are now|system:|do not (report|flag|mention)'; then
+      echo "rejected: suspicious content" >&2; exit 1
+    fi
+    mkdir -p "$HFA_HOME" 2>/dev/null || true
+    printf '%s\n' "$LINE" >> "$LOG"
+    echo "logged"
+    ;;
+  recent)
+    shift
+    SKILL=""; TOPIC=""; LIMIT=3
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --skill) SKILL="${2:-}"; shift 2 ;;
+        --topic) TOPIC="${2:-}"; shift 2 ;;
+        --limit) LIMIT="${2:-3}"; shift 2 ;;
+        *) shift ;;
+      esac
+    done
+    [ -f "$LOG" ] || exit 0
+    OUT="$(tail -200 "$LOG" 2>/dev/null)"
+    MATCHED="$OUT"
+    [ -n "$SKILL" ] && MATCHED="$(printf '%s\n' "$OUT" | grep -F "\"skill\":\"$SKILL\"" 2>/dev/null)"
+    [ -n "$TOPIC" ] && MATCHED="$(printf '%s\n' "$MATCHED" | grep -iF "$TOPIC" 2>/dev/null)"
+    [ -z "$MATCHED" ] && MATCHED="$OUT"   # fall back to recent global entries
+    printf '%s\n' "$MATCHED" | grep -v '^$' | tail -"$LIMIT"
+    ;;
+  *)
+    echo "usage: hfa-learn add '<one-line-json>' | recent [--skill S] [--topic T] [--limit N]" >&2
+    exit 1
+    ;;
+esac
+exit 0
