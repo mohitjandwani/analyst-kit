@@ -1,8 +1,10 @@
 {
   "name": "taiwan-stock-analyst",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Taiwan-market (TWSE/TPEx) equity research: FinMind/TWSE data capabilities plus deep dives, thematic mapping, technical analysis with entry/exit levels, company wikis, and data analysis.",
-  "author": { "name": "Mohit Kumar" },
+  "author": {
+    "name": "Mohit Kumar"
+  },
   "skills": [
     "../../skills/single-stock-deep-dive",
     "../../skills/thematic-investing",
@@ -15,6 +17,7 @@
     "../../skills/wiki-builder",
     "../../skills/company-universe-manager",
     "../../skills/analyzing-financial-statements",
-    "../../skills/creating-financial-models"
+    "../../skills/creating-financial-models",
+    "../../skills/hfa-core"
   ]
 }

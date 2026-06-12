@@ -6,7 +6,9 @@
       "folder": "13f-analysis",
       "type": "capability",
       "description": "Fetch and read U.S. institutional 13F-HR filings (quarterly long-equity holdings) for any fund manager from SEC EDGAR — free, no API key. Resolve a fund to its filing entity (CIK), pull the latest or a historical quarter's holdings as a ranked CSV with values normalized to whole dollars and positions rolled up by issuer, and interpret them without the common traps. Triggers: \"get the 13F for X\", \"latest 13F holdings of Y\", \"what does <fund> own\", \"pull <manager>'s 13F\", \"find the CIK for <fund>\", \"who filed this 13F\", \"13F analysis of Z\".",
-      "requires": [],
+      "requires": [
+        "hfa-core"
+      ],
       "env": [],
       "runtime": "python"
     },
@@ -15,7 +17,9 @@
       "folder": "analyst-playbook",
       "type": "capability",
       "description": "How to structure any financial analysis before fetching a single number: decide the deliverable (report/deck vs financial-model update), align fiscal calendars and data frequencies, normalize units, route each data series to the right skill, and apply sector-specific conventions (reporting calendars, KPIs, seasonality, valuation norms) from per-sector playbooks loaded on demand. Triggers: \"how should I structure this analysis\", \"compare X and Y\", \"analyze <company> properly\", \"what matters for this sector\", \"which metrics should I use for X\", \"build an analysis plan for Y\".",
-      "requires": [],
+      "requires": [
+        "hfa-core"
+      ],
       "env": [],
       "runtime": "none"
     },
@@ -24,7 +28,9 @@
       "folder": "analyzing-financial-statements",
       "type": "capability",
       "description": "Calculate and interpret key financial ratios from financial statement data (income statement, balance sheet, cash flow, market data) for investment analysis — profitability (ROE, ROA, margins), liquidity (current/quick/cash), leverage (debt-to-equity, interest coverage), efficiency (asset/inventory/ receivables turnover), valuation (P/E, P/B, P/S, EV/EBITDA, PEG), and per-share metrics, with industry-standard interpretation and benchmarking. Pure-stdlib Python, fully offline — no API key. Triggers: \"calculate financial ratios for X\", \"what's the P/E / ROE / debt-to-equity of Y\", \"analyze the liquidity / leverage / profitability of Z\", \"interpret these financial statements\", \"ratio analysis on this balance sheet\", \"is this company's margin / coverage healthy\", \"benchmark <company>'s ratios\".",
-      "requires": [],
+      "requires": [
+        "hfa-core"
+      ],
       "env": [],
       "runtime": "python"
     },
@@ -33,7 +39,9 @@
       "folder": "charting",
       "type": "capability",
       "description": "Build financially-correct charts from company fundamentals — pick the right chart for the question, normalise units (one unit per axis, $B/$M scaling, %-vs-$ dual axes, rebasing for comparisons), and apply finance conventions (green beat / red miss, accounting negatives, dashed estimates, dark totals). A thin Python+Polars layer normalises already-available data into a chart contract; a TypeScript layer emits Highcharts options and renders a self-contained HTML page. Covers revenue trends & YoY, segment mix, margins, dividends, earnings surprise, estimate-vs-reported, revenue→net-income waterfalls, and price (candlestick/Stock). Use whenever the user wants to chart, plot, graph, or visualize financial data. Triggers: \"chart revenue over time\", \"plot YoY growth with event flags\", \"revenue breakdown by segment\", \"dividend history and yield\", \"earnings surprise chart\", \"estimate vs reported\", \"waterfall from revenue to net income\", \"margins over time\", \"candlestick / price chart\", \"compare two companies' revenue\", \"show visual breakdown of income statement\"",
-      "requires": [],
+      "requires": [
+        "hfa-core"
+      ],
       "env": [],
       "runtime": "bun"
     },
@@ -42,7 +50,9 @@
       "folder": "company-universe-manager",
       "type": "capability",
       "description": "Manage a CSV-based company universe stored in GitHub: add companies with metadata, update company information, soft-delete companies, list active/inactive companies, and sync with the repository. Triggers: \"add company to the universe\", \"update company info\", \"soft-delete company X\", \"list active companies\", \"sync the company universe\".",
-      "requires": [],
+      "requires": [
+        "hfa-core"
+      ],
       "env": [],
       "runtime": "python"
     },
@@ -52,6 +62,7 @@
       "type": "workflow",
       "description": "Build a comprehensive, multi-page company research wiki as a deployed web application. Use for: researching any publicly listed company from any region (US, Europe, Japan, Taiwan, India, or other) and producing a structured wiki covering company overview/history, individual product pages (sourced from earnings calls and investor presentations), 5-year financials, analyst reports, stock price and technical analysis, financial modelling with growth scenarios and forward P/E and P/S multiples, competitor comparison, and a sourced citations page. The wiki is built with React + Tailwind using the webdev tools and deployed on Manus hosting. Triggers: 'build a company wiki for X', 'research wiki on Y', 'make a company research site for Z', 'deep research wiki for <ticker>'.",
       "requires": [
+        "hfa-core",
         "wiki-builder",
         "company-universe-manager"
       ],
@@ -65,7 +76,9 @@
       "folder": "creating-financial-models",
       "type": "capability",
       "description": "Build financial models for investment decisions: complete DCF valuations (FCF projections, WACC via CAPM, terminal value via perpetuity growth or exit multiple, enterprise/equity value, per-share value), M&A merger models (accretion/dilution to acquirer EPS, stock-vs-cash consideration, financing drag, purchase-price-allocation intangible amortization, breakeven synergies), sensitivity analysis (one-way and two-way data tables, tornado charts, breakeven search), and probability-weighted best/base/worst scenario planning. Runs locally in Python (numpy + pandas) — no API key. Triggers: \"build a DCF model for X\", \"what's the intrinsic / fair value of Y\", \"DCF / discounted cash flow valuation\", \"is this acquisition accretive or dilutive\", \"merger model / accretion-dilution for X buying Y\", \"pro forma EPS of this deal\", \"what synergies does this deal need to break even\", \"sensitivity analysis on growth rate and WACC\", \"tornado chart of value drivers\", \"breakeven WACC / growth for this valuation\", \"best/base/worst case scenarios for Z\", \"probability-weighted scenario analysis\".",
-      "requires": [],
+      "requires": [
+        "hfa-core"
+      ],
       "env": [],
       "runtime": "python"
     },
@@ -74,7 +87,9 @@
       "folder": "data-analysis",
       "type": "capability",
       "description": "End-to-end data analysis assistant for any structured dataset (CSV, JSON, Excel, SQL). Use whenever the user wants to analyze, explore, profile, clean, or model a dataset; build visualizations or dashboards; generate reproducible analysis code (Python, R, SQL, JavaScript); write an analysis report; run data-quality checks; or generate testable research hypotheses. Triggers: \"analyze this data/CSV\", \"explore this dataset\", \"what patterns are in X\", \"visualize / chart / plot this data\", \"build a dashboard\", \"write analysis code for X\", \"generate a report on this data\", \"check the data quality of X\", \"clean this dataset\", \"what hypotheses can we test\", \"EDA on X\", \"find correlations / outliers / segments / trends in X\". Adapted from the claude-data-analysis multi-agent project (github.com/liangdabiao/claude-data-analysis). Run this skill before producing ad-hoc data analysis — follow its pipeline and specialist roles instead of jumping straight to a one-off script.",
-      "requires": [],
+      "requires": [
+        "hfa-core"
+      ],
       "env": [],
       "runtime": "none"
     },
@@ -83,7 +98,9 @@
       "folder": "financialmodellingprep",
       "type": "capability",
       "description": "Call the Financial Modeling Prep (FMP) REST API to fetch historical daily stock prices, stock news, company profiles, the stock screener, quarterly income statements, fiscal-period information (fiscal year end, calendar/fiscal quarter mapping, earnings announcement dates), and earnings-call transcripts for (primarily US-listed) companies. Documents the exact endpoint paths (v3/v4 plus the newer stable news API), query parameters, response field schemas, and edge cases so an agent can call FMP correctly without guessing. Triggers: \"get historical stock prices for X\", \"fetch the latest stock news\", \"income statement for Y\", \"find the fiscal year end of Z\", \"get the earnings call transcript for AAPL Q2 2024\", \"screen US stocks by market cap\", \"company profile for <ticker>\".",
-      "requires": [],
+      "requires": [
+        "hfa-core"
+      ],
       "env": [
         "FMP_API_KEY"
       ],
@@ -94,11 +111,22 @@
       "folder": "finmind",
       "type": "capability",
       "description": "Fetch and maintain Taiwan stock-market company data (prices, monthly revenue, financial statements, dividends, shareholding, market cap, institutional flows) via the FinMind API, for any company listed in Taiwan (TWSE/TPEx), referenced by stock id (data_id) or company name. Triggers: \"fetch Taiwan stock data for X\", \"TSMC monthly revenue\", \"TWSE financials for <stock id>\", \"Taiwan dividends/shareholding for Y\".",
-      "requires": [],
+      "requires": [
+        "hfa-core"
+      ],
       "env": [
         "FINMIND_TOKEN"
       ],
       "runtime": "python"
+    },
+    {
+      "name": "hfa-core",
+      "folder": "hfa-core",
+      "type": "capability",
+      "description": "Shared runtime for Hedge Fund Analyst skills: the ~/.hfa data home, config store, local usage analytics with opt-in telemetry, daily update checks, and a per-user learnings log every skill reads and appends to. Loaded automatically as a dependency of every other skill. Triggers: \"hfa setup\", \"hfa config\", \"check for hfa updates\", \"upgrade hfa skills\", \"show my hfa learnings\", \"turn hfa telemetry on/off\", \"show my hfa usage\".",
+      "requires": [],
+      "env": [],
+      "runtime": "none"
     },
     {
       "name": "reporting",
@@ -106,6 +134,7 @@
       "type": "capability",
       "description": "Assemble charts, tables, and analyst text into a beautiful, branded PDF — either a multi-page portrait report (A4) or a 16:9 landscape presentation deck like Google Slides. Ships page templates (comparison matrix, industry breakdown, full-bleed price chart with technical commentary, data table with commentary) that consume output from the charting, thematic-investing, and sec-filings skills. Remembers your logo and brand colors after first use. Triggers: \"generate a PDF report\", \"turn this analysis into a deck\", \"make a presentation of these charts\", \"client-ready report\", \"export to PDF\", \"slides comparing these companies\", \"branded research report\", \"investment memo PDF\".",
       "requires": [
+        "hfa-core",
         "charting"
       ],
       "env": [],
@@ -116,7 +145,9 @@
       "folder": "sec-filings",
       "type": "capability",
       "description": "Fetch and read U.S. SEC filings (10-K, 10-Q, 8-K, and any EDGAR form) for any public company — free, no API key — and extract the information that only lives inside filings: declared risk factors, MD&A, material events, segment data, insider transactions, and quarterly earnings press releases / shareholder letters (filed as 8-K exhibits, EX-99.1 or EX-99.2 — the authoritative source for non-GAAP KPIs like bookings, DAUs, and ARR that fundamentals APIs don't carry; one command lists the exhibit URLs for N quarters of earnings 8-Ks). Resolve a ticker to its filing entity (CIK), list filings by form, date, and 8-K item code, batch-list exhibits, and — for large filings — index the document and BM25-search it down to the few relevant sections, then extract from those sections with cheap sub-agents. Fetches are User-Agent-compliant by construction, so the common EDGAR 403 (and the WebFetch trap) never happen. Triggers: \"get the 10-K for X\", \"latest 10-Q / annual report for Y\", \"any recent 8-K for Z\", \"material disclosures / recent filings for <company>\", \"what risks does <company> declare\", \"risk factors / MD&A from the latest 10-K\", \"what does <company>'s 10-K say about <topic>\", \"find the section on <topic> in <company>'s filing\", \"show <company>'s SEC filings\", \"did <company> file anything this week\", \"insider transactions for <ticker>\", \"earnings press release / shareholder letter for X\", \"quarterly bookings / DAU / KPI history for Y\", \"8-K exhibit / EX-99.1 for Z\", \"fetch a sec.gov URL without a 403\".",
-      "requires": [],
+      "requires": [
+        "hfa-core"
+      ],
       "env": [],
       "runtime": "python"
     },
@@ -125,7 +156,9 @@
       "folder": "single-stock-deep-dive",
       "type": "workflow",
       "description": "Forensic, decision-useful single-stock deep dive for investors and traders. Covers analysis/research on any individual stock, short theses, catalyst identification, valuation, variant-perception work, and proxy / adjacency / value-chain expansion on a stock. Always use before producing stock research — never produce a generic company summary without running this framework first. Triggers: \"analyze X\", \"deep dive on Y\", \"is Z a buy\", \"bull/bear case on X\", \"thesis on Y\", \"what does the market miss about Z\", \"what else moves with X\", \"upstream/downstream plays for Y\", \"picks-and-shovels for Z\", \"pair trade for X\".",
-      "requires": [],
+      "requires": [
+        "hfa-core"
+      ],
       "env": [],
       "runtime": "none"
     },
@@ -135,6 +168,7 @@
       "type": "workflow",
       "description": "Run a disciplined technical analysis of a stock and produce concrete entry and exit levels. Classifies the market regime first (trend vs range via ADX + long-MA), scores a three-layer confluence stack (regime → momentum → trigger), and computes ATR-based stops, position size, trailing exits, and targets — all from a zero-dependency Python indicator engine (RSI, MACD, Bollinger, ATR, ADX, Donchian, Supertrend, OBV). Emits chart contracts for the charting skill (multi-pane price/volume/MACD/RSI dashboard, levels chart) and report-ready tables for a branded PDF via the reporting skill. Market data is pluggable: any installed data skill that yields daily OHLCV works (financialmodellingprep, finmind). Adapts to the user's daily or weekly trading timeframe. Triggers: \"technical analysis of X\", \"good entry point for Y\", \"entry and exit points for Z\", \"where should I set my stop\", \"is X overbought\", \"chart Y with RSI and MACD\", \"should I buy this breakout\", \"technical setup for <ticker>\", \"support and resistance levels for X\".",
       "requires": [
+        "hfa-core",
         "charting"
       ],
       "env": [],
@@ -146,6 +180,7 @@
       "type": "workflow",
       "description": "Forensic thematic investing research skill. Use this whenever the user asks about investable themes, secular trends, technology transitions, industrial buildouts, commodity cycles, policy-driven opportunities, or value chain analysis. Triggers: 'map the value chain for X', 'what are the plays on X', 'who benefits from X', 'hidden beneficiaries of X', 'fake exposures to X', 'where does value accrue in X', 'which layer is mispriced', 'best stocks for X theme', 'picks and shovels for X', 'ETF for X theme', 'is X theme real or overhyped', 'bottlenecks in X'. Covers AI, semis, defense, electrification, energy transition, reshoring, infrastructure, shipping, biotech platforms, robotics, power grid, payments, and any other thematic or structural market story. Always use this skill before answering thematic investing questions — never give a generic stock list without running this framework first.",
       "requires": [
+        "hfa-core",
         "company-universe-manager"
       ],
       "env": [],
@@ -156,7 +191,9 @@
       "folder": "wiki-builder",
       "type": "capability",
       "description": "Serve any directory of markdown files as a beautiful, navigable browser wiki — sidebar navigation, on-page table of contents, frontmatter metadata chips, and interactive ECharts charts. Use when the user wants to view, browse, preview, or serve markdown files (notes, research, a brain/knowledge base, a company wiki) as a local website. Triggers: 'serve wiki', 'start wiki server', 'render markdown as a website', 'open my notes in the browser', 'view brain as wiki', 'open wiki'. Self-contained Bun + markdown-it server; runs a local HTTP server, mutates nothing.",
-      "requires": [],
+      "requires": [
+        "hfa-core"
+      ],
       "env": [],
       "runtime": "bun"
     }
