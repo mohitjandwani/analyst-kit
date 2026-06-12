@@ -1,7 +1,26 @@
+import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { homedir } from 'node:os';
 import { getAdapter } from './adapters/index.js';
 import { resolveTarget, personaByName } from './resolve.js';
 import { requiredEnv, resolveEnv } from './env.js';
 import { fileCount } from './adapters/copy.js';
+import { VERSION_FILE } from './paths.js';
+
+// Record what was installed in ~/.hfa/install-manifest.jsonl so the guided
+// upgrade flow (skills/hfa-core/references/upgrade.md) can re-run the same
+// installs against a newer release. Best-effort: never fails an install.
+function recordInstall(target, platform, scope) {
+  try {
+    const home = process.env.HFA_HOME || join(homedir(), '.hfa');
+    mkdirSync(home, { recursive: true });
+    const version = readFileSync(VERSION_FILE, 'utf8').trim();
+    const line = JSON.stringify({
+      target, platform, scope, version, ts: new Date().toISOString(),
+    });
+    appendFileSync(join(home, 'install-manifest.jsonl'), line + '\n');
+  } catch { /* analytics must never break an install */ }
+}
 
 // Install a skill or persona (+ its dependency closure) into a platform.
 export async function install(target, opts = {}) {
@@ -31,6 +50,7 @@ export async function install(target, opts = {}) {
     const dest = adapter.write(s, scope);
     written.push({ name: s.name, dest, files: fileCount(s.dir) });
   }
+  recordInstall(target, platform, scope);
 
   // Resolve API keys across the whole closure.
   const vars = requiredEnv(closure);
