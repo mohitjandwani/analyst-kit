@@ -1,6 +1,6 @@
 {
   "name": "hfa",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Hedge Fund Analyst — installable equity-research skills for Claude Code, Codex, and other agent runtimes.",
   "type": "module",
   "bin": {
@@ -15,12 +15,15 @@
     "skills",
     "plugins",
     "registry.json",
+    "VERSION",
     ".env.example"
   ],
   "scripts": {
-    "validate": "node scripts/validate.js",
+    "validate": "node scripts/validate.js && node scripts/sync-preamble.js --check",
     "build:registry": "node scripts/build-registry.js",
-    "check:registry": "node scripts/build-registry.js --check"
+    "check:registry": "node scripts/build-registry.js --check",
+    "sync:preamble": "node scripts/sync-preamble.js",
+    "check:preamble": "node scripts/sync-preamble.js --check"
   },
   "keywords": [
     "claude",

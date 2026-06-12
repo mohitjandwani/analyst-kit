@@ -7,6 +7,7 @@ export const SKILLS_DIR = join(ROOT, 'skills');
 export const PLUGINS_DIR = join(ROOT, 'plugins');
 export const REGISTRY_FILE = join(ROOT, 'registry.json');
 export const ENV_EXAMPLE = join(ROOT, '.env.example');
+export const VERSION_FILE = join(ROOT, 'VERSION');
 
 // Skills intentionally excluded from the shippable registry/plugins
 // (e.g. work-in-progress with an empty SKILL.md). The validator reports these
