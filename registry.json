@@ -41,8 +41,11 @@
       "name": "company-universe-manager",
       "folder": "company-universe-manager",
       "type": "capability",
-      "description": "Manage a CSV-based company universe stored in GitHub: add companies with metadata, update company information, soft-delete companies, list active/inactive companies, and sync with the repository. Triggers: \"add company to the universe\", \"update company info\", \"soft-delete company X\", \"list active companies\", \"sync the company universe\".",
-      "requires": [],
+      "description": "Own a watchlist (\"universe\") of companies and everything time-based about them. Maintain the roster (add / update / soft-delete / reactivate / list with metadata, competitors, rationale) and track each company's key dates — earnings, investor days, ex-dividend, AGMs, conferences, guidance, lockups. Run a daily monitor that re-fetches dates and detects what changed (earnings moved, newly announced, confirmed-from-estimated, dropped), and produce a daily brief (key-date changes, upcoming calendar, news + 8-K material events) as markdown or a branded PDF. Storage is pluggable behind one contract: a local folder (~/company-universe) or a connected server (e.g. Google Sheets over MCP). Triggers: \"add company to my universe / watchlist\", \"list my companies\", \"when does X report earnings\", \"track earnings / ex-dividend dates for Y\", \"what changed in earnings dates\", \"any investor days coming up\", \"run the daily universe monitor\", \"daily brief / report for my watchlist\", \"schedule the daily check\", \"upcoming key dates for my companies\".",
+      "requires": [
+        "financialmodellingprep",
+        "reporting"
+      ],
       "env": [],
       "runtime": "python"
     },

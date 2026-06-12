@@ -1,228 +1,195 @@
 ---
 name: company-universe-manager
 type: capability
+requires:
+  - financialmodellingprep
+  - reporting
 description: >
-  Manage a CSV-based company universe stored in GitHub: add companies with metadata,
-  update company information, soft-delete companies, list active/inactive companies, and
-  sync with the repository. Triggers: "add company to the universe", "update company
-  info", "soft-delete company X", "list active companies", "sync the company universe".
+  Own a watchlist ("universe") of companies and everything time-based about
+  them. Maintain the roster (add / update / soft-delete / reactivate / list with
+  metadata, competitors, rationale) and track each company's key dates —
+  earnings, investor days, ex-dividend, AGMs, conferences, guidance, lockups.
+  Run a daily monitor that re-fetches dates and detects what changed (earnings
+  moved, newly announced, confirmed-from-estimated, dropped), and produce a
+  daily brief (key-date changes, upcoming calendar, news + 8-K material events)
+  as markdown or a branded PDF. Storage is pluggable behind one contract: a
+  local folder (~/company-universe) or a connected server (e.g. Google Sheets
+  over MCP). Triggers: "add company to my universe / watchlist", "list my
+  companies", "when does X report earnings", "track earnings / ex-dividend dates
+  for Y", "what changed in earnings dates", "any investor days coming up", "run
+  the daily universe monitor", "daily brief / report for my watchlist",
+  "schedule the daily check", "upcoming key dates for my companies".
 ---
 
 # Company Universe Manager
 
-Manage a CSV file containing company universe data stored in the `hedge-fund-analyst` GitHub repository. The skill handles adding, updating, and soft-deleting companies with metadata including financial metrics, competitors, and investment rationale.
+Owns a watchlist of companies and the **time dimension** over it. Three jobs:
 
-## Repository Configuration
+1. **Roster** — the list of companies and their metadata.
+2. **Key dates** — earnings, investor days, ex-dividend, AGMs, etc., per company.
+3. **Daily intelligence** — detect date changes and produce a daily brief.
 
-- **Repository**: `hedge-fund-analyst` (user's GitHub account)
-- **Branch**: `main`
-- **CSV Location**: `data/FULL_UNIVERSE.csv` 
-- **Authentication**: Uses GitHub Connector
+All scripts are run from this skill's directory: `python3 scripts/<name>.py`.
 
-## Core Workflow
+## Storage (pluggable)
 
-All operations follow this pattern:
+Everything lives behind one `UniverseStore` contract (`scripts/storage.py`). The
+source of truth is selected by `config.json` and is either a **local folder** or
+a **connected server**. The store root resolves as: explicit path →
+`$COMPANY_UNIVERSE_HOME` → default `~/company-universe`.
 
-1. **Sync with GitHub**: Pull latest changes before any operation
-2. **Perform Operation**: Add, update, or soft-delete company data
-3. **Commit and Push**: Save changes back to GitHub with descriptive message
-
-### Git Synchronization
-
-Always sync before reading or modifying the CSV to avoid conflicts:
+Initialize once:
 
 ```bash
-python3.11 /home/ubuntu/skills/company-universe-manager/scripts/git_sync.py pull /path/to/hedge-fund-analyst
+python3 scripts/storage.py init        # creates ~/company-universe + config.json
+python3 scripts/storage.py info        # show root, backend, counts
 ```
 
-Check for conflicts in the output. If conflicts exist, abort the operation and notify the user to resolve manually.
+Layout and the full backend/config/remote-sync details are in
+`references/storage.md`. Key rule: the **Python scripts always read/write the
+local folder** (the working copy). A remote backend (Google Sheets, etc.) is
+**agent-mediated** — MCP tools can't be called from a subprocess — so when
+`config.backend == "remote"` you (the agent) sync local ↔ remote around script
+runs using the connected MCP tools. See "Remote sync" below.
 
-After making changes, commit and push:
+## Roster operations
+
+The roster is `<root>/universe.csv` (12-column schema in
+`references/csv_schema.md`), managed by `scripts/csv_manager.py`. Always pass the
+store's CSV path.
 
 ```bash
-python3.11 /home/ubuntu/skills/company-universe-manager/scripts/git_sync.py commit /path/to/hedge-fund-analyst company_universe.csv "Add company: TICKER"
+ROOT=~/company-universe                         # or $COMPANY_UNIVERSE_HOME
+
+# Add (research metadata via the FMP skill or web search first)
+python3 scripts/csv_manager.py add "$ROOT/universe.csv" AAPL "Apple Inc." \
+  exchange=NASDAQ currency=USD market_cap_category="large cap" \
+  avg_market_cap=2800 competitors="MSFT,GOOGL" \
+  investment_rationale="..." source_url="https://investor.apple.com/"
+
+python3 scripts/csv_manager.py update "$ROOT/universe.csv" AAPL avg_market_cap=2900
+python3 scripts/csv_manager.py remove "$ROOT/universe.csv" AAPL      # soft delete (active=false)
+python3 scripts/csv_manager.py reactivate "$ROOT/universe.csv" AAPL
+python3 scripts/csv_manager.py list "$ROOT/universe.csv" [--all]
 ```
 
-## Operations
+Research company metadata via the **financialmodellingprep** skill (fundamentals,
+profile) or web search; market-cap categories: small `<2`, mid `2–10`, large
+`>10` ($bn).
 
-### 1. Initialize Universe CSV
+## Key dates (events)
 
-Create a new CSV file with proper headers if it doesn't exist:
+Each company has many dated events in `<root>/events/<TICKER>.json` (schema and
+event types in `references/events_schema.md`). Manage them with
+`scripts/events_manager.py`:
 
 ```bash
-python3.11 /home/ubuntu/skills/company-universe-manager/scripts/csv_manager.py init /path/to/hedge-fund-analyst/company_universe.csv
+python3 scripts/events_manager.py add AAPL type=earnings date=2026-07-31 \
+  status=confirmed source=FMP ref=2026-06-30
+python3 scripts/events_manager.py add AAPL type=investor_day date=2026-09-15 \
+  status=tentative source=IR-page
+python3 scripts/events_manager.py list AAPL [--upcoming]
+python3 scripts/events_manager.py remove AAPL earnings 2026-07-31
 ```
 
-Alternatively, copy the template:
+`ref` is the slot identifier that survives a date change (for earnings, the
+fiscal period end). The monitor matches on `(type, ref)` so a moved date for the
+same quarter reads as a *move*, not a new+dropped pair.
+
+## Daily monitor (deterministic, cheap)
+
+`scripts/monitor_dates.py` re-fetches current dates for every **active** roster
+ticker, diffs them against the stored events, refreshes the store, and records
+what changed — all without the LLM, so it is cheap to run on a schedule.
 
 ```bash
-cp /home/ubuntu/skills/company-universe-manager/templates/universe.csv /path/to/hedge-fund-analyst/company_universe.csv
+FMP_API_KEY=... python3 scripts/monitor_dates.py
 ```
 
-### 2. Add Company
+It sources:
+- **Earnings dates** — FMP earnings calendar (needs `FMP_API_KEY`, provided by
+  the required `financialmodellingprep` skill).
+- **Last-reported earnings** — SEC 8-K **item 2.02** via the `sec-filings` skill
+  **if installed** (free), for US filers (opportunistic; not a hard dependency).
+- **Taiwan ex-dividend dates** — the `finmind` skill **if installed** and
+  `FINMIND_TOKEN` is set (opportunistic; not a hard dependency).
 
-When adding a company, research it and populate all fields. Use web search (or any available market-data source) to find:
+It writes `snapshots/<date>.json` (all events that day) and `changes/<date>.json`
+(the diff), and prints a JSON change summary. Change kinds: `new`, `moved`,
+`status_changed`, `dropped`. A fetch is only authoritative over the event
+**types it returns**, so an earnings fetch never spuriously drops an investor
+day. For investor days / conferences / guidance not in any API, discover and add
+them with web search + the IR page (`source_url`) and `events_manager.py`.
 
-- Company name and ticker
-- Exchange and currency
-- Market cap and trading volume
-- Competitor list
-- A reference URL (e.g. the company's investor-relations page)
-
-**Steps**:
-
-1. Pull latest changes from GitHub
-2. Research the company via web search (or an available market-data source)
-3. Extract the company data and a reference URL
-4. Determine market cap category based on avg_market_cap value
-5. Add investment rationale (ask user to provide it)
-6. Use csv_manager.py to add the company
-7. Commit and push changes
-
-**Example**:
+## Daily brief (report)
 
 ```bash
-# After researching the company
-python3.11 /home/ubuntu/skills/company-universe-manager/scripts/csv_manager.py add \
-  /path/to/hedge-fund-analyst/company_universe.csv \
-  AAPL \
-  "Apple Inc." \
-  exchange=NASDAQ \
-  currency=USD \
-  market_cap_category="large cap" \
-  avg_market_cap=2800 \
-  avg_trading_volume=50000000 \
-  competitors="MSFT,GOOGL,AMZN" \
-  investment_rationale="Leading consumer tech; potential cloud partnership" \
-  source_url="https://investor.apple.com/"
+FMP_API_KEY=... python3 scripts/fetch_news.py > /tmp/news.json   # FMP news + recent 8-Ks
+python3 scripts/build_report.py --news /tmp/news.json            # writes md + reporting contract
 ```
 
-### 3. Update Company
-
-Update existing company information (e.g., refresh financial data, update rationale):
-
-**Steps**:
-
-1. Pull latest changes from GitHub
-2. Research updated data via web search if needed
-3. Use csv_manager.py to update fields
-4. Commit and push changes
-
-**Example**:
+`build_report.py` writes a markdown brief and a `reporting`-skill JSON contract
+to `<root>/reports/`. The contract uses chart-free `cover` + `table-commentary`
+pages (what-changed table, upcoming-calendar table). For the **branded PDF**,
+enrich the commentary (summarize the news, call out what matters), then hand the
+contract to the required `reporting` skill:
 
 ```bash
-python3.11 /home/ubuntu/skills/company-universe-manager/scripts/csv_manager.py update \
-  /path/to/hedge-fund-analyst/company_universe.csv \
-  AAPL \
-  avg_market_cap=2900 \
-  avg_trading_volume=55000000 \
-  investment_rationale="Updated: Expanding AI initiatives"
+cd ../reporting && bun scripts/render.ts \
+  ~/company-universe/reports/daily-<date>.contract.json out/daily-<date>.pdf
 ```
 
-### 4. Remove Company (Soft Delete)
+Markdown is the zero-dependency default; the PDF is the full-featured output.
 
-Set `active=false` instead of deleting the row. This preserves historical data:
+## Scheduling the daily routine
 
-**Steps**:
-
-1. Pull latest changes from GitHub
-2. Use csv_manager.py to soft-delete
-3. Commit and push changes
-
-**Example**:
-
-```bash
-python3.11 /home/ubuntu/skills/company-universe-manager/scripts/csv_manager.py remove \
-  /path/to/hedge-fund-analyst/company_universe.csv \
-  AAPL
-```
-
-### 5. Reactivate Company
-
-Set `active=true` for a previously removed company:
-
-**Example**:
-
-```bash
-python3.11 /home/ubuntu/skills/company-universe-manager/scripts/csv_manager.py reactivate \
-  /path/to/hedge-fund-analyst/company_universe.csv \
-  AAPL
-```
-
-### 6. List Companies
-
-View all active companies or include inactive ones:
-
-**Active companies only**:
-
-```bash
-python3.11 /home/ubuntu/skills/company-universe-manager/scripts/csv_manager.py list \
-  /path/to/hedge-fund-analyst/company_universe.csv
-```
-
-**All companies (including inactive)**:
-
-```bash
-python3.11 /home/ubuntu/skills/company-universe-manager/scripts/csv_manager.py list \
-  /path/to/hedge-fund-analyst/company_universe.csv --all
-```
-
-## Data Sources
-
-### Company research
-
-Use web search (or any available market-data source) to gather each field:
-
-- **Company Name**: Official company name
-- **Exchange & Currency**: Primary listing exchange and trading currency
-- **Market Cap**: Convert to billions (e.g., "$2.8T" → 2800)
-- **Trading Volume**: Average daily volume
-- **Competitors**: Closest peers (extract ticker symbols)
-
-Store a reference URL (e.g. the company's investor-relations page) in the
-`source_url` field for future reference.
-
-### Market Cap Categories
-
-Determine category based on `avg_market_cap` value:
-
-- **Small cap**: < 2 (less than $2 billion)
-- **Mid cap**: 2 to 10 ($2 billion to $10 billion)
-- **Large cap**: > 10 (greater than $10 billion)
-
-## Error Handling
-
-### Git Conflicts
-
-If `git pull` reports conflicts, abort the operation and instruct the user:
-
-> "Git conflict detected in company_universe.csv. Please resolve manually by:
-> 1. Navigate to the hedge-fund-analyst repository
-> 2. Run `git status` to see conflicting files
-> 3. Resolve conflicts and commit
-> 4. Retry the operation"
-
-### Company Already Exists
-
-If adding a company that already exists (same ticker), report the error and suggest using the update operation instead.
-
-### Missing Data
-
-If company research is incomplete or data can't be found, notify the user and ask them to provide the missing fields, then retry.
-
-## CSV Schema Reference
-
-For detailed field definitions, formats, and requirements, read:
+Register a recurring in-session job with **CronCreate** (full caveats and a
+launchd alternative in `references/scheduling.md`):
 
 ```
-/home/ubuntu/skills/company-universe-manager/references/csv_schema.md
+CronCreate({
+  cron: "13 7 * * *", durable: true, recurring: true,
+  prompt: "Run the company-universe-manager daily routine: monitor key dates, gather news, build and render the daily report, then summarize what changed."
+})
 ```
 
-## Best Practices
+**Tell the user the caveats:** harness cron only fires while a Claude session is
+open and idle, and recurring jobs auto-expire after 7 days. For truly unattended
+overnight runs, use the macOS launchd recipe in `references/scheduling.md`.
 
-1. **Always sync first**: Run `git pull` before any read or write operation
-2. **Descriptive commit messages**: Use format "Add company: TICKER" or "Update TICKER: field changes"
-3. **Verify data**: Cross-check researched data for accuracy
-4. **Soft delete only**: Never hard-delete rows; always use soft delete (active=false)
-5. **Update dates**: The `last_update_date` field is automatically set by csv_manager.py
-6. **Handle quotes**: If investment_rationale contains commas, the CSV manager handles quoting automatically
+When the job fires, run: `monitor_dates.py` → `fetch_news.py` → `build_report.py`
+→ render via `reporting` → summarize `changes/<today>.json` for the user → mirror
+to the remote backend if configured.
+
+## Remote sync (when `config.backend == "remote"`)
+
+The Python scripts only touch the local folder. To keep a connected server
+(e.g. Google Sheets) in sync, you (the agent) do this around script runs
+(details in `references/storage.md`):
+
+1. **Before** any read/modify — pull the remote into local via the connected MCP
+   tools (write through `csv_manager.py` / `events_manager.py`).
+2. Run the Python operation against the local store.
+3. **After** writes — push the changed local files back to the remote.
+4. If the MCP connection is unavailable, stay local-only and tell the user the
+   remote is stale.
+
+Surface the available MCP tools with ToolSearch; do not hardcode a connector.
+
+## Error handling
+
+- **No `FMP_API_KEY`** — the monitor and news fetch report the gap and skip the
+  FMP-sourced data rather than failing; SEC 8-K (free) and manually-entered
+  events still work.
+- **Non-US ticker** — SEC lookups return nothing; rely on FMP / finmind / IR.
+- **Adding a duplicate ticker** — `csv_manager.py` reports it; use `update`.
+- **`dropped` changes** — surfaced for human review, never auto-deleted from the
+  store. Confirm before removing the event.
+
+## Best practices
+
+1. Always `storage.py init` before first use; check `config.json` backend.
+2. Keep `ref` stable across fetches for earnings (use the fiscal period end).
+3. Sync the remote (if configured) before and after every roster/event change.
+4. Soft-delete companies (`active=false`); never hard-delete rows.
+5. Re-arm the cron job weekly (7-day expiry) or move to launchd.

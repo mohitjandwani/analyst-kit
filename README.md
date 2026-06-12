@@ -17,7 +17,7 @@ Ten skills today, split into **capabilities** (one atomic job) and **composites*
 |-------|------|--------------|-------|
 | **13f-analysis** | capability | Fetch & read U.S. institutional **13F-HR** holdings from SEC EDGAR — resolve a fund to its CIK, pull a quarter's holdings as a normalized, ranked CSV, and read it without the common traps | Python (stdlib) |
 | **finmind** | capability | Pull Taiwan (TWSE/TPEx) market data — prices, monthly revenue, financials, dividends, shareholding — via the FinMind API | Python · `FINMIND_TOKEN` |
-| **company-universe-manager** | capability | Maintain a CSV "company universe" (add / update / soft-delete / list), synced to a GitHub repo | Python |
+| **company-universe-manager** | capability | Own a watchlist of companies **and their key dates** (earnings, investor days, ex-dividend, AGMs…): roster CRUD, a daily monitor that detects earnings/event-date changes, and a daily brief (markdown or branded PDF). Pluggable storage — local folder or a connected server (e.g. Google Sheets over MCP) | Python · `FMP_API_KEY` |
 | **wiki-builder** | capability | Serve any folder of markdown as a navigable browser wiki (sidebar, table of contents, ECharts) | Bun |
 | **infographics** | capability | Turn source material into a clean one-page infographic | — |
 | **charting** | capability | Financially-correct charts: a thin Python/Polars layer normalizes already-available data → a TypeScript layer emits Highcharts options + a self-contained HTML page (trends, segments, margins, dividends, surprise, waterfalls, price) | Node · Python |
@@ -25,8 +25,8 @@ Ten skills today, split into **capabilities** (one atomic job) and **composites*
 | **thematic-investing** | composite | Map a theme or trend into an investable value chain — who benefits, where value accrues, what's mispriced | — |
 | **company-wiki** | composite | Build a multi-page company-research wiki (overview, products, 5-year financials, model, competitors, citations) | `FMP_API_KEY` |
 | **data-analysis** | composite | End-to-end analysis of a structured dataset — profile, clean, visualize, model, and report with reproducible code | — |
-| **analyzing-financial-statements** | capability | Calculate & interpret financial ratios (profitability, liquidity, leverage, efficiency, valuation, per-share) from statement data, with benchmarking — from Anthropic's claude-cookbooks | Python (stdlib) |
-| **creating-financial-models** | capability | DCF valuation, sensitivity analysis (data tables, tornado charts), Monte Carlo simulation, and scenario planning — from Anthropic's claude-cookbooks | Python · numpy/pandas |
+| **analyzing-financial-statements** | capability | Calculate & interpret financial ratios (profitability, liquidity, leverage, efficiency, valuation, per-share) from statement data, with benchmarking | Python (stdlib) |
+| **creating-financial-models** | capability | DCF valuation, M&A accretion/dilution, sensitivity analysis (data tables, tornado charts), and probability-weighted scenario planning | Python · numpy/pandas |
 
 ## Install
 
@@ -77,9 +77,9 @@ FinMind (Taiwan data) is included.
 
 | Plugin | Includes | Skills |
 |--------|----------|:-----:|
-| `us-stock-analyst` | the four research composites + supporting capabilities (incl. charting) | 7 |
-| `international-analyst` | the above **+ FinMind** (Taiwan/TWSE market data) | 8 |
-| `taiwan-stock-analyst` | Taiwan-focused: the above **+ FinMind** | 8 |
+| `us-stock-analyst` | the four research composites + supporting capabilities (incl. charting) | 13 |
+| `international-analyst` | the above **+ FinMind** (Taiwan/TWSE market data) | 14 |
+| `taiwan-stock-analyst` | Taiwan-focused: the above **+ FinMind** | 14 |
 
 Run `node bin/hfa.js list --persona <name>` to see a plugin's exact contents.
 
@@ -133,8 +133,8 @@ checks run in CI (`.github/workflows/validate.yml`) on every push and pull reque
 
 ## Roadmap
 
-Planned skills, not yet available: a calendar manager, an LBO model (debt
-schedule, cash sweep, IRR/MOIC), and PDF report analysis.
+Planned skills, not yet available: an LBO model (debt schedule, cash sweep,
+IRR/MOIC) and PDF report analysis.
 
 ## Acknowledgments
 

@@ -1,0 +1,11 @@
+{
+  "backend": "local",
+  "remote": null,
+  "_remote_example": {
+    "type": "google-sheets",
+    "spreadsheet": "Company Universe",
+    "tab_universe": "roster",
+    "tab_events": "events",
+    "_note": "Set backend to 'remote' and replace this with a real descriptor. The agent syncs local <-> remote via connected MCP tools; the Python scripts only ever touch the local folder."
+  }
+}

@@ -1,0 +1,251 @@
+#!/usr/bin/env python3
+"""
+Assemble the daily universe report.
+
+Produces two deterministic artifacts from the day's detected changes, the
+upcoming key-date calendar, and the gathered news/filings:
+
+  * a markdown report (written to the store's reports/ dir), and
+  * a `reporting`-skill JSON contract (printed to stdout / written alongside)
+    that the agent hands to reporting/scripts/render.ts for a branded PDF.
+
+This script does NOT write narrative prose — it lays down the tables and a
+factual skeleton. The agent enriches the commentary (summarizing news, calling
+out what matters) before rendering the PDF.
+
+``build_contract`` and ``build_markdown`` are pure functions of their inputs so
+they can be tested without a store or network.
+
+Pure standard library.
+"""
+
+from __future__ import annotations
+
+import json
+import sys
+from datetime import date, timedelta
+from typing import Any
+
+from storage import load_store
+
+UPCOMING_HORIZON_DAYS = 30
+MAX_UPCOMING_ROWS = 25
+
+
+# --- gathering from the store (impure: reads files) -------------------------
+
+
+def collect_upcoming(store, today: str, horizon_days: int = UPCOMING_HORIZON_DAYS) -> list[dict[str, Any]]:
+    """All events dated [today, today+horizon] across every ticker, date-sorted."""
+    until = (date.fromisoformat(today) + timedelta(days=horizon_days)).isoformat()
+    rows: list[dict[str, Any]] = []
+    for ticker in store.all_event_tickers():
+        for e in store.read_events(ticker):
+            d = e.get("date") or ""
+            if today <= d <= until:
+                rows.append({**e, "ticker": ticker})
+    rows.sort(key=lambda r: (r.get("date") or "", r.get("ticker") or ""))
+    return rows
+
+
+def load_changes(store, today: str) -> dict[str, Any]:
+    """Read changes/<today>.json if the monitor wrote one; else an empty summary."""
+    path = store.root / "changes" / f"{today}.json"
+    if not path.exists():
+        return {"date": today, "changes": {}}
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+# --- pure builders ----------------------------------------------------------
+
+
+def _change_rows(changes: dict[str, Any]) -> list[list[str]]:
+    """Flatten the monitor's per-ticker change summary into table rows."""
+    rows: list[list[str]] = []
+    label = {
+        "moved": "date moved",
+        "new": "newly added",
+        "status_changed": "status change",
+        "dropped": "dropped (review)",
+    }
+    for ticker, kinds in (changes.get("changes") or {}).items():
+        if not isinstance(kinds, dict):
+            continue
+        for kind in ("moved", "new", "status_changed", "dropped"):
+            for c in kinds.get(kind, []):
+                frm = c.get("old_date") or c.get("old_status") or ""
+                to = c.get("new_date") or c.get("new_status") or c.get("date") or ""
+                rows.append([ticker, c.get("type", ""), label[kind], str(frm), str(to)])
+    return rows
+
+
+def build_markdown(
+    today: str,
+    changes: dict[str, Any],
+    upcoming: list[dict[str, Any]],
+    news: dict[str, Any] | None = None,
+) -> str:
+    """Plain-markdown daily brief — the zero-dependency default output."""
+    news = news or {"news": {}, "filings": {}}
+    lines = [f"# Universe Daily Brief — {today}", ""]
+
+    change_rows = _change_rows(changes)
+    lines.append("## What changed today")
+    if change_rows:
+        lines.append("")
+        lines.append("| Ticker | Type | Change | From | To |")
+        lines.append("|---|---|---|---|---|")
+        for r in change_rows:
+            lines.append("| " + " | ".join(r) + " |")
+    else:
+        lines.append("\n_No earnings-date or investor-event changes detected._")
+    lines.append("")
+
+    lines.append(f"## Upcoming key dates (next {UPCOMING_HORIZON_DAYS} days)")
+    if upcoming:
+        lines.append("")
+        lines.append("| Date | Ticker | Type | Status |")
+        lines.append("|---|---|---|---|")
+        for e in upcoming[:MAX_UPCOMING_ROWS]:
+            lines.append(
+                f"| {e.get('date','')} | {e.get('ticker','')} | "
+                f"{e.get('type','')} | {e.get('status','')} |"
+            )
+    else:
+        lines.append("\n_No events scheduled in the window._")
+    lines.append("")
+
+    news_by_ticker = news.get("news") or {}
+    filings = news.get("filings") or {}
+    if news_by_ticker or filings:
+        lines.append("## News & filings")
+        for ticker in sorted(set(news_by_ticker) | set(filings)):
+            lines.append(f"\n### {ticker}")
+            for item in news_by_ticker.get(ticker, [])[:5]:
+                lines.append(f"- {item.get('date','')} — {item.get('title','')} ({item.get('site','')})")
+            for f in filings.get(ticker, []):
+                items = ",".join(f.get("items") or []) if isinstance(f.get("items"), list) else f.get("items", "")
+                lines.append(f"- {f.get('date','')} — 8-K [{items}] {f.get('url','')}")
+        lines.append("")
+
+    lines.append("---")
+    lines.append("_Skeleton generated by company-universe-manager; narrative to be added by the analyst._")
+    return "\n".join(lines) + "\n"
+
+
+def build_contract(
+    today: str,
+    changes: dict[str, Any],
+    upcoming: list[dict[str, Any]],
+    news: dict[str, Any] | None = None,
+    *,
+    title: str = "Universe Daily Brief",
+) -> dict[str, Any]:
+    """A `reporting`-skill report contract (chart-free: cover + table pages)."""
+    news = news or {"news": {}, "filings": {}}
+    change_rows = _change_rows(changes)
+    n_changes = len(change_rows)
+
+    pages: list[dict[str, Any]] = [
+        {
+            "template": "cover",
+            "slots": {
+                "kicker": "Daily Universe Brief",
+                "title": title,
+                "subtitle": f"Key-date changes & news — {today}",
+            },
+        },
+        {
+            "template": "table-commentary",
+            "slots": {
+                "title": "What changed today",
+                "story": (
+                    f"**{n_changes} key-date change(s)** detected across the universe."
+                    if n_changes
+                    else "**No key-date changes** detected today."
+                ),
+                "table": {
+                    "columns": ["Ticker", "Type", "Change", "From", "To"],
+                    "rows": change_rows or [["—", "—", "no changes", "—", "—"]],
+                },
+                "commentary": [
+                    {
+                        "heading": "Read",
+                        "body": "Analyst to summarize which moves matter and why.",
+                    }
+                ],
+                "sources": [1],
+            },
+        },
+        {
+            "template": "table-commentary",
+            "slots": {
+                "title": f"Upcoming key dates (next {UPCOMING_HORIZON_DAYS} days)",
+                "story": f"**{len(upcoming)} event(s)** scheduled in the window.",
+                "table": {
+                    "columns": ["Date", "Ticker", "Type", "Status"],
+                    "rows": [
+                        [e.get("date", ""), e.get("ticker", ""), e.get("type", ""), e.get("status", "")]
+                        for e in upcoming[:MAX_UPCOMING_ROWS]
+                    ]
+                    or [["—", "—", "no events", "—"]],
+                },
+                "commentary": [
+                    {"heading": "Watch", "body": "Confirmed dates are firm; estimated dates may still move."}
+                ],
+                "sources": [1, 2],
+            },
+        },
+    ]
+
+    return {
+        "meta": {
+            "mode": "report",
+            "title": f"{title} — {today}",
+            "subtitle": "Key-date changes, upcoming calendar, and news",
+            "date": today,
+            "footer": "company-universe-manager · daily brief",
+        },
+        "pages": pages,
+        "references": [
+            {"label": "Financial Modeling Prep", "url": "https://financialmodelingprep.com/"},
+            {"label": "SEC EDGAR", "url": "https://www.sec.gov/edgar"},
+        ],
+    }
+
+
+def main() -> int:
+    args = sys.argv[1:]
+    today = date.today().isoformat()
+    news_path = None
+    for i, a in enumerate(args):
+        if a == "--news" and i + 1 < len(args):
+            news_path = args[i + 1]
+        elif a == "--date" and i + 1 < len(args):
+            today = args[i + 1]
+
+    store = load_store()
+    store.ensure_layout()
+    changes = load_changes(store, today)
+    upcoming = collect_upcoming(store, today)
+    news = None
+    if news_path:
+        with open(news_path, "r", encoding="utf-8") as f:
+            news = json.load(f)
+
+    markdown = build_markdown(today, changes, upcoming, news)
+    md_path = store.write_report(today, markdown, fmt="md")
+
+    contract = build_contract(today, changes, upcoming, news)
+    contract_path = store.root / "reports" / f"daily-{today}.contract.json"
+    with open(contract_path, "w", encoding="utf-8") as f:
+        json.dump(contract, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+
+    print(json.dumps({"markdown": str(md_path), "contract": str(contract_path)}, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
