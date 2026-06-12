@@ -20,6 +20,15 @@
       "runtime": "none"
     },
     {
+      "name": "analyzing-financial-statements",
+      "folder": "analyzing-financial-statements",
+      "type": "capability",
+      "description": "Calculate and interpret key financial ratios from financial statement data (income statement, balance sheet, cash flow, market data) for investment analysis — profitability (ROE, ROA, margins), liquidity (current/quick/cash), leverage (debt-to-equity, interest coverage), efficiency (asset/inventory/ receivables turnover), valuation (P/E, P/B, P/S, EV/EBITDA, PEG), and per-share metrics, with industry-standard interpretation and benchmarking. Pure-stdlib Python, fully offline — no API key. Triggers: \"calculate financial ratios for X\", \"what's the P/E / ROE / debt-to-equity of Y\", \"analyze the liquidity / leverage / profitability of Z\", \"interpret these financial statements\", \"ratio analysis on this balance sheet\", \"is this company's margin / coverage healthy\", \"benchmark <company>'s ratios\".",
+      "requires": [],
+      "env": [],
+      "runtime": "python"
+    },
+    {
       "name": "charting",
       "folder": "charting",
       "type": "capability",
@@ -49,6 +58,15 @@
       "env": [
         "FMP_API_KEY"
       ],
+      "runtime": "python"
+    },
+    {
+      "name": "creating-financial-models",
+      "folder": "creating-financial-models",
+      "type": "capability",
+      "description": "Build financial models for investment decisions: complete DCF valuations (FCF projections, WACC via CAPM, terminal value via perpetuity growth or exit multiple, enterprise/equity value, per-share value), M&A merger models (accretion/dilution to acquirer EPS, stock-vs-cash consideration, financing drag, purchase-price-allocation intangible amortization, breakeven synergies), sensitivity analysis (one-way and two-way data tables, tornado charts, breakeven search), and probability-weighted best/base/worst scenario planning. Runs locally in Python (numpy + pandas) — no API key. Triggers: \"build a DCF model for X\", \"what's the intrinsic / fair value of Y\", \"DCF / discounted cash flow valuation\", \"is this acquisition accretive or dilutive\", \"merger model / accretion-dilution for X buying Y\", \"pro forma EPS of this deal\", \"what synergies does this deal need to break even\", \"sensitivity analysis on growth rate and WACC\", \"tornado chart of value drivers\", \"breakeven WACC / growth for this valuation\", \"best/base/worst case scenarios for Z\", \"probability-weighted scenario analysis\".",
+      "requires": [],
+      "env": [],
       "runtime": "python"
     },
     {

@@ -25,6 +25,8 @@ Ten skills today, split into **capabilities** (one atomic job) and **composites*
 | **thematic-investing** | composite | Map a theme or trend into an investable value chain — who benefits, where value accrues, what's mispriced | — |
 | **company-wiki** | composite | Build a multi-page company-research wiki (overview, products, 5-year financials, model, competitors, citations) | `FMP_API_KEY` |
 | **data-analysis** | composite | End-to-end analysis of a structured dataset — profile, clean, visualize, model, and report with reproducible code | — |
+| **analyzing-financial-statements** | capability | Calculate & interpret financial ratios (profitability, liquidity, leverage, efficiency, valuation, per-share) from statement data, with benchmarking — from Anthropic's claude-cookbooks | Python (stdlib) |
+| **creating-financial-models** | capability | DCF valuation, sensitivity analysis (data tables, tornado charts), Monte Carlo simulation, and scenario planning — from Anthropic's claude-cookbooks | Python · numpy/pandas |
 
 ## Install
 
@@ -131,8 +133,21 @@ checks run in CI (`.github/workflows/validate.yml`) on every push and pull reque
 
 ## Roadmap
 
-Planned skills, not yet available: a calendar manager, accounting /
-financial-statement analysis, and PDF report analysis.
+Planned skills, not yet available: a calendar manager, an LBO model (debt
+schedule, cash sweep, IRR/MOIC), and PDF report analysis.
+
+## Acknowledgments
+
+- **`analyzing-financial-statements`** and the DCF + sensitivity tooling in
+  **`creating-financial-models`** were inspired by the custom financial skills
+  in [Anthropic's claude-cookbooks](https://github.com/anthropics/claude-cookbooks/tree/main/skills/custom_skills),
+  then reworked to this repo's skill contract (frontmatter, `scripts/` layout)
+  and hardened with input guards and a test suite.
+- The M&A accretion/dilution model in **`creating-financial-models`** was
+  inspired by [joe-neary/MergerDealSimulator](https://github.com/joe-neary/MergerDealSimulator).
+  The financial formulas were reimplemented from scratch (no code was copied);
+  that project's worked example serves as an independent cross-check in the
+  skill's test suite.
 
 ## License
 

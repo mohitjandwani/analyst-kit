@@ -1,0 +1,162 @@
+---
+name: creating-financial-models
+type: capability
+description: >
+  Build financial models for investment decisions: complete DCF valuations
+  (FCF projections, WACC via CAPM, terminal value via perpetuity growth or
+  exit multiple, enterprise/equity value, per-share value), M&A merger models
+  (accretion/dilution to acquirer EPS, stock-vs-cash consideration, financing
+  drag, purchase-price-allocation intangible amortization, breakeven
+  synergies), sensitivity analysis (one-way and two-way data tables, tornado
+  charts, breakeven search), and probability-weighted best/base/worst scenario
+  planning. Runs locally in Python (numpy + pandas) — no API key.
+  Triggers: "build a DCF model for X", "what's the intrinsic / fair value of
+  Y", "DCF / discounted cash flow valuation", "is this acquisition accretive
+  or dilutive", "merger model / accretion-dilution for X buying Y", "pro forma
+  EPS of this deal", "what synergies does this deal need to break even",
+  "sensitivity analysis on growth rate and WACC", "tornado chart of value
+  drivers", "breakeven WACC / growth for this valuation", "best/base/worst
+  case scenarios for Z", "probability-weighted scenario analysis".
+---
+
+# Financial Modeling Suite
+
+A financial modeling toolkit for investment analysis, valuation, and risk
+assessment using industry-standard methodologies. Four capabilities are
+implemented by the bundled scripts (DCF, M&A accretion/dilution, sensitivity,
+scenario planning); anything beyond them (charts, Excel workbooks, Monte Carlo,
+LBO) is something you assemble separately with other tools — never present it
+as this skill's script output.
+
+## Core Capabilities
+
+### 1. Discounted Cash Flow (DCF) Analysis — `scripts/dcf_model.py`
+- Project free cash flows from revenue growth, EBITDA margin, capex, and NWC assumptions
+- Calculate terminal values using perpetuity growth or exit multiple methods
+- Determine weighted average cost of capital (WACC) via CAPM
+- Generate enterprise value, equity value, and value per share
+- Two-way sensitivity grid over WACC / terminal growth / margin
+
+### 2. M&A Merger Model (Accretion/Dilution) — `scripts/merger_model.py`
+- Pre-deal metrics for acquirer and target (market cap, EPS, P/E)
+- Deal structure: equity purchase price, premium to market, stock-vs-cash
+  consideration split, new acquirer shares issued, pro forma share count
+- Pro forma EPS and accretion/(dilution) to the acquirer's standalone EPS,
+  including after-tax synergies and the after-tax financing drag (interest on
+  new debt + foregone interest on balance-sheet cash used)
+- Purchase-price-allocation (PPA) intangible amortization — the recurring,
+  often deal-flipping GAAP expense that paper models omit; supports both
+  tax-deductible (asset deal) and non-deductible (stock deal) treatment
+- Breakeven synergies: the pre-tax annual synergy level that makes the deal
+  EPS-neutral (negative if the deal is accretive even with zero synergies)
+- Composes with the sensitivity engine below (sweep synergies, premium, or
+  consideration mix; read accretion/dilution as the output)
+
+### 3. Sensitivity Analysis — `scripts/sensitivity_analysis.py`
+- One-way sensitivity: test a variable across a ± range, tabulate output impact
+- Two-way data tables (Excel-style) for any pair of variables
+- Tornado analysis ranking variables by impact magnitude
+- Breakeven search: find the variable value that hits a target output
+  (direction-aware — works for inverse relationships like WACC → value)
+
+### 4. Scenario Planning — `scripts/sensitivity_analysis.py`
+- Build best/base/worst (or any named) scenarios as variable combinations
+- Probability-weight scenarios and compute the expected value
+- Pass `base_values` so each scenario starts from the base case and the model
+  is restored afterwards
+
+## Input Requirements
+
+### For DCF Analysis
+- Historical financial statements (3-5 years), if available
+- Revenue growth assumptions per projection year
+- EBITDA margin projections
+- Capital expenditure and net working capital as % of revenue
+- Terminal growth rate or exit multiple
+- Discount rate components (risk-free rate, beta, market premium, cost of debt, D/E)
+
+### For the M&A Merger Model
+- Acquirer and target financials: share price, shares outstanding, net income
+- Offer price per target share and the stock/cash consideration split
+- Tax rate and annual run-rate pre-tax synergies
+- Financing: what fraction of the cash is debt-funded, the cost of that debt,
+  and the yield given up on balance-sheet cash used
+- Optional purchase-price-allocation inputs: identifiable intangibles created,
+  their amortization life, and whether amortization is tax-deductible
+
+### For Sensitivity Analysis
+- Base case model (any object with an output function)
+- Variable ranges to test and update functions for each variable
+
+### For Scenario Planning
+- Scenario definitions (variable values per scenario)
+- Probability weights for scenarios (optional; defaults to equal weights)
+- Base values for clean resets between scenarios (recommended)
+
+## Output
+
+All outputs are Python objects: the DCF model returns dictionaries and a
+formatted text summary (`generate_summary()`); the sensitivity tools return
+pandas DataFrames. To deliver charts, Excel files, or formatted reports,
+combine these outputs with other skills/tools (e.g. charting or reporting) —
+the scripts themselves do not produce them.
+
+## Example Usage
+
+"Build a DCF model for this technology company using the attached financials"
+
+"Is this acquisition accretive or dilutive — Acme buying Beta at a 25% premium, 70/30 stock/cash?"
+
+"What pre-tax synergies does this deal need to break even on EPS?"
+
+"Create sensitivity analysis showing impact of growth rate and WACC on valuation"
+
+"What terminal growth rate is needed to justify the current share price?"
+
+"Develop three scenarios for this expansion project with probability weights"
+
+## Scripts Included
+
+- `scripts/dcf_model.py`: Complete DCF valuation engine (`DCFModel` class)
+- `scripts/merger_model.py`: M&A accretion/dilution engine (`MergerModel`
+  class) — pure standard library, no third-party dependencies
+- `scripts/sensitivity_analysis.py`: Sensitivity testing framework
+  (`SensitivityAnalyzer` class, `create_data_table` helper)
+
+`dcf_model.py` requires **numpy**; `sensitivity_analysis.py` also requires
+**pandas** (`pip install numpy pandas` or run with `uv run --with
+numpy,pandas`). `merger_model.py` needs neither. Import the classes into a
+small driver script, or run them directly to see the built-in examples.
+Behavior is pinned by `tests/` (`python3 -m pytest tests/` from the skill
+root) — including a cross-check of the merger model against a known-good,
+hand-verified deal scenario.
+
+## Modeling Guidance
+
+- Use multiple valuation methods for triangulation (run both terminal value
+  methods and compare; validate against trading multiples)
+- Document key assumptions clearly and separate inputs from calculations
+- Stress test extreme cases and report ranges, not point estimates
+- The perpetuity growth method requires terminal growth < WACC; the model
+  raises an error otherwise rather than returning a negative terminal value
+
+## Limitations and Disclaimers
+
+- **D&A is approximated as equal to capex** in the FCF projection, so FCF
+  effectively equals NOPAT minus the change in NWC. For capital-intensive or
+  high-growth companies where growth capex substantially exceeds D&A, FCF —
+  and therefore the valuation — will be overstated. Adjust assumptions or
+  post-process the projections when this matters.
+- The merger model is a **run-rate, first-year accretion/dilution** model: it
+  excludes one-time transaction costs, models synergies and PPA amortization at
+  steady-state annual levels, and uses the standard simplification that stock
+  is issued at the acquirer's current price (no exchange-ratio collar). It does
+  not perform a full purchase-price allocation — you supply the amortizable
+  intangibles directly.
+- No Monte Carlo simulation and no LBO model are included; if either is needed,
+  say so explicitly and build it separately rather than implying this skill
+  produced it.
+- Models are only as good as their assumptions; past performance doesn't
+  guarantee future results
+- Professional judgment required for interpretation; not a substitute for
+  professional financial advice
