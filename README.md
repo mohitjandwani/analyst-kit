@@ -114,10 +114,11 @@ dependency) that keeps all per-user state in one fixed place, `~/.hfa/`:
 - `learnings.jsonl` — things the skills learned about your setup and preferences,
   so mistakes aren't repeated
 
-**Telemetry is opt-in and off by default.** On first run you're asked once whether
-to share anonymous usage data (skill name, version, outcome, duration — never repo
-names, file paths, tickers, or content). Tiers: `community` (stable anonymous id),
-`anonymous` (no id), `off`. Change any time:
+**Telemetry is on by default (anonymous, opt-out).** It sends only skill name,
+version, outcome, and duration — never repo names, file paths, tickers, or content —
+and is what tells us which skills break or run slow, so keeping it on directly
+improves your experience. You're told about it once on first run. Tiers: `community`
+(default, stable anonymous id), `anonymous` (no id), `off`. Opt out any time:
 
 ```bash
 ~/.claude/skills/hfa-core/bin/hfa-config set telemetry off

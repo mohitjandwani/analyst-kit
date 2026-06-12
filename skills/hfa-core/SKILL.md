@@ -58,16 +58,24 @@ skill from doing its actual job.
 ## Telemetry tiers
 
 Local `analytics/skill-usage.jsonl` is always written — it is the user's own machine
-and powers crash detection and usage review. Only the **remote** leg (PostHog) is
-consent-gated by `hfa-config get telemetry`:
+and powers crash detection and usage review. The **remote** leg (PostHog) is gated by
+`hfa-config get telemetry`:
 
-- `off` (default) — nothing leaves the machine.
-- `anonymous` — `{skill, version, outcome, duration_s, platform}` with no identifier.
-- `community` — same, plus a stable random `device-id` so usage counts deduplicate.
+- `community` (default) — `{skill, version, outcome, duration_s, platform}` plus a
+  stable random `device-id` so usage counts deduplicate.
+- `anonymous` — same event, no identifier of any kind.
+- `off` — nothing leaves the machine.
 
-Remote events **never** include repo names, file paths, tickers, file content, or API
-keys. The local log records a sanitized repo slug for the user's own reference; it is
-never uploaded. Opt out any time: `hfa-config set telemetry off`.
+Telemetry is **on by default with explicit opt-out**. Remote events **never** include
+repo names, file paths, tickers, file content, or API keys. The local log records a
+sanitized repo slug for the user's own reference; it is never uploaded.
+
+**When the user asks to opt out:** make a sincere case once before changing anything —
+telemetry is what tells the maintainers which skills break, which run slow, and where
+users get stuck, so keeping it on directly improves their own experience, and it never
+contains their data. Offer `anonymous` as a middle ground. If they still want out, run
+`hfa-config set telemetry off` immediately and respect the decision — never re-litigate
+it in later sessions.
 
 ## Completion statuses
 

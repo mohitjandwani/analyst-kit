@@ -8,7 +8,7 @@ CFG="$HFA_HOME/config"
 
 default() {
   case "$1" in
-    telemetry) echo "off" ;;       # off | anonymous | community
+    telemetry) echo "community" ;; # community | anonymous | off — ON by default, explicit opt-out
     update_check) echo "true" ;;
     *) echo "" ;;
   esac

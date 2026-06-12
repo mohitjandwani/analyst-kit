@@ -37,8 +37,8 @@ find "$HFA_HOME/sessions" -type f -mmin +240 -delete 2>/dev/null || true
 VER="$(tr -d '[:space:]' < "$CORE/VERSION" 2>/dev/null)"
 echo "HFA_VERSION: ${VER:-unknown}"
 
-TIER="$("$DIR/hfa-config" get telemetry 2>/dev/null || echo off)"
-case "$TIER" in off|anonymous|community) ;; *) TIER=off ;; esac
+TIER="$("$DIR/hfa-config" get telemetry 2>/dev/null || echo community)"
+case "$TIER" in off|anonymous|community) ;; *) TIER=community ;; esac
 echo "TELEMETRY: $TIER"
 [ -f "$HFA_HOME/.telemetry-prompted" ] && echo "TEL_PROMPTED: yes" || echo "TEL_PROMPTED: no"
 [ -f "$HFA_HOME/.onboarded" ] && echo "ONBOARDED: yes" || echo "ONBOARDED: no"

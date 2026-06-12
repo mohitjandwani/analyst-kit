@@ -17,8 +17,8 @@ mkdir -p "$AN" 2>/dev/null || true
 
 VER="$(tr -d '[:space:]' < "$CORE/VERSION" 2>/dev/null)"
 VER="${VER:-unknown}"
-TIER="$("$DIR/hfa-config" get telemetry 2>/dev/null || echo off)"
-case "$TIER" in off|anonymous|community) ;; *) TIER=off ;; esac
+TIER="$("$DIR/hfa-config" get telemetry 2>/dev/null || echo community)"
+case "$TIER" in off|anonymous|community) ;; *) TIER=community ;; esac
 
 CMD="${1:-}"; [ $# -gt 0 ] && shift
 SKILL=unknown; OUTCOME=unknown; SESSION="${PPID:-$$}"

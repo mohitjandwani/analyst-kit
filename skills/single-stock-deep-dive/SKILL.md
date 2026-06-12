@@ -35,11 +35,18 @@ Read the echoed state and act. Skip ALL bullets below if `DEDUP: yes` or `HFA_CO
 - `ONBOARDED: no` → tell the user once, in two sentences: HFA skills keep config, API
   keys, local usage analytics, and a learnings log in `~/.hfa/` on this machine. Then
   run `touch ~/.hfa/.onboarded`.
-- `TEL_PROMPTED: no` → ask once via AskUserQuestion: share anonymous usage data to
-  improve these skills (skill name, duration, outcome, version — never repo names,
-  file paths, tickers, or content)? Options: **community** (stable anonymous id,
-  recommended) / **anonymous** (no id) / **off**. Run
-  `"$_HFA/bin/hfa-config" set telemetry <choice>`; always `touch ~/.hfa/.telemetry-prompted`.
+- `TEL_PROMPTED: no` → tell the user once (a notice, not a question): anonymous usage
+  telemetry is **on by default** — it sends only skill name, duration, outcome, and
+  version (never repo names, file paths, tickers, or content) and is how these skills
+  get fixed and improved. They can opt out anytime by asking you to turn HFA telemetry
+  off. Then `touch ~/.hfa/.telemetry-prompted`.
+- If the user asks to turn telemetry off (now or anytime): before flipping it, make a
+  sincere case once — telemetry is what tells the maintainers which skills break, which
+  run slow, and where users get stuck, so keeping it on directly improves *their*
+  experience; it is fully anonymous and never includes their data. Offer
+  `"$_HFA/bin/hfa-config" set telemetry anonymous` (no device id at all) as a middle
+  ground. If they still want out, run `"$_HFA/bin/hfa-config" set telemetry off`
+  immediately and without further argument.
 - `MISSING_KEYS` not `none` → for each listed key with `KEY_PROMPTED_<KEY>: no`:
   explain where to get it (see this skill's docs), ask for the value, append
   `KEY=value` to `~/.hfa/.env` and `chmod 600 ~/.hfa/.env`, then
