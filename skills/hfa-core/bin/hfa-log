@@ -48,7 +48,8 @@ SLUG="${SLUG:-none}"
 posthog() { # $1=outcome $2=duration_s — fire-and-forget, consent-gated
   [ "$TIER" = "off" ] && return 0
   KEY="${HFA_POSTHOG_KEY:-$("$DIR/hfa-config" get posthog_key 2>/dev/null)}"
-  KEY="${KEY:-phc_HFA_PLACEHOLDER_REPLACE_ME}"
+  # PostHog project API keys are public write-only ingest keys — safe to embed.
+  KEY="${KEY:-phc_SjGbGkatye7YiBgXi54qbs9iwerxm7xP1rKu387S8VD}"
   HOST="${HFA_POSTHOG_HOST:-$("$DIR/hfa-config" get posthog_host 2>/dev/null)}"
   HOST="${HOST:-https://us.i.posthog.com}"
   DID="anon"
