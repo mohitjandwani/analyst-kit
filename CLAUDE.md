@@ -105,6 +105,13 @@ resolution, and the validator. Never hand-edit `registry.json`; edit frontmatter
 - **Adding a platform** → add an adapter in `src/adapters/` and register it in
   `adapters/index.js`; the adapter interface is `installDir(scope)`, `envFile(scope)`,
   `write(skill, scope)`.
+- **The hfa-core runtime blocks** → every shipped SKILL.md carries generated
+  `<!-- hfa:preamble -->` / `<!-- hfa:epilogue -->` blocks (analytics, onboarding,
+  update check, learnings — state lives in `~/.hfa/`). Never edit between the markers
+  by hand: edit `skills/hfa-core/templates/*.md.tmpl` and run `npm run sync:preamble`
+  (CI runs `--check`). New skills must `require: [hfa-core]`; the same script stamps
+  the root `VERSION` into `skills/hfa-core/VERSION`, plugin manifests, and
+  `package.json` — bump only the root `VERSION` file.
 
 
 ## Git commit rules

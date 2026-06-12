@@ -102,6 +102,31 @@ per-skill prerequisite the installer does not install for you: **Python** (finmi
 company-universe-manager; 13f-analysis is standard-library only) and **Bun**
 (wiki-builder).
 
+## The `~/.hfa` data home, analytics & updates
+
+Every skill runs on a shared runtime (`hfa-core`, installed automatically as a
+dependency) that keeps all per-user state in one fixed place, `~/.hfa/`:
+
+- `.env` — your API keys (chmod 600, shared across projects)
+- `config` — settings (`hfa-core/bin/hfa-config get|set|list`)
+- `analytics/skill-usage.jsonl` — **local** usage log: which skill ran, when,
+  outcome, duration
+- `learnings.jsonl` — things the skills learned about your setup and preferences,
+  so mistakes aren't repeated
+
+**Telemetry is opt-in and off by default.** On first run you're asked once whether
+to share anonymous usage data (skill name, version, outcome, duration — never repo
+names, file paths, tickers, or content). Tiers: `community` (stable anonymous id),
+`anonymous` (no id), `off`. Change any time:
+
+```bash
+~/.claude/skills/hfa-core/bin/hfa-config set telemetry off
+```
+
+**Updates:** skills check the published version at most once a day and offer a
+guided upgrade when a new release is out (declining snoozes it for a week; disable
+with `hfa-config set update_check false`).
+
 ## Skill format
 
 Each skill is `skills/<name>/SKILL.md` with YAML frontmatter:
@@ -123,12 +148,15 @@ description. `type`, `requires`, and `env` drive the installer and validator.
 ## Development
 
 ```bash
-npm run validate         # lint skills + plugin manifests
+npm run validate         # lint skills + plugin manifests (+ preamble sync check)
 npm run build:registry   # regenerate registry.json from frontmatter
 npm run check:registry   # verify registry.json is in sync
+npm run sync:preamble    # regenerate the hfa-core blocks in every SKILL.md
 ```
 
-`registry.json` is generated — edit skill frontmatter, then rebuild it. The same
+`registry.json` is generated — edit skill frontmatter, then rebuild it. The
+`<!-- hfa:preamble/epilogue -->` blocks in each SKILL.md are also generated — edit
+`skills/hfa-core/templates/` and re-sync; never edit between the markers. The same
 checks run in CI (`.github/workflows/validate.yml`) on every push and pull request.
 
 ## Roadmap
