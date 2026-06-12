@@ -323,13 +323,13 @@ def explore_url(keyword, date="today 5-y", geo="US"):
     params = {"date": date, "q": keyword}
     if geo:
         params["geo"] = geo
-    # Google Trends expects spaces as %20 and keeps '+' literally; urlencode with
-    # quote_via=quote encodes '+' as %2B which the UI does NOT want, so encode
-    # the q value with quote() (which leaves '+' -> %2B too). Use safe='+' so the
-    # union operator survives as a literal '+'.
+    # Encode with quote() (no safe chars): spaces -> %20 and the '+' union
+    # operator -> %2B. This matters: a *literal* '+' in a URL query is decoded
+    # to a SPACE by browsers, which would silently destroy the union operator;
+    # %2B survives decoding so Google Trends sees the '+' and unions the terms.
     parts = []
     for k, val in params.items():
-        parts.append(f"{k}=" + urllib.parse.quote(str(val), safe="+"))
+        parts.append(f"{k}=" + urllib.parse.quote(str(val), safe=""))
     return TRENDS_EXPLORE + "?" + "&".join(parts)
 
 

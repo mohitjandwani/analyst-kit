@@ -1,0 +1,1060 @@
+{
+  "fetched_at": "2026-06-12T12:20:34Z",
+  "request_params": {
+    "engine": "google_trends",
+    "q": "victoria's secret",
+    "data_type": "TIMESERIES",
+    "date": "today 3-m",
+    "geo": "US"
+  },
+  "raw_response": {
+    "search_metadata": {
+      "id": "6a2bf98fd868dda75a703b4f",
+      "status": "Success",
+      "json_endpoint": "https://serpapi.com/searches/VswPmdVt8Kewd7YOdkvaHQ/6a2bf98fd868dda75a703b4f.json",
+      "created_at": "2026-06-12 12:20:31 UTC",
+      "processed_at": "2026-06-12 12:20:31 UTC",
+      "google_trends_url": "https://trends.google.com/trends/embed/explore/TIMESERIES?hl=en&tz=420&req=%7B%22comparisonItem%22%3A%5B%7B%22keyword%22%3A%22victoria%27s+secret%22%2C%22geo%22%3A%22US%22%2C%22time%22%3A%22today+3-m%22%7D%5D%2C%22category%22%3A0%2C%22property%22%3A%22%22%7D",
+      "raw_html_file": "https://serpapi.com/searches/VswPmdVt8Kewd7YOdkvaHQ/6a2bf98fd868dda75a703b4f.html",
+      "prettify_html_file": "https://serpapi.com/searches/VswPmdVt8Kewd7YOdkvaHQ/6a2bf98fd868dda75a703b4f.prettify",
+      "total_time_taken": 2.07
+    },
+    "search_parameters": {
+      "engine": "google_trends",
+      "q": "victoria's secret",
+      "hl": "en",
+      "geo": "US",
+      "date": "today 3-m",
+      "tz": "420",
+      "data_type": "TIMESERIES"
+    },
+    "interest_over_time": {
+      "timeline_data": [
+        {
+          "date": "Mar 12, 2026",
+          "timestamp": "1773273600",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "27",
+              "extracted_value": 27
+            }
+          ]
+        },
+        {
+          "date": "Mar 13, 2026",
+          "timestamp": "1773360000",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "23",
+              "extracted_value": 23
+            }
+          ]
+        },
+        {
+          "date": "Mar 14, 2026",
+          "timestamp": "1773446400",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "31",
+              "extracted_value": 31
+            }
+          ]
+        },
+        {
+          "date": "Mar 15, 2026",
+          "timestamp": "1773532800",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "32",
+              "extracted_value": 32
+            }
+          ]
+        },
+        {
+          "date": "Mar 16, 2026",
+          "timestamp": "1773619200",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "28",
+              "extracted_value": 28
+            }
+          ]
+        },
+        {
+          "date": "Mar 17, 2026",
+          "timestamp": "1773705600",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "26",
+              "extracted_value": 26
+            }
+          ]
+        },
+        {
+          "date": "Mar 18, 2026",
+          "timestamp": "1773792000",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "24",
+              "extracted_value": 24
+            }
+          ]
+        },
+        {
+          "date": "Mar 19, 2026",
+          "timestamp": "1773878400",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "23",
+              "extracted_value": 23
+            }
+          ]
+        },
+        {
+          "date": "Mar 20, 2026",
+          "timestamp": "1773964800",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "31",
+              "extracted_value": 31
+            }
+          ]
+        },
+        {
+          "date": "Mar 21, 2026",
+          "timestamp": "1774051200",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "34",
+              "extracted_value": 34
+            }
+          ]
+        },
+        {
+          "date": "Mar 22, 2026",
+          "timestamp": "1774137600",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "35",
+              "extracted_value": 35
+            }
+          ]
+        },
+        {
+          "date": "Mar 23, 2026",
+          "timestamp": "1774224000",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "34",
+              "extracted_value": 34
+            }
+          ]
+        },
+        {
+          "date": "Mar 24, 2026",
+          "timestamp": "1774310400",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "28",
+              "extracted_value": 28
+            }
+          ]
+        },
+        {
+          "date": "Mar 25, 2026",
+          "timestamp": "1774396800",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "29",
+              "extracted_value": 29
+            }
+          ]
+        },
+        {
+          "date": "Mar 26, 2026",
+          "timestamp": "1774483200",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "31",
+              "extracted_value": 31
+            }
+          ]
+        },
+        {
+          "date": "Mar 27, 2026",
+          "timestamp": "1774569600",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "33",
+              "extracted_value": 33
+            }
+          ]
+        },
+        {
+          "date": "Mar 28, 2026",
+          "timestamp": "1774656000",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "49",
+              "extracted_value": 49
+            }
+          ]
+        },
+        {
+          "date": "Mar 29, 2026",
+          "timestamp": "1774742400",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "47",
+              "extracted_value": 47
+            }
+          ]
+        },
+        {
+          "date": "Mar 30, 2026",
+          "timestamp": "1774828800",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "41",
+              "extracted_value": 41
+            }
+          ]
+        },
+        {
+          "date": "Mar 31, 2026",
+          "timestamp": "1774915200",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "63",
+              "extracted_value": 63
+            }
+          ]
+        },
+        {
+          "date": "Apr 1, 2026",
+          "timestamp": "1775001600",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "75",
+              "extracted_value": 75
+            }
+          ]
+        },
+        {
+          "date": "Apr 2, 2026",
+          "timestamp": "1775088000",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "69",
+              "extracted_value": 69
+            }
+          ]
+        },
+        {
+          "date": "Apr 3, 2026",
+          "timestamp": "1775174400",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "70",
+              "extracted_value": 70
+            }
+          ]
+        },
+        {
+          "date": "Apr 4, 2026",
+          "timestamp": "1775260800",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "80",
+              "extracted_value": 80
+            }
+          ]
+        },
+        {
+          "date": "Apr 5, 2026",
+          "timestamp": "1775347200",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "73",
+              "extracted_value": 73
+            }
+          ]
+        },
+        {
+          "date": "Apr 6, 2026",
+          "timestamp": "1775433600",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "73",
+              "extracted_value": 73
+            }
+          ]
+        },
+        {
+          "date": "Apr 7, 2026",
+          "timestamp": "1775520000",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "69",
+              "extracted_value": 69
+            }
+          ]
+        },
+        {
+          "date": "Apr 8, 2026",
+          "timestamp": "1775606400",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "73",
+              "extracted_value": 73
+            }
+          ]
+        },
+        {
+          "date": "Apr 9, 2026",
+          "timestamp": "1775692800",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "75",
+              "extracted_value": 75
+            }
+          ]
+        },
+        {
+          "date": "Apr 10, 2026",
+          "timestamp": "1775779200",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "77",
+              "extracted_value": 77
+            }
+          ]
+        },
+        {
+          "date": "Apr 11, 2026",
+          "timestamp": "1775865600",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "99",
+              "extracted_value": 99
+            }
+          ]
+        },
+        {
+          "date": "Apr 12, 2026",
+          "timestamp": "1775952000",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "92",
+              "extracted_value": 92
+            }
+          ]
+        },
+        {
+          "date": "Apr 13, 2026",
+          "timestamp": "1776038400",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "75",
+              "extracted_value": 75
+            }
+          ]
+        },
+        {
+          "date": "Apr 14, 2026",
+          "timestamp": "1776124800",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "73",
+              "extracted_value": 73
+            }
+          ]
+        },
+        {
+          "date": "Apr 15, 2026",
+          "timestamp": "1776211200",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "78",
+              "extracted_value": 78
+            }
+          ]
+        },
+        {
+          "date": "Apr 16, 2026",
+          "timestamp": "1776297600",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "85",
+              "extracted_value": 85
+            }
+          ]
+        },
+        {
+          "date": "Apr 17, 2026",
+          "timestamp": "1776384000",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "88",
+              "extracted_value": 88
+            }
+          ]
+        },
+        {
+          "date": "Apr 18, 2026",
+          "timestamp": "1776470400",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "100",
+              "extracted_value": 100
+            }
+          ]
+        },
+        {
+          "date": "Apr 19, 2026",
+          "timestamp": "1776556800",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "82",
+              "extracted_value": 82
+            }
+          ]
+        },
+        {
+          "date": "Apr 20, 2026",
+          "timestamp": "1776643200",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "60",
+              "extracted_value": 60
+            }
+          ]
+        },
+        {
+          "date": "Apr 21, 2026",
+          "timestamp": "1776729600",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "57",
+              "extracted_value": 57
+            }
+          ]
+        },
+        {
+          "date": "Apr 22, 2026",
+          "timestamp": "1776816000",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "61",
+              "extracted_value": 61
+            }
+          ]
+        },
+        {
+          "date": "Apr 23, 2026",
+          "timestamp": "1776902400",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "63",
+              "extracted_value": 63
+            }
+          ]
+        },
+        {
+          "date": "Apr 24, 2026",
+          "timestamp": "1776988800",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "51",
+              "extracted_value": 51
+            }
+          ]
+        },
+        {
+          "date": "Apr 25, 2026",
+          "timestamp": "1777075200",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "61",
+              "extracted_value": 61
+            }
+          ]
+        },
+        {
+          "date": "Apr 26, 2026",
+          "timestamp": "1777161600",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "65",
+              "extracted_value": 65
+            }
+          ]
+        },
+        {
+          "date": "Apr 27, 2026",
+          "timestamp": "1777248000",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "55",
+              "extracted_value": 55
+            }
+          ]
+        },
+        {
+          "date": "Apr 28, 2026",
+          "timestamp": "1777334400",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "47",
+              "extracted_value": 47
+            }
+          ]
+        },
+        {
+          "date": "Apr 29, 2026",
+          "timestamp": "1777420800",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "42",
+              "extracted_value": 42
+            }
+          ]
+        },
+        {
+          "date": "Apr 30, 2026",
+          "timestamp": "1777507200",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "41",
+              "extracted_value": 41
+            }
+          ]
+        },
+        {
+          "date": "May 1, 2026",
+          "timestamp": "1777593600",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "41",
+              "extracted_value": 41
+            }
+          ]
+        },
+        {
+          "date": "May 2, 2026",
+          "timestamp": "1777680000",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "46",
+              "extracted_value": 46
+            }
+          ]
+        },
+        {
+          "date": "May 3, 2026",
+          "timestamp": "1777766400",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "46",
+              "extracted_value": 46
+            }
+          ]
+        },
+        {
+          "date": "May 4, 2026",
+          "timestamp": "1777852800",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "35",
+              "extracted_value": 35
+            }
+          ]
+        },
+        {
+          "date": "May 5, 2026",
+          "timestamp": "1777939200",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "37",
+              "extracted_value": 37
+            }
+          ]
+        },
+        {
+          "date": "May 6, 2026",
+          "timestamp": "1778025600",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "45",
+              "extracted_value": 45
+            }
+          ]
+        },
+        {
+          "date": "May 7, 2026",
+          "timestamp": "1778112000",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "53",
+              "extracted_value": 53
+            }
+          ]
+        },
+        {
+          "date": "May 8, 2026",
+          "timestamp": "1778198400",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "53",
+              "extracted_value": 53
+            }
+          ]
+        },
+        {
+          "date": "May 9, 2026",
+          "timestamp": "1778284800",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "61",
+              "extracted_value": 61
+            }
+          ]
+        },
+        {
+          "date": "May 10, 2026",
+          "timestamp": "1778371200",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "59",
+              "extracted_value": 59
+            }
+          ]
+        },
+        {
+          "date": "May 11, 2026",
+          "timestamp": "1778457600",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "41",
+              "extracted_value": 41
+            }
+          ]
+        },
+        {
+          "date": "May 12, 2026",
+          "timestamp": "1778544000",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "39",
+              "extracted_value": 39
+            }
+          ]
+        },
+        {
+          "date": "May 13, 2026",
+          "timestamp": "1778630400",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "72",
+              "extracted_value": 72
+            }
+          ]
+        },
+        {
+          "date": "May 14, 2026",
+          "timestamp": "1778716800",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "74",
+              "extracted_value": 74
+            }
+          ]
+        },
+        {
+          "date": "May 15, 2026",
+          "timestamp": "1778803200",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "77",
+              "extracted_value": 77
+            }
+          ]
+        },
+        {
+          "date": "May 16, 2026",
+          "timestamp": "1778889600",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "84",
+              "extracted_value": 84
+            }
+          ]
+        },
+        {
+          "date": "May 17, 2026",
+          "timestamp": "1778976000",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "80",
+              "extracted_value": 80
+            }
+          ]
+        },
+        {
+          "date": "May 18, 2026",
+          "timestamp": "1779062400",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "66",
+              "extracted_value": 66
+            }
+          ]
+        },
+        {
+          "date": "May 19, 2026",
+          "timestamp": "1779148800",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "62",
+              "extracted_value": 62
+            }
+          ]
+        },
+        {
+          "date": "May 20, 2026",
+          "timestamp": "1779235200",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "56",
+              "extracted_value": 56
+            }
+          ]
+        },
+        {
+          "date": "May 21, 2026",
+          "timestamp": "1779321600",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "50",
+              "extracted_value": 50
+            }
+          ]
+        },
+        {
+          "date": "May 22, 2026",
+          "timestamp": "1779408000",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "56",
+              "extracted_value": 56
+            }
+          ]
+        },
+        {
+          "date": "May 23, 2026",
+          "timestamp": "1779494400",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "49",
+              "extracted_value": 49
+            }
+          ]
+        },
+        {
+          "date": "May 24, 2026",
+          "timestamp": "1779580800",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "49",
+              "extracted_value": 49
+            }
+          ]
+        },
+        {
+          "date": "May 25, 2026",
+          "timestamp": "1779667200",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "47",
+              "extracted_value": 47
+            }
+          ]
+        },
+        {
+          "date": "May 26, 2026",
+          "timestamp": "1779753600",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "42",
+              "extracted_value": 42
+            }
+          ]
+        },
+        {
+          "date": "May 27, 2026",
+          "timestamp": "1779840000",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "39",
+              "extracted_value": 39
+            }
+          ]
+        },
+        {
+          "date": "May 28, 2026",
+          "timestamp": "1779926400",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "38",
+              "extracted_value": 38
+            }
+          ]
+        },
+        {
+          "date": "May 29, 2026",
+          "timestamp": "1780012800",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "31",
+              "extracted_value": 31
+            }
+          ]
+        },
+        {
+          "date": "May 30, 2026",
+          "timestamp": "1780099200",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "32",
+              "extracted_value": 32
+            }
+          ]
+        },
+        {
+          "date": "May 31, 2026",
+          "timestamp": "1780185600",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "38",
+              "extracted_value": 38
+            }
+          ]
+        },
+        {
+          "date": "Jun 1, 2026",
+          "timestamp": "1780272000",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "30",
+              "extracted_value": 30
+            }
+          ]
+        },
+        {
+          "date": "Jun 2, 2026",
+          "timestamp": "1780358400",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "27",
+              "extracted_value": 27
+            }
+          ]
+        },
+        {
+          "date": "Jun 3, 2026",
+          "timestamp": "1780444800",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "40",
+              "extracted_value": 40
+            }
+          ]
+        },
+        {
+          "date": "Jun 4, 2026",
+          "timestamp": "1780531200",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "38",
+              "extracted_value": 38
+            }
+          ]
+        },
+        {
+          "date": "Jun 5, 2026",
+          "timestamp": "1780617600",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "35",
+              "extracted_value": 35
+            }
+          ]
+        },
+        {
+          "date": "Jun 6, 2026",
+          "timestamp": "1780704000",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "40",
+              "extracted_value": 40
+            }
+          ]
+        },
+        {
+          "date": "Jun 7, 2026",
+          "timestamp": "1780790400",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "38",
+              "extracted_value": 38
+            }
+          ]
+        },
+        {
+          "date": "Jun 8, 2026",
+          "timestamp": "1780876800",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "31",
+              "extracted_value": 31
+            }
+          ]
+        },
+        {
+          "date": "Jun 9, 2026",
+          "timestamp": "1780963200",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "32",
+              "extracted_value": 32
+            }
+          ]
+        },
+        {
+          "date": "Jun 10, 2026",
+          "timestamp": "1781049600",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "30",
+              "extracted_value": 30
+            }
+          ]
+        },
+        {
+          "date": "Jun 11, 2026",
+          "timestamp": "1781136000",
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "25",
+              "extracted_value": 25
+            }
+          ]
+        },
+        {
+          "date": "Jun 12, 2026",
+          "timestamp": "1781222400",
+          "partial_data": true,
+          "values": [
+            {
+              "query": "victoria's secret",
+              "value": "31",
+              "extracted_value": 31
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -66,9 +66,11 @@ def _month_end(year, month):
 def quarter_label(qend, fye_month):
     """Label like FY2026Q1. The fiscal year is the calendar year in which the
     fiscal year-end falls; quarters within it numbered from the start."""
-    # which quarter of its fiscal year is this quarter-end?
-    months_after_fye = (qend.month - fye_month) % 12
-    qnum = (months_after_fye // 3) % 4 + 1
+    # The fiscal year starts the month AFTER the fiscal year-end month, so the
+    # first quarter ends ~3 months after FY-start (=4 months after the FYE month).
+    fy_start_month = fye_month % 12 + 1
+    months_into_fy = (qend.month - fy_start_month) % 12  # 0,3,6,9 at quarter-ends
+    qnum = months_into_fy // 3 + 1
     # fiscal year label = the year the FYE quarter ends
     if qend.month <= fye_month:
         fy = qend.year
