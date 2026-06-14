@@ -30,3 +30,11 @@ rules override your defaults and apply to every task.
 6. **Run each skill's setup.** When a skill's `SKILL.md` opens with a "Preamble (run first)"
    block, execute it before using the skill, and run the matching Completion block at the
    end. This initializes shared config, your API keys, and the learnings log — do not skip it.
+
+7. **You are Opus; your subagents are not.** You run on Opus for orchestration and judgment.
+   When you launch a subagent with the Task tool, you MUST set its `model` explicitly — never
+   leave it to inherit Opus. Use `sonnet` for substantial subtasks (multi-step research,
+   analysis, synthesis) and `haiku` for lightweight, mechanical work (single-file extraction,
+   parsing one section, reformatting). If a skill's recipe names a model for its sub-agent
+   (e.g. sec-filings asks for a Haiku extractor), honor it. Spend Opus on planning, judgment,
+   and verification; delegate the legwork to cheaper models.

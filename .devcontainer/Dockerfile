@@ -30,9 +30,15 @@ RUN cd /opt/html2pdf \
 RUN printf '#!/bin/sh\nexec node /opt/html2pdf/index.mjs "$@"\n' > /usr/local/bin/html2pdf \
     && chmod +x /usr/local/bin/html2pdf
 
-# Force Sonnet (main) + Haiku (small/fast/background) for EVERYTHING, and quiet the
-# headless first-run noise. These are image-level ENV so they're present in every exec.
-ENV ANTHROPIC_MODEL=claude-sonnet-4-6 \
+# Models: the MAIN agent runs on Opus (orchestration + judgment). Subagents are chosen
+# per-task by the main agent — Sonnet for substantial work, Haiku for lightweight
+# extraction/formatting (the system prompt enforces this; sec-filings' recipe asks for Haiku
+# extractors explicitly). ANTHROPIC_DEFAULT_HAIKU_MODEL pins what the `haiku` alias resolves
+# to. We deliberately do NOT set CLAUDE_CODE_SUBAGENT_MODEL: it is the highest-priority
+# override and would force EVERY subagent to one model, defeating per-call Sonnet/Haiku
+# choice. Trade-off: a subagent launched without an explicit model inherits Opus — the system
+# prompt's "always set the subagent model" rule is the guardrail. Also quiet first-run noise.
+ENV ANTHROPIC_MODEL=claude-opus-4-8 \
     ANTHROPIC_DEFAULT_HAIKU_MODEL=claude-haiku-4-5-20251001 \
     ANTHROPIC_SMALL_FAST_MODEL=claude-haiku-4-5-20251001 \
     DISABLE_AUTOUPDATER=1 \
