@@ -1,7 +1,5 @@
 ---
 id: 30-nvda-amd-segments
-skills: [sec-filings, financialmodellingprep, charting, reporting]
-requiresEnv: [FMP_API_KEY]
 timeoutMs: 1200000
 ---
 

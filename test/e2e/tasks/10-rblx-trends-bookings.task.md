@@ -1,7 +1,5 @@
 ---
 id: 10-rblx-trends-bookings
-skills: [charting, sec-filings, financialmodellingprep, reporting]
-requiresEnv: [FMP_API_KEY]
 timeoutMs: 1200000
 ---
 
