@@ -3,13 +3,17 @@ name: market-intelligence
 type: capability
 description: >
   Nowcast how a company is doing and predict a revenue segment for the current quarter from
-  Google Trends search-interest data, fetched through the SerpAPI google_trends engine. Teaches
-  a two-step methodology — identify keywords that track a revenue segment, then normalize the
-  per-request 0–100 trends scale into a consistent quarterly index plus a quarter-to-date
-  nowcast — with disk-cached scripts (free tier = 100 searches/month) and a full SerpAPI
-  reference. Triggers: "google trends for X", "can search interest predict Y's revenue",
-  "nowcast <company> sales", "build a trends-based revenue model for Z", "market intelligence
-  on <ticker>".
+  Google Trends search-interest data, fetched through the SerpAPI google_trends engine. This is
+  THE skill for any use of search interest as alternative data — turning consumer/web search
+  demand into a quarterly signal and testing it against reported sales. Teaches a two-step
+  methodology — identify keywords that track a revenue segment, then normalize the per-request
+  0–100 trends scale into a consistent quarterly index plus a quarter-to-date nowcast — with
+  disk-cached scripts (free tier = 100 searches/month) and a full SerpAPI reference. Triggers:
+  "google trends for X", "search interest for <company/brand>", "can search interest predict
+  Y's revenue", "is search interest an early signal for Z's sales", "does consumer search track
+  <company> sales", "compare search interest to revenue", "use search demand as alternative
+  data", "nowcast <company> sales", "build a trends-based revenue model for Z", "market
+  intelligence on <ticker>".
 env:
   - SERPAPI_API_KEY
 ---
@@ -24,14 +28,21 @@ into a consistent quarterly index and produce a quarter-to-date nowcast.
 
 ## Two behavioral rules — read first, always apply
 
-1. **Before spending ANY quota on exploratory keyword search, ask the user which mode to
-   use** (use your question tool): **Manual** Google Trends exploration (free, unlimited,
-   the default/recommended — you generate candidate keywords + ready-to-open web-UI URLs
-   via `fetch_trends.py --explore-urls`, the user eyeballs them and reports back the 3–5
-   winners) **or API** exploration (you call SerpAPI yourself — first state the estimated
-   call budget: candidates ÷ 5 per relative request, + 1 RELATED_QUERIES per surviving
-   term — and get explicit agreement). Free tier is **100 searches/month**; keyword
-   exploration is the unbounded-cost step.
+1. **Choose an exploration mode — Manual vs API — but never block an autonomous run on the
+   choice.** In an **interactive session, ask the user** (use your question tool) which to
+   use: **Manual** Google Trends exploration (free, unlimited, the interactive default — you
+   generate candidate keywords + ready-to-open web-UI URLs via `fetch_trends.py
+   --explore-urls`, the user eyeballs them and reports back the 3–5 winners) **or API**
+   exploration (you call SerpAPI yourself — first state the estimated call budget:
+   candidates ÷ 5 per relative request, + 1 RELATED_QUERIES per surviving term — and get
+   explicit agreement). **If you are running non-interactively / headless** — an automated
+   job, `claude -p`, or any context where your question tool cannot reach a human — **do NOT
+   ask: proceed in API mode directly** with a bounded budget (cap exploration at ~5–8
+   candidates, state the estimated call count up front, and lean on the mandatory cache).
+   Manual mode requires a human, so it is never the autonomous default; the right behavior
+   when there is no one to answer is to spend a little quota, not to abandon Trends for a
+   weaker proxy. Free tier is **100 searches/month**; keyword exploration is the
+   unbounded-cost step.
 2. **Never deliver trends numbers without provenance.** Every row you hand off — CSV, JSON,
    quarterly index, nowcast — must carry `keyword` (the exact `q` term verbatim, including
    `+`/quotes/`-`), `is_partial` (always explicit true/false), and `fetched_at` (UTC time
@@ -90,7 +101,8 @@ Full details in [`references/serpapi-google-trends.md`](references/serpapi-googl
 Goal: 3–5 keywords per revenue segment whose **YoY changes** track the reported segment
 revenue. Expect iteration.
 
-0. **Ask manual-vs-API first** (behavioral rule 1 above) — this gate comes before any probe.
+0. **Settle manual-vs-API mode first** (behavioral rule 1 above) — ask if interactive, else
+   default to API mode when headless; this comes before any probe.
 1. **Candidates** from the segment's actual products/brands: brand term, brand+category
    (`victoria's secret pajamas`), sub-brand (`pink victoria secret`), and **`+` combinations**
    unioning category + brand demand (`lingerie + victoria's secret`) or pooling spelling
