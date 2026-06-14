@@ -9,7 +9,8 @@
 //     `claude -p`, checks that each produced exactly one valid PDF, writes a report.
 //
 // Keys are passed inline on the host command (or via an optional test/e2e/.env) and never
-// baked into the image. Model selection (Sonnet + Haiku) is baked into the image ENV.
+// baked into the image. Models are baked into the image ENV: the main agent runs on Opus,
+// and it delegates to Sonnet/Haiku subagents per-task (see the Dockerfile + system prompt).
 
 import { spawn, spawnSync } from 'node:child_process';
 import {
@@ -20,6 +21,7 @@ import { createServer } from 'node:http';
 import { join, basename, extname, resolve as pathResolve } from 'node:path';
 import { homedir } from 'node:os';
 import { pathToFileURL } from 'node:url';
+import { auditTask, buildRemediationPrompt } from './audit.ts';
 
 // Secrets the harness forwards into the container (inline > .env file > unset).
 // SEC_EDGAR_UA is what skills/sec-filings/scripts/edgar.py reads; SEC_EDGAR_USER_AGENT is
@@ -54,6 +56,19 @@ const NO_VIEWER = argv.includes('--no-viewer') || !!process.env.E2E_NO_VIEWER ||
 // event (tool calls, text, result) as a one-liner. The flag rides through to the
 // container via `passthrough`; E2E_VERBOSE only affects the side it's set on.
 const VERBOSE = argv.includes('--verbose') || !!process.env.E2E_VERBOSE;
+
+// ── Provenance audit (see audit.ts) ──────────────────────────────────────────────────────
+// After a task produces a valid PDF, a cheap judge checks that every source the report cites
+// was actually queried (ground truth = a ledger of real tool calls, incl. sub-agents). On a
+// fail it RESUMES the same agent session with the findings and asks it to fetch the real data
+// or correct the attribution, then re-audits — up to --audit-retries times. These flags ride
+// through to the container via `passthrough`, so they work from the host command line.
+const AUDIT_ENABLED = !argv.includes('--no-audit');
+const AUDIT_MODEL = flagValue(argv, '--audit-model') || 'haiku';
+const MAX_AUDIT_RETRIES = Math.max(0, Number(flagValue(argv, '--audit-retries')) || 1);
+// After repair attempts are exhausted, a still-unsupported source FAILS the task (CI red).
+// Flip with --audit-no-gate to keep the audit report-only.
+const AUDIT_GATE = !argv.includes('--audit-no-gate');
 
 if (IN_CONTAINER) {
   await runInContainer(taskFilter, CONCURRENCY);
@@ -317,40 +332,86 @@ async function runInContainer(filter: string | null, concurrency: number) {
         `durationMs: ${res.durationMs}`, `costUsd: ${res.costUsd}`, `result: ${res.resultSummary}`].join('\n') + '\n');
     copyNewestTranscript(runDir, id, taskHome);
 
-    // Phase 3b — platform post-processing: if the agent left an HTML deliverable but no
-    // PDF, convert it here. HTML→PDF is the harness's job, not a turn the agent spends.
+    // Phase 3b/4 — platform post-processing + verification, wrapped so the audit loop can
+    // re-run it after a repair turn. 3b: if the agent left an HTML deliverable but no PDF,
+    // convert it here (HTML→PDF is the harness's job, not a turn the agent spends). 4: verify
+    // exactly one valid, non-empty PDF. `forceReconvert` drops stale PDFs first so a repaired
+    // HTML re-renders rather than the prior pass's PDF passing again.
     const listBy = (dir: string, ext: string) =>
       existsSync(dir) ? readdirSync(dir).filter((f) => f.toLowerCase().endsWith(ext)) : [];
-    if (listBy(outdir, '.pdf').length === 0) {
-      const htmls = listBy(outdir, '.html').map((f) => join(outdir, f))
-        .concat(listBy(workdir, '.html').map((f) => join(workdir, f)));
-      // Prefer the contracted name, else the most recently written candidate.
-      const pick = htmls.find((p) => basename(p) === `${id}.html`)
-        ?? htmls.sort((a, b) => lstatSync(b).mtimeMs - lstatSync(a).mtimeMs)[0];
-      if (pick) {
-        const conv = spawnSync('html2pdf', [pick, join(outdir, `${id}.pdf`)], { encoding: 'utf8' });
-        rec.autoPdf = { from: basename(pick), ok: conv.status === 0 };
-        log(`  · [${id}] auto-converted ${basename(pick)} → ${id}.pdf${conv.status === 0 ? '' : ` (FAILED: ${lastLine(conv.stderr || conv.stdout)})`}`);
+    const convertAndVerify = (forceReconvert = false): void => {
+      if (forceReconvert) for (const f of listBy(outdir, '.pdf')) rmSync(join(outdir, f), { force: true });
+      if (listBy(outdir, '.pdf').length === 0) {
+        const htmls = listBy(outdir, '.html').map((f) => join(outdir, f))
+          .concat(listBy(workdir, '.html').map((f) => join(workdir, f)));
+        // Prefer the contracted name, else the most recently written candidate.
+        const pick = htmls.find((p) => basename(p) === `${id}.html`)
+          ?? htmls.sort((a, b) => lstatSync(b).mtimeMs - lstatSync(a).mtimeMs)[0];
+        if (pick) {
+          const conv = spawnSync('html2pdf', [pick, join(outdir, `${id}.pdf`)], { encoding: 'utf8' });
+          rec.autoPdf = { from: basename(pick), ok: conv.status === 0 };
+          log(`  · [${id}] auto-converted ${basename(pick)} → ${id}.pdf${conv.status === 0 ? '' : ` (FAILED: ${lastLine(conv.stderr || conv.stdout)})`}`);
+        }
       }
-    }
+      const pdfs = listBy(outdir, '.pdf');
+      if (pdfs.length === 1) {
+        const p = join(outdir, pdfs[0]);
+        const buf = readFileSync(p);
+        const valid = buf.length > 0 && buf.subarray(0, 5).toString('latin1') === '%PDF-';
+        rec.pdf = { file: pdfs[0], bytes: buf.length, validHeader: valid };
+        rec.ok = valid;
+        if (valid) {
+          copyFileSync(p, join(pdfsDir, `${id}.pdf`)); // flat review folder
+          copyFileSync(p, join(runDir, `${id}.pdf`));  // archived with the run
+        }
+      } else {
+        rec.pdf = { count: pdfs.length, files: pdfs };
+        rec.ok = false;
+      }
+    };
 
-    // Phase 4 — verify exactly one valid, non-empty PDF.
-    const pdfs = listBy(outdir, '.pdf');
-    if (pdfs.length === 1) {
-      const p = join(outdir, pdfs[0]);
-      const buf = readFileSync(p);
-      const valid = buf.length > 0 && buf.subarray(0, 5).toString('latin1') === '%PDF-';
-      rec.pdf = { file: pdfs[0], bytes: buf.length, validHeader: valid };
-      rec.ok = valid;
-      if (valid) {
-        copyFileSync(p, join(pdfsDir, `${id}.pdf`)); // flat review folder
-        copyFileSync(p, join(runDir, `${id}.pdf`));  // archived with the run
-      }
-    } else {
-      rec.pdf = { count: pdfs.length, files: pdfs };
-    }
     rec.claude = { code: res.code, timedOut: res.timedOut, durationMs: res.durationMs, costUsd: res.costUsd };
+    convertAndVerify();
     log(`  → [${id}] ${rec.ok ? '✓ valid PDF' : '✗ no valid PDF'}${rec.pdf?.bytes ? ` (${rec.pdf.bytes} bytes)` : ''}`);
+
+    // Phase 5 — provenance audit + self-repair. Only worth running on a real deliverable.
+    if (AUDIT_ENABLED && rec.ok && !res.timedOut) {
+      // The judge runs as its own cheap `claude -p` call; give it a minimal HOME so it doesn't
+      // load the 18 installed skills it has no use for.
+      const auditHome = join(workdir, '.audit-home');
+      mkdirSync(join(auditHome, '.claude'), { recursive: true });
+      writeFileSync(join(auditHome, '.claude.json'),
+        '{"hasCompletedOnboarding": true, "bypassPermissionsModeAccepted": true}\n');
+      const streamPath = join(runDir, `${id}.stream.jsonl`);
+      const doAudit = () => auditTask({ taskHome, streamPath, outdir, workdir, id, model: AUDIT_MODEL, auditHome });
+
+      let audit = await doAudit();
+      const badCount = (a: any) => (a.findings || []).filter((f: any) => f.status !== 'SUPPORTED').length;
+      rec.audit = { ok: audit.ok, model: AUDIT_MODEL, gate: AUDIT_GATE, ledger: audit.ledger,
+        attempts: [{ verdict: audit.verdict, summary: audit.summary, findings: audit.findings }] };
+      log(`Phase 5 · [${id}] audit ${audit.ok ? '✓ provenance clean' : `✗ ${badCount(audit)} unsupported/partial source(s)`}${audit.verdict === 'error' ? ` (inconclusive: ${audit.summary})` : ''}`);
+
+      let attempt = 0;
+      let sid = res.sessionId;
+      while (!audit.ok && audit.verdict !== 'error' && attempt < MAX_AUDIT_RETRIES && sid) {
+        attempt++;
+        log(`Phase 5 · [${id}] self-repair ${attempt}/${MAX_AUDIT_RETRIES} — resuming ${sid.slice(0, 8)} with audit findings`);
+        const remediation = buildRemediationPrompt(id, audit.findings);
+        const r2 = await runClaude(remediation, workdir, join(runDir, `${id}.audit-retry${attempt}.stream.jsonl`),
+          timeoutMs, taskHome, `${id}:fix${attempt}`, sid);
+        sid = r2.sessionId ?? sid;
+        rec.claude.repairs = (rec.claude.repairs ?? []).concat([{ attempt, durationMs: r2.durationMs, costUsd: r2.costUsd, timedOut: r2.timedOut }]);
+        convertAndVerify(true); // re-render the repaired HTML, re-verify the PDF
+        audit = await doAudit();
+        rec.audit.attempts.push({ verdict: audit.verdict, summary: audit.summary, findings: audit.findings });
+        log(`Phase 5 · [${id}] re-audit ${audit.ok ? '✓ clean' : `✗ still ${badCount(audit)} unsupported/partial`}`);
+      }
+      rec.audit.ok = audit.ok;
+      if (AUDIT_GATE && !audit.ok && audit.verdict !== 'error') {
+        rec.ok = false;
+        log(`  → [${id}] AUDIT GATE: task FAILED — unsupported sources remain after ${attempt} repair attempt(s)`);
+      }
+    }
     return rec;
   };
 
@@ -368,11 +429,16 @@ async function runInContainer(filter: string | null, concurrency: number) {
 
 
 function runClaude(prompt: string, cwd: string, streamPath: string, timeoutMs: number,
-  homeDir?: string, label?: string): Promise<{
-  code: number | null; timedOut: boolean; durationMs: number; costUsd: number | null; resultSummary: string;
+  homeDir?: string, label?: string, resumeSessionId?: string): Promise<{
+  code: number | null; timedOut: boolean; durationMs: number; costUsd: number | null;
+  resultSummary: string; sessionId: string | null;
 }> {
   return new Promise((resolve) => {
     const args = ['-p', prompt, '--verbose', '--output-format', 'stream-json', '--dangerously-skip-permissions'];
+    // --resume continues an existing session as a new turn (used by the audit self-repair
+    // loop): the agent keeps the context of what it already gathered and fixes only what's
+    // broken. Same HOME below, so the session file is found.
+    if (resumeSessionId) args.push('--resume', resumeSessionId);
     // Append our behavioral rules to Claude Code's default system prompt (keeps the native
     // skill listing). Inline because this CLI has no --append-system-prompt-file variant.
     if (SYSTEM_PROMPT) args.push('--append-system-prompt', SYSTEM_PROMPT);
@@ -390,6 +456,7 @@ function runClaude(prompt: string, cwd: string, streamPath: string, timeoutMs: n
     let lastResult: any = null;
     let timedOut = false;
     let lastActivity = '(no events yet)';
+    let sessionId: string | null = null;
     const timer = setTimeout(() => { timedOut = true; child.kill('SIGKILL'); }, timeoutMs);
     // Heartbeat: a silent `claude -p` and a hung one look identical from outside. Every
     // 30s, say how long we've been running and the last stream event we saw. The tag keeps
@@ -408,6 +475,7 @@ function runClaude(prompt: string, cwd: string, streamPath: string, timeoutMs: n
         try {
           const ev = JSON.parse(line);
           if (ev?.type === 'result') lastResult = ev;
+          if (ev?.session_id) sessionId = ev.session_id; // last wins; needed to --resume for repair
           lastActivity = describeEvent(ev) ?? lastActivity;
           if (VERBOSE) traceEvent(ev, tag);
         } catch { /* partial/non-JSON */ }
@@ -420,6 +488,7 @@ function runClaude(prompt: string, cwd: string, streamPath: string, timeoutMs: n
         code, timedOut, durationMs: Date.now() - start,
         costUsd: lastResult?.total_cost_usd ?? null,
         resultSummary: summary ?? (lastResult ? (lastResult.subtype || 'result') : '(no result event)'),
+        sessionId: lastResult?.session_id ?? sessionId,
       });
     };
     child.on('close', (code) => done(code));
@@ -519,7 +588,9 @@ function printSummary(report: any, ts: string) {
     const status = t.ok ? 'PASS' : 'FAIL';
     const detail = `${t.pdf?.bytes ? `${t.pdf.bytes}b` : (t.pdf?.count ?? 0) + ' pdfs'}`
       + `${t.claude?.timedOut ? ' (TIMED OUT)' : ''}`
-      + `${t.claude?.durationMs ? ` ${Math.round(t.claude.durationMs / 1000)}s` : ''}`;
+      + `${t.claude?.durationMs ? ` ${Math.round(t.claude.durationMs / 1000)}s` : ''}`
+      + `${t.audit ? (t.audit.ok ? ' audit✓' : ' audit✗') : ''}`
+      + `${t.claude?.repairs?.length ? ` +${t.claude.repairs.length} repair` : ''}`;
     console.log(`  ${status.padEnd(4)}  ${t.id.padEnd(24)} ${detail}`);
   }
   console.log(line);
