@@ -22,7 +22,9 @@ import { homedir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 
 // Secrets the harness forwards into the container (inline > .env file > unset).
-const FORWARD_KEYS = ['ANTHROPIC_API_KEY', 'FMP_API_KEY', 'FINMIND_TOKEN', 'SEC_EDGAR_USER_AGENT'];
+// SEC_EDGAR_UA is what skills/sec-filings/scripts/edgar.py reads; SEC_EDGAR_USER_AGENT is
+// the MCP-based path. Forward both so whichever the agent uses gets the contact string.
+const FORWARD_KEYS = ['ANTHROPIC_API_KEY', 'FMP_API_KEY', 'FINMIND_TOKEN', 'SEC_EDGAR_UA', 'SEC_EDGAR_USER_AGENT', 'SERPAPI_API_KEY'];
 const DEFAULT_TIMEOUT_MS = 20 * 60 * 1000;
 
 // run.ts lives at <repo>/test/e2e/run.ts → repo root is two levels up. `import.meta.dir`
@@ -33,6 +35,11 @@ const REPO_ROOT = pathResolve(HERE, '..', '..');
 const argv = process.argv.slice(2);
 const IN_CONTAINER = argv.includes('--in-container');
 const taskFilter = flagValue(argv, '--task');
+// How many tasks to run at once inside the one container. Default 1 (sequential — the
+// proven path). `--concurrency N` / `--parallel N` runs N tasks side-by-side, each in its
+// own cwd + isolated Claude HOME so they never race on shared state. Rides through to the
+// container via `passthrough`.
+const CONCURRENCY = Math.max(1, Number(flagValue(argv, '--concurrency') ?? flagValue(argv, '--parallel')) || 1);
 // After a host run finishes, auto-start a local server for the JSONL log viewer.
 // Off in CI / when piping, or via --no-viewer / E2E_NO_VIEWER.
 const NO_VIEWER = argv.includes('--no-viewer') || !!process.env.E2E_NO_VIEWER || !!process.env.CI;
@@ -42,7 +49,7 @@ const NO_VIEWER = argv.includes('--no-viewer') || !!process.env.E2E_NO_VIEWER ||
 const VERBOSE = argv.includes('--verbose') || !!process.env.E2E_VERBOSE;
 
 if (IN_CONTAINER) {
-  await runInContainer(taskFilter);
+  await runInContainer(taskFilter, CONCURRENCY);
 } else {
   hostMode(argv.filter((a) => a !== '--in-container' && a !== '--no-viewer'));
 }
@@ -54,7 +61,7 @@ function flagValue(args: string[], name: string): string | null {
 
 // ── HOST MODE ──────────────────────────────────────────────────────────────────────────
 function hostMode(passthrough: string[]) {
-  loadDotEnv(join(REPO_ROOT, 'test', 'e2e', '.env')); // optional convenience; never overrides
+  loadDotEnv(join(REPO_ROOT, 'test', 'e2e', '.env'), true); // authoritative: overrides host env
 
   if (!process.env.ANTHROPIC_API_KEY) {
     fail('ANTHROPIC_API_KEY is required. Set it inline, e.g.\n'
@@ -175,11 +182,16 @@ function parseUpJson(stdout: string): any | null {
   return null;
 }
 
-function loadDotEnv(file: string) {
+// test/e2e/.env is the harness's authoritative key source, so it OVERRIDES ambient host
+// env (override=true). Without this, a key leaked into the parent shell — e.g. an
+// ANTHROPIC_API_KEY meant for the host's own Claude Code — would shadow the .env value and
+// get forwarded into the container, where it may auth-fail (401). The file wins; to use a
+// different key for one run, edit the file.
+function loadDotEnv(file: string, override = false) {
   if (!existsSync(file)) return;
   for (const line of readFileSync(file, 'utf8').split('\n')) {
     const m = line.match(/^\s*([A-Z][A-Z0-9_]*)\s*=\s*(.*)\s*$/);
-    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+    if (m && (override || !process.env[m[1]])) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
   }
 }
 
@@ -194,7 +206,7 @@ function fail(msg: string): never {
 }
 
 // ── IN-CONTAINER MODE ──────────────────────────────────────────────────────────────────
-async function runInContainer(filter: string | null) {
+async function runInContainer(filter: string | null, concurrency: number) {
   const { getSkills } = await import(pathToFileURL(join(REPO_ROOT, 'src', 'registry.js')).href);
   const { parseFrontmatter } = await import(pathToFileURL(join(REPO_ROOT, 'src', 'frontmatter.js')).href);
 
@@ -212,7 +224,6 @@ async function runInContainer(filter: string | null) {
   const log = (m: string) => { const l = `[${stamp()}] ${m}`; console.log(l); appendFileSync(join(runDir, 'run.log'), l + '\n'); };
 
   const skills: any[] = getSkills();
-  const folderByName = new Map(skills.map((s) => [s.name, s.folder]));
   const skillsHome = join(homedir(), '.claude', 'skills');
 
   // Phase 1 — install every skill (so any task can autonomously pick what it needs).
@@ -246,47 +257,64 @@ async function runInContainer(filter: string | null) {
   log(`Phase 2 · verify — ${verify.filter((v) => v.present).length}/${verify.length} skill folders present`);
   for (const v of verify) if (!v.present) log(`  ✗ missing: ${v.skill}`);
 
-  // Discover tasks (skip TEMPLATE.md — it isn't *.task.md).
+  // Discover tasks (skip TEMPLATE.md — it isn't *.task.md). Apply the --task filter up
+  // front so the worker pool only schedules tasks we actually intend to run.
   const tasksDir = join(e2e, 'tasks');
-  let taskFiles = readdirSync(tasksDir).filter((f) => f.endsWith('.task.md')).sort();
+  const sharedClaude = join(homedir(), '.claude'); // skills + agents were installed here above
+  const taskFiles = readdirSync(tasksDir)
+    .filter((f) => f.endsWith('.task.md')).sort()
+    .filter((file) => {
+      const { data } = parseFrontmatter(readFileSync(join(tasksDir, file), 'utf8'));
+      const id: string = (data && data.id) || file.replace(/\.task\.md$/, '');
+      const stem = file.replace(/\.task\.md$/, '');
+      return !filter || filter === id || filter === stem;
+    });
+  log(`Phase 3 · ${taskFiles.length} task(s) — concurrency ${concurrency}`);
 
-  for (const file of taskFiles) {
+  // One task end-to-end. Runs in its own cwd AND its own Claude HOME, so concurrent
+  // `claude -p` processes never race on shared ~/.claude state (sessions, projects, todos,
+  // the onboarding json). Skills + agents — installed once above — are shared read-only via
+  // symlink, so N tasks cost one install and one container's memory, not N.
+  const runTask = async (file: string): Promise<any> => {
     const raw = readFileSync(join(tasksDir, file), 'utf8');
     const { data, body } = parseFrontmatter(raw);
     const id: string = (data && data.id) || file.replace(/\.task\.md$/, '');
-    const stem = file.replace(/\.task\.md$/, '');
-    if (filter && filter !== id && filter !== stem) continue;
-
     const rec: any = { id, file, ok: false };
     const timeoutMs = Number(data?.timeoutMs) || DEFAULT_TIMEOUT_MS;
-    const requiresEnv: string[] = Array.isArray(data?.requiresEnv) ? data.requiresEnv : [];
-    const requiresSkills: string[] = Array.isArray(data?.skills) ? data.skills : [];
 
-    // Fail fast on declared-but-missing prerequisites (don't burn a Claude run).
-    const missingEnv = requiresEnv.filter((k) => !process.env[k]);
-    const missingSkills = requiresSkills.filter((s) => !existsSync(join(skillsHome, folderByName.get(s) || s, 'SKILL.md')));
-    if (missingEnv.length || missingSkills.length) {
-      rec.skipped = { missingEnv, missingSkills };
-      log(`Phase 3 · task ${id} — SKIPPED (missing ${[...missingEnv, ...missingSkills.map((s) => `skill:${s}`)].join(', ')})`);
-      report.tasks.push(rec);
-      continue;
-    }
-
-    // Run the agent in an isolated cwd; deliverable lands in output/ (see the contract).
+    // Isolated cwd; deliverable lands in output/ (see the contract). The dev container is
+    // reused across runs, so /tmp/run/<id> may still hold a PRIOR run's deliverable. Clear
+    // it first — otherwise a failed/timed-out run's auto-PDF step (3b) picks up stale HTML
+    // and reports a false PASS.
     const workdir = `/tmp/run/${id}`;
     const outdir = join(workdir, 'output');
+    rmSync(workdir, { recursive: true, force: true });
     mkdirSync(outdir, { recursive: true });
     // Pre-inject environment facts + workflow guidance as project memory, so the agent
     // never spends turns probing the environment or doing work a script/cheap model should.
     writeFileSync(join(workdir, 'CLAUDE.md'), envBrief(id));
     const prompt = (body || '').trim() + outputContractFooter(id);
 
+    // Per-task Claude HOME. skills/ + agents/ are symlinked to the shared install (read-only
+    // at run time, so safe to share); everything Claude WRITES stays under this home.
+    const taskHome = join(workdir, 'home');
+    const taskClaude = join(taskHome, '.claude');
+    mkdirSync(taskClaude, { recursive: true });
+    for (const sub of ['skills', 'agents']) {
+      const src = join(sharedClaude, sub);
+      if (existsSync(src)) { try { symlinkSync(src, join(taskClaude, sub)); } catch { /* ignore */ } }
+    }
+    // Seed onboarding flags so headless `claude -p` never blocks on first-run (mirrors
+    // post-create.sh, which only seeds the real HOME, not these per-task ones).
+    writeFileSync(join(taskHome, '.claude.json'),
+      '{"hasCompletedOnboarding": true, "bypassPermissionsModeAccepted": true}\n');
+
     log(`Phase 3 · task ${id} — claude -p (timeout ${Math.round(timeoutMs / 1000)}s, cwd ${workdir})`);
-    const res = await runClaude(prompt, workdir, join(runDir, `${id}.stream.jsonl`), timeoutMs);
+    const res = await runClaude(prompt, workdir, join(runDir, `${id}.stream.jsonl`), timeoutMs, taskHome, id);
     writeFileSync(join(runDir, `${id}.log`),
-      [`task: ${id}`, `cwd: ${workdir}`, `exit: ${res.code}`, `timedOut: ${res.timedOut}`,
+      [`task: ${id}`, `cwd: ${workdir}`, `home: ${taskHome}`, `exit: ${res.code}`, `timedOut: ${res.timedOut}`,
         `durationMs: ${res.durationMs}`, `costUsd: ${res.costUsd}`, `result: ${res.resultSummary}`].join('\n') + '\n');
-    copyNewestTranscript(runDir, id);
+    copyNewestTranscript(runDir, id, taskHome);
 
     // Phase 3b — platform post-processing: if the agent left an HTML deliverable but no
     // PDF, convert it here. HTML→PDF is the harness's job, not a turn the agent spends.
@@ -301,7 +329,7 @@ async function runInContainer(filter: string | null) {
       if (pick) {
         const conv = spawnSync('html2pdf', [pick, join(outdir, `${id}.pdf`)], { encoding: 'utf8' });
         rec.autoPdf = { from: basename(pick), ok: conv.status === 0 };
-        log(`  · auto-converted ${basename(pick)} → ${id}.pdf${conv.status === 0 ? '' : ` (FAILED: ${lastLine(conv.stderr || conv.stdout)})`}`);
+        log(`  · [${id}] auto-converted ${basename(pick)} → ${id}.pdf${conv.status === 0 ? '' : ` (FAILED: ${lastLine(conv.stderr || conv.stdout)})`}`);
       }
     }
 
@@ -321,9 +349,14 @@ async function runInContainer(filter: string | null) {
       rec.pdf = { count: pdfs.length, files: pdfs };
     }
     rec.claude = { code: res.code, timedOut: res.timedOut, durationMs: res.durationMs, costUsd: res.costUsd };
-    report.tasks.push(rec);
-    log(`  → ${rec.ok ? '✓ valid PDF' : '✗ no valid PDF'}${rec.pdf?.bytes ? ` (${rec.pdf.bytes} bytes)` : ''}`);
-  }
+    log(`  → [${id}] ${rec.ok ? '✓ valid PDF' : '✗ no valid PDF'}${rec.pdf?.bytes ? ` (${rec.pdf.bytes} bytes)` : ''}`);
+    return rec;
+  };
+
+  // Run tasks through a bounded pool (concurrency=1 ⇒ strictly sequential). runPool keeps
+  // input order; sort by id anyway so the report is stable however the files were ordered.
+  const recs = await runPool(taskFiles, concurrency, runTask);
+  report.tasks = recs.filter(Boolean).sort((a: any, b: any) => a.id.localeCompare(b.id));
 
   // Phase 5 — report + exit code.
   report.ok = installOk && verifyOk && report.tasks.length > 0 && report.tasks.every((t: any) => t.ok);
@@ -362,22 +395,30 @@ function envBrief(id: string): string {
    raw JSON records (\`[{"date": "YYYY-MM-DD", "<metric>": <absolute USD value>, …}]\`) and tell
    it the company, metrics, period range, and granularity. Do not web-search or fetch yourself.
 2. **Derived numbers → compute, never in your head.** YoY growth, margins, rebasing etc. come
-   from the charting skill's Polars pipeline, e.g.
-   \`cd ~/.claude/skills/charting && python3 -m pipeline.cli yoy /tmp/data.json --metrics revenue,bookings --lag 4 -o /tmp/contract.json\`
-3. **Charts → render, never hand-write.** \`bun ~/.claude/skills/charting/scripts/render.ts /tmp/contract.json output/${id}.html\`
+   from the charting skill's Polars pipeline. Write intermediate files under THIS task's dir
+   (\`/tmp/run/${id}/\`), never a shared \`/tmp\` path — tasks may run concurrently. e.g.
+   \`cd ~/.claude/skills/charting && python3 -m pipeline.cli yoy /tmp/run/${id}/data.json --metrics revenue,bookings --lag 4 -o /tmp/run/${id}/contract.json\`
+3. **Charts → render, never hand-write.** \`bun ~/.claude/skills/charting/scripts/render.ts /tmp/run/${id}/contract.json output/${id}.html\`
    emits a finished, self-contained Highcharts page (works offline; PDF-safe).
 4. **PDF is automatic.** Write the final self-contained HTML to \`output/${id}.html\` and stop —
    the harness converts it to PDF after your run. Only call \`html2pdf\` if you must inspect the PDF.
 `;
 }
 
-function runClaude(prompt: string, cwd: string, streamPath: string, timeoutMs: number): Promise<{
+function runClaude(prompt: string, cwd: string, streamPath: string, timeoutMs: number,
+  homeDir?: string, label?: string): Promise<{
   code: number | null; timedOut: boolean; durationMs: number; costUsd: number | null; resultSummary: string;
 }> {
   return new Promise((resolve) => {
     const args = ['-p', prompt, '--verbose', '--output-format', 'stream-json', '--dangerously-skip-permissions'];
+    // Per-task HOME (+ CLAUDE_CONFIG_DIR) isolates Claude's writable state so concurrent
+    // runs in the same container never clobber each other's sessions/projects/config.
+    const env = homeDir
+      ? { ...process.env, HOME: homeDir, CLAUDE_CONFIG_DIR: join(homeDir, '.claude') }
+      : process.env;
+    const tag = label ? `[${label}] ` : '';
     // stdin = /dev/null so `claude -p` doesn't wait 3s for piped input before starting.
-    const child = spawn('claude', args, { cwd, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn('claude', args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] });
     const out = createWriteStream(streamPath);
     const start = Date.now();
     let buf = '';
@@ -386,9 +427,10 @@ function runClaude(prompt: string, cwd: string, streamPath: string, timeoutMs: n
     let lastActivity = '(no events yet)';
     const timer = setTimeout(() => { timedOut = true; child.kill('SIGKILL'); }, timeoutMs);
     // Heartbeat: a silent `claude -p` and a hung one look identical from outside. Every
-    // 30s, say how long we've been running and the last stream event we saw.
+    // 30s, say how long we've been running and the last stream event we saw. The tag keeps
+    // pulses attributable when several tasks run concurrently.
     const pulse = setInterval(() => {
-      console.error(`  · still running (${Math.round((Date.now() - start) / 1000)}s) — last: ${lastActivity}`);
+      console.error(`  · ${tag}still running (${Math.round((Date.now() - start) / 1000)}s) — last: ${lastActivity}`);
     }, 30_000);
 
     child.stdout.on('data', (d) => {
@@ -402,7 +444,7 @@ function runClaude(prompt: string, cwd: string, streamPath: string, timeoutMs: n
           const ev = JSON.parse(line);
           if (ev?.type === 'result') lastResult = ev;
           lastActivity = describeEvent(ev) ?? lastActivity;
-          if (VERBOSE) traceEvent(ev);
+          if (VERBOSE) traceEvent(ev, tag);
         } catch { /* partial/non-JSON */ }
       }
     });
@@ -435,26 +477,28 @@ function describeEvent(ev: any): string | null {
 
 // --verbose: one line per interesting stream event, prefixed so it reads distinctly from
 // phase logs. Tool inputs are truncated — the full record is always in the .stream.jsonl.
-function traceEvent(ev: any) {
+function traceEvent(ev: any, tag = '') {
   if (ev?.type === 'system' && ev.subtype === 'init') {
-    console.error(`    ∙ init: model=${ev.model} session=${(ev.session_id || '').slice(0, 8)}`);
+    console.error(`    ∙ ${tag}init: model=${ev.model} session=${(ev.session_id || '').slice(0, 8)}`);
   } else if (ev?.type === 'assistant') {
     for (const c of ev.message?.content ?? []) {
       if (c.type === 'tool_use') {
-        console.error(`    ⚒ ${c.name} ${JSON.stringify(c.input ?? {}).slice(0, 140)}`);
+        console.error(`    ⚒ ${tag}${c.name} ${JSON.stringify(c.input ?? {}).slice(0, 140)}`);
       } else if (c.type === 'text' && c.text?.trim()) {
-        console.error(`    ✎ ${c.text.trim().replace(/\s+/g, ' ').slice(0, 160)}`);
+        console.error(`    ✎ ${tag}${c.text.trim().replace(/\s+/g, ' ').slice(0, 160)}`);
       }
     }
   } else if (ev?.type === 'result') {
-    console.error(`    ∙ result: ${ev.subtype} cost=$${typeof ev.total_cost_usd === 'number' ? ev.total_cost_usd.toFixed(4) : '?'} turns=${ev.num_turns ?? '?'}`);
+    console.error(`    ∙ ${tag}result: ${ev.subtype} cost=$${typeof ev.total_cost_usd === 'number' ? ev.total_cost_usd.toFixed(4) : '?'} turns=${ev.num_turns ?? '?'}`);
   }
 }
 
 // Best-effort: copy the freshest Claude transcript for post-mortem (stream-json is primary).
-function copyNewestTranscript(runDir: string, id: string) {
+// Scoped to this task's own HOME (when given), so concurrent tasks never grab each other's
+// transcript — "newest jsonl" is unambiguous within a per-task projects dir.
+function copyNewestTranscript(runDir: string, id: string, homeDir?: string) {
   try {
-    const projects = join(homedir(), '.claude', 'projects');
+    const projects = join(homeDir ?? homedir(), '.claude', 'projects');
     if (!existsSync(projects)) return;
     const found: { path: string; mtime: number }[] = [];
     const walk = (dir: string) => {
@@ -481,6 +525,24 @@ function lastLine(s: string): string {
   return (s || '').trim().split('\n').filter(Boolean).pop() || '';
 }
 
+// Bounded worker pool: run `worker` over `items` with at most `limit` in flight at once.
+// Results are returned in ORIGINAL item order regardless of completion order. limit=1 makes
+// this a plain sequential loop. Items are leased off a shared cursor, so a slow task never
+// blocks a free worker from picking up the next one.
+async function runPool<T, R>(items: T[], limit: number, worker: (item: T, i: number) => Promise<R>): Promise<R[]> {
+  const results = new Array(items.length) as R[];
+  let next = 0;
+  const workers = Math.max(1, Math.min(limit, items.length));
+  await Promise.all(Array.from({ length: workers }, async () => {
+    while (true) {
+      const i = next++;
+      if (i >= items.length) return;
+      results[i] = await worker(items[i], i);
+    }
+  }));
+  return results;
+}
+
 function printSummary(report: any, ts: string) {
   const line = '─'.repeat(64);
   console.log(`\n${line}`);
@@ -489,12 +551,10 @@ function printSummary(report: any, ts: string) {
   console.log(`install: ${report.phases.install.ok ? 'ok' : 'FAILED'}   `
     + `verify: ${report.phases.verifyInstall.ok ? 'ok' : 'FAILED'}`);
   for (const t of report.tasks) {
-    const status = t.skipped ? 'SKIP' : (t.ok ? 'PASS' : 'FAIL');
-    const detail = t.skipped
-      ? `missing ${[...(t.skipped.missingEnv || []), ...(t.skipped.missingSkills || [])].join(', ')}`
-      : `${t.pdf?.bytes ? `${t.pdf.bytes}b` : (t.pdf?.count ?? 0) + ' pdfs'}`
-        + `${t.claude?.timedOut ? ' (TIMED OUT)' : ''}`
-        + `${t.claude?.durationMs ? ` ${Math.round(t.claude.durationMs / 1000)}s` : ''}`;
+    const status = t.ok ? 'PASS' : 'FAIL';
+    const detail = `${t.pdf?.bytes ? `${t.pdf.bytes}b` : (t.pdf?.count ?? 0) + ' pdfs'}`
+      + `${t.claude?.timedOut ? ' (TIMED OUT)' : ''}`
+      + `${t.claude?.durationMs ? ` ${Math.round(t.claude.durationMs / 1000)}s` : ''}`;
     console.log(`  ${status.padEnd(4)}  ${t.id.padEnd(24)} ${detail}`);
   }
   console.log(line);

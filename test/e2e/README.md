@@ -21,13 +21,20 @@ prompt body. Start from:
 
 Key conventions:
 
+- Tasks declare only two frontmatter fields: `id` (required) and `timeoutMs` (optional,
+  default 20 min). There is no `skills:` or `requiresEnv:` field.
+- The harness installs **every** skill in the repo into the container before running any
+  task; the agent selects whichever skills it needs autonomously.
+- The harness forwards whatever API keys are present in its environment; if a key a task
+  needs is absent the task will fail with no PDF output — that failure is visible in the
+  report. Each skill declares its own required env keys in its `SKILL.md` frontmatter (`env:`).
 - The frontmatter `id` names the output (`pdfs/<id>.pdf`) and the log files.
 - Every task's PDF lands in one flat folder, `pdfs/`, for easy manual review.
 - Task bodies describe **intent only** — the harness automatically appends an output contract
   asking for a single self-contained `output/<id>.html` (writing `output/<id>.pdf` directly
   also counts).
-- Frontmatter is parsed by the repo's minimal parser (`src/frontmatter.js`): scalars and
-  inline lists `[a, b]` only, and **no inline `#` comments**.
+- Frontmatter is parsed by the repo's minimal parser (`src/frontmatter.js`): scalars only,
+  and **no inline `#` comments**.
 
 ## What the harness does around each task (cost discipline)
 
@@ -50,16 +57,44 @@ The premium agent should spend its turns on judgment, not plumbing, so the harne
 
 ## Running (available once the harness lands)
 
-Keys are passed inline on the command and forwarded into the container at run time:
+Put your keys in `test/e2e/.env` (copy `test/e2e/.env.example`); the launcher loads it and
+forwards the allowlisted keys into the container. That file is **authoritative — it
+overrides any matching vars already in your shell**, so a stray `ANTHROPIC_API_KEY` in your
+environment can't shadow it. With the `.env` filled in, no inline env is needed:
 
 ```bash
-ANTHROPIC_API_KEY=…  bun test/e2e/run.ts --task 00-smoke          # one task
-ANTHROPIC_API_KEY=… FMP_API_KEY=… FINMIND_TOKEN=… \
-  SEC_EDGAR_USER_AGENT=…  bun test/e2e/run.ts                     # whole suite
+bun test/e2e/run.ts --task 00-smoke          # one task
+bun test/e2e/run.ts                          # whole suite (sequential)
+bun test/e2e/run.ts --concurrency 4          # whole suite, 4 at a time
 ```
+
+Inline `KEY=… bun test/e2e/run.ts` still works for keys you haven't put in the `.env`, but
+anything present in the `.env` takes precedence over the ambient environment.
 
 Outputs: `pdfs/<id>.pdf` (review surface) and `logs/<timestamp>/` (per-task stream logs,
 transcripts, and `report.json`), with `logs/latest` pointing at the most recent run.
+
+### Running tasks concurrently
+
+`--concurrency N` (alias `--parallel N`, default `1`) runs up to N tasks at once **inside
+the single dev container** — one container's memory, one skill install, N agents. Each task
+gets full isolation so concurrent `claude -p` processes never step on each other:
+
+- its own working directory (`/tmp/run/<id>/`) for the deliverable and any intermediate files;
+- its own **Claude HOME** (`/tmp/run/<id>/home`, exported as `HOME` + `CLAUDE_CONFIG_DIR`),
+  so sessions, the project transcript dir, todos, and the onboarding json never collide. The
+  installed `skills/` and `agents/` are shared read-only via symlink, so isolation costs no
+  extra install and no extra container.
+
+The per-task transcript copied into `logs/<ts>/<id>.transcript.jsonl` is read from that
+task's own HOME, so it's always the right one. Heartbeat and `--verbose` trace lines are
+prefixed with `[<id>]` so interleaved output stays attributable. `report.json` tasks are
+sorted by id regardless of completion order.
+
+There is no separate-container mode — same-container concurrency is strictly better on
+memory and avoids installing every skill N times. (Note: `devcontainer up` is keyed to the
+workspace folder, so launching the harness twice would reuse the **same** container anyway;
+use `--concurrency` instead of running the harness in parallel yourself.)
 
 ## Viewing the logs
 
