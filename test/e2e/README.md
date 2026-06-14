@@ -30,30 +30,34 @@ Key conventions:
   report. Each skill declares its own required env keys in its `SKILL.md` frontmatter (`env:`).
 - The frontmatter `id` names the output (`pdfs/<id>.pdf`) and the log files.
 - Every task's PDF lands in one flat folder, `pdfs/`, for easy manual review.
-- Task bodies describe **intent only** — the harness automatically appends an output contract
-  asking for a single self-contained `output/<id>.html` (writing `output/<id>.pdf` directly
-  also counts).
+- Task bodies are **self-describing prompts** — each states its own deliverable (e.g. "a
+  branded PDF report written to `output/<id>.pdf`"). The harness adds **no** preamble to the
+  user prompt; cross-cutting behavior (skills-first, source-tracking, no made-up data, plan
+  & verify, clarify) lives in a **system prompt** (`system-prompt.md`) appended to Claude
+  Code's default. The PDF check keys off `output/<id>`; an `.html` left in the workdir is
+  auto-converted (see below), so an `output/<id>.pdf` or any `.html` deliverable counts.
 - Frontmatter is parsed by the repo's minimal parser (`src/frontmatter.js`): scalars only,
   and **no inline `#` comments**.
 
-## What the harness does around each task (cost discipline)
+## What the harness does around each task
 
-The premium agent should spend its turns on judgment, not plumbing, so the harness:
+The harness keeps the user prompt realistic — it does **not** inject an environment brief, a
+cost-discipline playbook, or an output contract into it. The agent works from its
+natively-listed installed skills and the task body. The harness only:
 
-- **Injects an environment brief** — each task workdir gets a `CLAUDE.md` (auto-loaded
-  project memory) stating what is pre-verified: tools on PATH (`html2pdf`, `python3`+polars,
-  `bun`), where skills live, and which API keys are present. The agent must not burn turns
-  probing any of this.
-- **Installs `agents/*.md`** into `~/.claude/agents/` — notably `data-extractor`
-  (`model: haiku`), which the brief tells the main agent to delegate **all** data gathering
-  to (FMP for GAAP metrics, IR press releases for non-GAAP KPIs; returns raw JSON records).
-- **Routes math and boilerplate to scripts** — the brief points at the charting skill's
-  one-shot CLIs (`python3 -m pipeline.cli yoy …` for Polars-computed growth,
-  `bun scripts/render.ts …` for contract → self-contained HTML), so the model never
-  hand-computes YoY or hand-writes Highcharts pages.
-- **Converts HTML → PDF itself** — after the run, if `output/` has an `.html` but no PDF,
-  the harness runs `html2pdf` as a post-processing step (recorded as `autoPdf` in
-  `report.json`).
+- **Appends a system prompt** — `test/e2e/system-prompt.md` is passed via
+  `--append-system-prompt` (it augments Claude Code's default, which already lists installed
+  skills). It carries the cross-cutting rules: search skills before the web, record every
+  source in `data_sources.md`, never state data from memory, plan-with-skills then verify,
+  and clarify-then-record-in-learnings. Edit that file to change agent behavior; the user
+  prompt stays the bare task. The harness installs **skills only** — no agent definitions;
+  any data-gathering sub-agent is launched via the Task tool per a skill's own recipe (e.g.
+  `sec-filings`).
+- **Converts HTML → PDF itself** — after the run, if `output/` has no PDF, the harness runs
+  `html2pdf` on the agent's `.html` deliverable (in `output/` or the workdir) as a
+  post-processing step (recorded as `autoPdf` in `report.json`).
+- **Verifies exactly one valid PDF** — file exists, non-empty, `%PDF-` header. Content is
+  reviewed manually.
 
 ## Running (available once the harness lands)
 

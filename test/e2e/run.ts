@@ -32,6 +32,13 @@ const DEFAULT_TIMEOUT_MS = 20 * 60 * 1000;
 const HERE = (import.meta as any).dir ?? new URL('.', import.meta.url).pathname;
 const REPO_ROOT = pathResolve(HERE, '..', '..');
 
+// Behavioral system prompt, APPENDED to Claude Code's default (which already lists the
+// installed skills + tools). Edit test/e2e/system-prompt.md to change the rules. Read once
+// here — before the top-level dispatch below — so the const is initialized when runClaude
+// (called during runInContainer's top-level await) reads it.
+const SYSTEM_PROMPT_FILE = join(REPO_ROOT, 'test', 'e2e', 'system-prompt.md');
+const SYSTEM_PROMPT = existsSync(SYSTEM_PROMPT_FILE) ? readFileSync(SYSTEM_PROMPT_FILE, 'utf8').trim() : '';
+
 const argv = process.argv.slice(2);
 const IN_CONTAINER = argv.includes('--in-container');
 const taskFilter = flagValue(argv, '--task');
@@ -240,15 +247,9 @@ async function runInContainer(filter: string | null, concurrency: number) {
   report.phases.install = { ok: installOk, results: installResults };
   log(`  → ${installResults.filter((r) => r.ok).length}/${installResults.length} installed`);
 
-  // Phase 1b — install agent definitions (e.g. the Haiku-powered data-extractor), so
-  // tasks can delegate data gathering to a cheap model instead of burning premium turns.
-  const agentsSrc = join(e2e, 'agents');
-  const agentsHome = join(homedir(), '.claude', 'agents');
-  const agentFiles = existsSync(agentsSrc) ? readdirSync(agentsSrc).filter((f) => f.endsWith('.md')) : [];
-  mkdirSync(agentsHome, { recursive: true });
-  for (const f of agentFiles) copyFileSync(join(agentsSrc, f), join(agentsHome, f));
-  report.phases.agents = { ok: true, installed: agentFiles };
-  log(`Phase 1b · agents — ${agentFiles.length} agent definitions → ${agentsHome}`);
+  // The harness installs SKILLS only — no agent definitions. Any sub-agent a task needs for
+  // data gathering is launched via the Task tool per the relevant skill's own instructions
+  // (e.g. sec-filings documents the extraction sub-agent recipe).
 
   // Phase 2 — verify each skill folder landed.
   const verify = skills.map((s) => ({ skill: s.folder, present: existsSync(join(skillsHome, s.folder, 'SKILL.md')) }));
@@ -261,13 +262,15 @@ async function runInContainer(filter: string | null, concurrency: number) {
   // front so the worker pool only schedules tasks we actually intend to run.
   const tasksDir = join(e2e, 'tasks');
   const sharedClaude = join(homedir(), '.claude'); // skills + agents were installed here above
+  // --task accepts a comma-separated list, e.g. --task 10-rblx-trends-bookings,20-delta-nvda-revenue
+  const wanted = filter ? new Set(filter.split(',').map((s) => s.trim()).filter(Boolean)) : null;
   const taskFiles = readdirSync(tasksDir)
     .filter((f) => f.endsWith('.task.md')).sort()
     .filter((file) => {
       const { data } = parseFrontmatter(readFileSync(join(tasksDir, file), 'utf8'));
       const id: string = (data && data.id) || file.replace(/\.task\.md$/, '');
       const stem = file.replace(/\.task\.md$/, '');
-      return !filter || filter === id || filter === stem;
+      return !wanted || wanted.has(id) || wanted.has(stem);
     });
   log(`Phase 3 · ${taskFiles.length} task(s) — concurrency ${concurrency}`);
 
@@ -290,20 +293,18 @@ async function runInContainer(filter: string | null, concurrency: number) {
     const outdir = join(workdir, 'output');
     rmSync(workdir, { recursive: true, force: true });
     mkdirSync(outdir, { recursive: true });
-    // Pre-inject environment facts + workflow guidance as project memory, so the agent
-    // never spends turns probing the environment or doing work a script/cheap model should.
-    writeFileSync(join(workdir, 'CLAUDE.md'), envBrief(id));
-    const prompt = (body || '').trim() + outputContractFooter(id);
+    // The user prompt is the bare task body — it states its own deliverable. All behavioral
+    // guidance (skills-first, provenance, no-made-up-data, plan/verify, clarify) lives in the
+    // appended system prompt; tools/skills the agent discovers from its native skill listing.
+    const prompt = (body || '').trim();
 
-    // Per-task Claude HOME. skills/ + agents/ are symlinked to the shared install (read-only
-    // at run time, so safe to share); everything Claude WRITES stays under this home.
+    // Per-task Claude HOME. skills/ is symlinked to the shared install (read-only at run
+    // time, so safe to share); everything Claude WRITES stays under this home.
     const taskHome = join(workdir, 'home');
     const taskClaude = join(taskHome, '.claude');
     mkdirSync(taskClaude, { recursive: true });
-    for (const sub of ['skills', 'agents']) {
-      const src = join(sharedClaude, sub);
-      if (existsSync(src)) { try { symlinkSync(src, join(taskClaude, sub)); } catch { /* ignore */ } }
-    }
+    const skillsSrc = join(sharedClaude, 'skills');
+    if (existsSync(skillsSrc)) { try { symlinkSync(skillsSrc, join(taskClaude, 'skills')); } catch { /* ignore */ } }
     // Seed onboarding flags so headless `claude -p` never blocks on first-run (mirrors
     // post-create.sh, which only seeds the real HOME, not these per-task ones).
     writeFileSync(join(taskHome, '.claude.json'),
@@ -365,45 +366,6 @@ async function runInContainer(filter: string | null, concurrency: number) {
   process.exit(report.ok ? 0 : 1);
 }
 
-function outputContractFooter(id: string): string {
-  return `\n\n---\nOUTPUT CONTRACT (added by the test harness): Produce the final deliverable as a SINGLE `
-    + `self-contained HTML file at the relative path \`output/${id}.html\` in your current working `
-    + `directory (inline all scripts and data — it is rendered offline). The harness converts it to `
-    + `\`output/${id}.pdf\` automatically after your run; do NOT run html2pdf yourself. Writing `
-    + `\`output/${id}.pdf\` directly is also accepted. Create no other files in output/.`;
-}
-
-// Pre-verified environment brief, written to the task workdir as CLAUDE.md (auto-loaded
-// project memory). Everything here is guaranteed by the image/harness, so the agent must
-// not spend turns re-checking it — and the workflow section routes expensive work to
-// scripts and to the cheap data-extractor agent.
-function envBrief(id: string): string {
-  const present = FORWARD_KEYS.filter((k) => process.env[k]);
-  const absent = FORWARD_KEYS.filter((k) => !process.env[k]);
-  return `# Environment (pre-verified by the harness — do NOT spend turns re-checking any of this)
-
-- On PATH, preinstalled: \`python3\` (with polars, pandas, requests), \`bun\` (runs TypeScript
-  directly — no npm install needed), \`node\`, \`git\`, \`curl\`, \`html2pdf\`.
-- Skills are installed at \`~/.claude/skills/<name>/\` (read each skill's SKILL.md when you use it).
-- API keys set in env: ${present.join(', ') || '(none)'}.${absent.length ? ` NOT set: ${absent.join(', ')}.` : ''}
-- \`output/\` already exists in this directory.
-
-# How to work (cost discipline)
-
-1. **Data gathering → delegate.** Use the Task tool with the \`data-extractor\` agent (it runs
-   on a cheap, fast model) for ALL external data: API calls, web search, IR pages. Ask it for
-   raw JSON records (\`[{"date": "YYYY-MM-DD", "<metric>": <absolute USD value>, …}]\`) and tell
-   it the company, metrics, period range, and granularity. Do not web-search or fetch yourself.
-2. **Derived numbers → compute, never in your head.** YoY growth, margins, rebasing etc. come
-   from the charting skill's Polars pipeline. Write intermediate files under THIS task's dir
-   (\`/tmp/run/${id}/\`), never a shared \`/tmp\` path — tasks may run concurrently. e.g.
-   \`cd ~/.claude/skills/charting && python3 -m pipeline.cli yoy /tmp/run/${id}/data.json --metrics revenue,bookings --lag 4 -o /tmp/run/${id}/contract.json\`
-3. **Charts → render, never hand-write.** \`bun ~/.claude/skills/charting/scripts/render.ts /tmp/run/${id}/contract.json output/${id}.html\`
-   emits a finished, self-contained Highcharts page (works offline; PDF-safe).
-4. **PDF is automatic.** Write the final self-contained HTML to \`output/${id}.html\` and stop —
-   the harness converts it to PDF after your run. Only call \`html2pdf\` if you must inspect the PDF.
-`;
-}
 
 function runClaude(prompt: string, cwd: string, streamPath: string, timeoutMs: number,
   homeDir?: string, label?: string): Promise<{
@@ -411,6 +373,9 @@ function runClaude(prompt: string, cwd: string, streamPath: string, timeoutMs: n
 }> {
   return new Promise((resolve) => {
     const args = ['-p', prompt, '--verbose', '--output-format', 'stream-json', '--dangerously-skip-permissions'];
+    // Append our behavioral rules to Claude Code's default system prompt (keeps the native
+    // skill listing). Inline because this CLI has no --append-system-prompt-file variant.
+    if (SYSTEM_PROMPT) args.push('--append-system-prompt', SYSTEM_PROMPT);
     // Per-task HOME (+ CLAUDE_CONFIG_DIR) isolates Claude's writable state so concurrent
     // runs in the same container never clobber each other's sessions/projects/config.
     const env = homeDir

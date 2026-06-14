@@ -15,8 +15,11 @@ id: 10-my-task
 timeoutMs: 1200000
 ---
 Write the task intent here as a normal prompt to the agent: what to research and what the
-final deliverable should contain. Do NOT mention "PDF" or "html2pdf" — the harness appends a
-fixed instruction telling the agent to render the single deliverable to `output/<id>.pdf`.
+final deliverable should contain. State the deliverable yourself — end with something like
+"a branded PDF report written to `output/10-my-task.pdf`" (use this task's id). The harness
+adds nothing to this prompt; cross-cutting behavior (skills-first, source-tracking, no
+made-up data, plan/verify, clarify) lives in `test/e2e/system-prompt.md`. After the run the
+harness converts any `.html` deliverable to PDF.
 ```
 
 ## Field reference
