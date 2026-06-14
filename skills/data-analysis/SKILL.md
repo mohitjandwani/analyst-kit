@@ -128,7 +128,9 @@ do not skip **Quality** before reporting conclusions.
    chart-selection guide). Save static (PNG/SVG) and, where useful, interactive (HTML).
 5. **Generate code** *(code-generator)* — When the work should be reproducible or handed
    off, emit clean, documented, tested scripts using the templates in
-   `references/templates.md`. Save them; don't just paste throwaway snippets.
+   `references/templates.md`. Save them; don't just paste throwaway snippets. For large or
+   performance-sensitive DataFrame work, prefer **Polars** over pandas — consult
+   `references/polars.md` for usage and `references/polars-pro.md` for optimization.
 6. **Report** *(report-writer)* — Synthesize into an audience-appropriate report
    (executive / technical / BI). Lead with findings and recommendations, support with
    visuals, state limitations. Templates in `references/templates.md`.
@@ -211,6 +213,13 @@ Name outputs after the dataset and task, e.g. `analysis_reports/sales_complete_r
   techniques, chart-selection guide, quality dimensions + thresholds, communication style.
 - `references/templates.md` — production-ready code templates (Python `DataAnalyzer`
   class, R R6 class, SQL RFM/segmentation) and report templates (executive, technical, BI).
+- `references/polars.md` — **Polars** usage guide: expressions, lazy vs eager, group-by,
+  window functions, joins, and fast CSV/Parquet I/O. **Read it whenever you need to know
+  how to use Polars** — it is the preferred DataFrame engine for large or
+  performance-sensitive datasets (and a faster, lower-memory alternative to pandas).
+- `references/polars-pro.md` — Polars best-practices & performance guide: predicate
+  pushdown, streaming out-of-core processing, avoiding Python UDFs, and dtype tuning.
+  Read it when optimizing a Polars pipeline or handling data too big for memory.
 
 Read the relevant reference file before doing substantial work in that area; don't rely
 on this summary alone for deep statistical, visualization, or code-generation work.

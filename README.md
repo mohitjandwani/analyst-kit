@@ -10,23 +10,30 @@ manifests, and the installer all derive from it.
 
 ## What's inside
 
-Ten skills today, split into **capabilities** (one atomic job) and **composites**
-(a workflow that orchestrates capabilities, declared in `requires:`).
+The skills split into **capabilities** (one atomic job — a data source, an engine,
+a deliverable, or reusable knowledge) and **workflows** (an engagement entry point
+that orchestrates capabilities via `requires:`). The "Needs" column lists runtimes,
+API keys, and required skills.
 
 | Skill | Type | What it does | Needs |
 |-------|------|--------------|-------|
+| **analyst-playbook** | capability | How to structure any analysis before fetching a number: pick the deliverable, align fiscal calendars and frequencies, normalize units, route series to the right skill, and apply per-sector conventions | — |
 | **13f-analysis** | capability | Fetch & read U.S. institutional **13F-HR** holdings from SEC EDGAR — resolve a fund to its CIK, pull a quarter's holdings as a normalized, ranked CSV, and read it without the common traps | Python (stdlib) |
-| **finmind** | capability | Pull Taiwan (TWSE/TPEx) market data — prices, monthly revenue, financials, dividends, shareholding — via the FinMind API | Python · `FINMIND_TOKEN` |
-| **company-universe-manager** | capability | Maintain a CSV "company universe" (add / update / soft-delete / list), synced to a GitHub repo | Python |
-| **wiki-builder** | capability | Serve any folder of markdown as a navigable browser wiki (sidebar, table of contents, ECharts) | Bun |
-| **infographics** | capability | Turn source material into a clean one-page infographic | — |
-| **charting** | capability | Financially-correct charts: a thin Python/Polars layer normalizes already-available data → a TypeScript layer emits Highcharts options + a self-contained HTML page (trends, segments, margins, dividends, surprise, waterfalls, price) | Node · Python |
-| **single-stock-deep-dive** | composite | Forensic, decision-useful deep dive on one stock: thesis, valuation, catalysts, variant perception, value-chain adjacencies | — |
-| **thematic-investing** | composite | Map a theme or trend into an investable value chain — who benefits, where value accrues, what's mispriced | — |
-| **company-wiki** | composite | Build a multi-page company-research wiki (overview, products, 5-year financials, model, competitors, citations) | `FMP_API_KEY` |
-| **data-analysis** | composite | End-to-end analysis of a structured dataset — profile, clean, visualize, model, and report with reproducible code | — |
-| **analyzing-financial-statements** | capability | Calculate & interpret financial ratios (profitability, liquidity, leverage, efficiency, valuation, per-share) from statement data, with benchmarking — from Anthropic's claude-cookbooks | Python (stdlib) |
-| **creating-financial-models** | capability | DCF valuation, sensitivity analysis (data tables, tornado charts), Monte Carlo simulation, and scenario planning — from Anthropic's claude-cookbooks | Python · numpy/pandas |
+| **sec-filings** | capability | Fetch & read U.S. SEC filings (10-K, 10-Q, 8-K, any EDGAR form) — risk factors, MD&A, material events, segment data, insider trades, earnings 8-K exhibits — with ticker→CIK resolution and BM25 search for large filings | Python (stdlib) |
+| **financialmodellingprep** | capability | Call the Financial Modeling Prep REST API — daily prices, news, profiles, screener, quarterly income statements, fiscal-period info, earnings-call transcripts — with exact endpoints, params, and field schemas | Python · `FMP_API_KEY` |
+| **finmind** | capability | Pull Taiwan (TWSE/TPEx) market data — prices, monthly revenue, financials, dividends, shareholding, institutional flows — via the FinMind API | Python · `FINMIND_TOKEN` |
+| **market-intelligence** | capability | Nowcast a company's quarter and predict a revenue segment from Google Trends search-interest (via SerpAPI) — keyword selection, normalization to a quarterly index, and a quarter-to-date nowcast | Python · `SERPAPI_API_KEY` |
+| **company-universe-manager** | capability | Own a watchlist of companies **and their key dates** (earnings, investor days, ex-dividend, AGMs…): roster CRUD, a daily monitor that detects date changes, and a daily brief (markdown or branded PDF). Pluggable local-folder or connected-server storage | Python · financialmodellingprep, reporting |
+| **analyzing-financial-statements** | capability | Calculate & interpret financial ratios (profitability, liquidity, leverage, efficiency, valuation, per-share) from statement data, with industry benchmarking | Python (stdlib) |
+| **creating-financial-models** | capability | DCF valuation, M&A accretion/dilution, sensitivity analysis (data tables, tornado charts), and probability-weighted best/base/worst scenario planning | Python · numpy/pandas |
+| **charting** | capability | Financially-correct charts: a thin Python/Polars layer normalizes data → a TypeScript layer emits Highcharts options + a self-contained HTML page (trends, segments, margins, dividends, surprise, waterfalls, price) | Node · Python |
+| **reporting** | capability | Assemble charts, tables, and analyst text into a branded PDF — A4 portrait report or 16:9 deck — from ready-made page templates; remembers your logo and brand colors | Node · charting |
+| **wiki-builder** | capability | Serve any folder of markdown as a navigable browser wiki (sidebar, table of contents, frontmatter chips, ECharts) | Bun |
+| **data-analysis** | capability | End-to-end analysis of a structured dataset (CSV/JSON/Excel/SQL) — profile, clean, visualize, model, and report with reproducible code | — |
+| **single-stock-deep-dive** | workflow | Forensic, decision-useful deep dive on one stock: thesis, valuation, catalysts, variant perception, value-chain adjacencies | — |
+| **thematic-investing** | workflow | Map a theme or trend into an investable value chain — who benefits, where value accrues, what's mispriced | company-universe-manager |
+| **technical-analysis** | workflow | Disciplined technical analysis with concrete entry/exit levels: regime classification, a three-layer confluence stack, and ATR-based stops/sizing/targets from a zero-dependency indicator engine | Python · charting |
+| **company-wiki** | workflow | Build a multi-page company-research wiki (overview, products, 5-year financials, model, competitors, citations) as a deployed web app | `FMP_API_KEY` · wiki-builder, company-universe-manager |
 
 ## Install
 
@@ -63,7 +70,7 @@ node bin/hfa.js install us-stock-analyst --platform claude-code   # installs the
 node bin/hfa.js doctor  --platform claude-code                    # check runtimes + keys
 ```
 
-Installing a composite (or a persona) automatically pulls its capability
+Installing a workflow (or a persona) automatically pulls its capability
 dependencies. Use `--scope project` to install into `./.claude/skills` instead of
 `~/.claude/skills`, `--dry-run` to preview, and `--platform codex` to target Codex.
 Other commands: `update`, `uninstall`, `env`.
@@ -71,15 +78,17 @@ Other commands: `update`, `uninstall`, `env`.
 ## Personas (plugins)
 
 Three persona plugins bundle the research workflows for different markets. All
-three include the four research composites plus their supporting capabilities
-(`wiki-builder`, `company-universe-manager`); the market difference is whether
-FinMind (Taiwan data) is included.
+three include the research workflows (deep dive, thematic, technical analysis,
+company wiki) plus their supporting capabilities (charting, reporting,
+wiki-builder, company-universe-manager, financialmodellingprep, market-intelligence,
+analyzing-financial-statements, creating-financial-models, data-analysis); the
+market difference is whether FinMind (Taiwan data) and SEC filings are included.
 
 | Plugin | Includes | Skills |
 |--------|----------|:-----:|
-| `us-stock-analyst` | the four research composites + supporting capabilities (incl. charting) | 7 |
-| `international-analyst` | the above **+ FinMind** (Taiwan/TWSE market data) | 8 |
-| `taiwan-stock-analyst` | Taiwan-focused: the above **+ FinMind** | 8 |
+| `us-stock-analyst` | the research workflows + supporting capabilities, **incl. `sec-filings`** (US filings) | 15 |
+| `international-analyst` | the above **+ FinMind** (Taiwan/TWSE market data) | 16 |
+| `taiwan-stock-analyst` | Taiwan-focused: workflows + capabilities **+ FinMind**, minus `sec-filings` | 14 |
 
 Run `node bin/hfa.js list --persona <name>` to see a plugin's exact contents.
 
@@ -92,7 +101,8 @@ See [`.env.example`](.env.example).
 | Variable | Used by | Get it |
 |----------|---------|--------|
 | `FINMIND_TOKEN` | finmind | <https://finmindtrade.com/> (free) |
-| `FMP_API_KEY` | company-wiki | <https://site.financialmodelingprep.com/developer/docs> |
+| `FMP_API_KEY` | financialmodellingprep, company-wiki | <https://site.financialmodelingprep.com/developer/docs> |
+| `SERPAPI_API_KEY` | market-intelligence | <https://serpapi.com/> (free tier = 100 searches/month) |
 
 `13f-analysis` needs no key — it reads SEC EDGAR directly (set the optional
 `SEC_EDGAR_UA` contact string as an SEC fair-access courtesy).
@@ -135,10 +145,10 @@ Each skill is `skills/<name>/SKILL.md` with YAML frontmatter:
 ```yaml
 ---
 name: 13f-analysis          # kebab-case; must equal the folder name
-type: capability            # capability | composite
+type: capability            # capability | workflow
 description: >              # what it does + a "Triggers:" clause of trigger phrases
   ... Triggers: "get the 13F for X", "what does <fund> own", ...
-requires: [ ... ]           # composite only — capability skills it builds on
+requires: [ ... ]           # capability skills this one builds on (nothing may require a workflow)
 env: [ FMP_API_KEY ]        # API keys the skill needs
 ---
 ```
@@ -162,8 +172,8 @@ checks run in CI (`.github/workflows/validate.yml`) on every push and pull reque
 
 ## Roadmap
 
-Planned skills, not yet available: a calendar manager, an LBO model (debt
-schedule, cash sweep, IRR/MOIC), and PDF report analysis.
+Planned skills, not yet available: an LBO model (debt schedule, cash sweep,
+IRR/MOIC) and PDF report analysis.
 
 ## Acknowledgments
 

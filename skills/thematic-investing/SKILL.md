@@ -21,7 +21,7 @@ if [ ! -x "$_HFA/bin/hfa-preamble" ]; then
   [ -x "$_HFA/bin/hfa-preamble" ] || _HFA="$(find ~/.claude/plugins -maxdepth 6 -type d -name hfa-core 2>/dev/null | head -1)"
   [ -n "$_HFA" ] && { mkdir -p ~/.hfa; printf '%s' "$_HFA" > ~/.hfa/core-path; } || true
 fi
-[ -x "$_HFA/bin/hfa-preamble" ] && "$_HFA/bin/hfa-preamble" --skill thematic-investing 2>/dev/null || echo "HFA_CORE: not found (continue without runtime)"
+[ -x "$_HFA/bin/hfa-preamble" ] && "$_HFA/bin/hfa-preamble" --skill thematic-investing --env FMP_API_KEY 2>/dev/null || echo "HFA_CORE: not found (continue without runtime)"
 ```
 
 Read the echoed state and act. Skip ALL bullets below if `DEDUP: yes` or `HFA_CORE: not found`:

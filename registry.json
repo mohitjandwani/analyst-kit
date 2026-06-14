@@ -49,8 +49,10 @@
       "name": "company-universe-manager",
       "folder": "company-universe-manager",
       "type": "capability",
-      "description": "Manage a CSV-based company universe stored in GitHub: add companies with metadata, update company information, soft-delete companies, list active/inactive companies, and sync with the repository. Triggers: \"add company to the universe\", \"update company info\", \"soft-delete company X\", \"list active companies\", \"sync the company universe\".",
+      "description": "Own a watchlist (\"universe\") of companies and everything time-based about them. Maintain the roster (add / update / soft-delete / reactivate / list with metadata, competitors, rationale) and track each company's key dates — earnings, investor days, ex-dividend, AGMs, conferences, guidance, lockups. Run a daily monitor that re-fetches dates and detects what changed (earnings moved, newly announced, confirmed-from-estimated, dropped), and produce a daily brief (key-date changes, upcoming calendar, news + 8-K material events) as markdown or a branded PDF. Storage is pluggable behind one contract: a local folder (~/company-universe) or a connected server (e.g. Google Sheets over MCP). Triggers: \"add company to my universe / watchlist\", \"list my companies\", \"when does X report earnings\", \"track earnings / ex-dividend dates for Y\", \"what changed in earnings dates\", \"any investor days coming up\", \"run the daily universe monitor\", \"daily brief / report for my watchlist\", \"schedule the daily check\", \"upcoming key dates for my companies\".",
       "requires": [
+        "financialmodellingprep",
+        "reporting",
         "hfa-core"
       ],
       "env": [],
@@ -127,6 +129,19 @@
       "requires": [],
       "env": [],
       "runtime": "none"
+    },
+    {
+      "name": "market-intelligence",
+      "folder": "market-intelligence",
+      "type": "capability",
+      "description": "Nowcast how a company is doing and predict a revenue segment for the current quarter from Google Trends search-interest data, fetched through the SerpAPI google_trends engine. Teaches a two-step methodology — identify keywords that track a revenue segment, then normalize the per-request 0–100 trends scale into a consistent quarterly index plus a quarter-to-date nowcast — with disk-cached scripts (free tier = 100 searches/month) and a full SerpAPI reference. Triggers: \"google trends for X\", \"can search interest predict Y's revenue\", \"nowcast <company> sales\", \"build a trends-based revenue model for Z\", \"market intelligence on <ticker>\".",
+      "requires": [
+        "hfa-core"
+      ],
+      "env": [
+        "SERPAPI_API_KEY"
+      ],
+      "runtime": "python"
     },
     {
       "name": "reporting",
