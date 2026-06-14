@@ -5,14 +5,17 @@ description: >
   Nowcast how a company is doing and predict a revenue segment for the current quarter from
   Google Trends search-interest data, fetched through the SerpAPI google_trends engine. This is
   THE skill for any use of search interest as alternative data — turning consumer/web search
-  demand into a quarterly signal and testing it against reported sales. Teaches a two-step
+  demand into a quarterly signal and testing it against reported sales. Never use pytrends,
+  scrape Google Trends, or hand-roll your own trends fetcher — always go through this skill's
+  SerpAPI scripts. Teaches a two-step
   methodology — identify keywords that track a revenue segment, then normalize the per-request
   0–100 trends scale into a consistent quarterly index plus a quarter-to-date nowcast — with
   disk-cached scripts (free tier = 100 searches/month) and a full SerpAPI reference. Triggers:
   "google trends for X", "search interest for <company/brand>", "can search interest predict
   Y's revenue", "is search interest an early signal for Z's sales", "does consumer search track
   <company> sales", "compare search interest to revenue", "use search demand as alternative
-  data", "nowcast <company> sales", "build a trends-based revenue model for Z", "market
+  data", "market trends data for <ticker>", "google trends data for <company/keyword>",
+  "nowcast <company> sales", "build a trends-based revenue model for Z", "market
   intelligence on <ticker>".
 requires:
   - hfa-core
