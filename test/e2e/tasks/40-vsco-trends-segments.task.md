@@ -1,7 +1,5 @@
 ---
 id: 40-vsco-trends-segments
-skills: [sec-filings, financialmodellingprep, charting, reporting]
-requiresEnv: [FMP_API_KEY]
 timeoutMs: 1200000
 ---
 
@@ -14,9 +12,8 @@ comparison will produce nonsense.
 1. Fetch Google Trends search interest (worldwide or US) for "Victoria's Secret" and,
    separately, for "PINK Victoria's Secret", covering the last 3 years. Aggregate the
    weekly/monthly interest into VSCO's retail fiscal quarters (state the month-to-quarter
-   mapping you used). If Google Trends cannot be fetched programmatically from this
-   environment, substitute another public attention proxy (for example Wikipedia
-   pageviews) and state the substitution prominently in the deliverable.
+   mapping you used). Google Trends data is required for this task — do not substitute
+   another attention proxy such as Wikipedia pageviews.
 2. From VSCO's quarterly earnings releases or 10-Q/10-K disclosures, extract quarterly
    net sales and the finest revenue split the company reports (by channel — e.g. Stores
    North America, Direct, International — or by brand if disclosed).

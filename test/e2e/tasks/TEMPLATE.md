@@ -12,8 +12,6 @@ comments (anything after `key:` becomes part of the value). Document nothing ins
 ```markdown
 ---
 id: 10-my-task
-skills: [single-stock-deep-dive, charting]
-requiresEnv: [FMP_API_KEY]
 timeoutMs: 1200000
 ---
 Write the task intent here as a normal prompt to the agent: what to research and what the
@@ -25,12 +23,12 @@ fixed instruction telling the agent to render the single deliverable to `output/
 
 - **id** (required) — a slug. Names the output PDF (`pdfs/<id>.pdf`) and the per-task log
   files. Prefix the *filename* with a number (e.g. `10-`, `20-`) to control run order.
-- **skills** (optional) — skills you expect to be installed and exercised. The harness
-  asserts each exists under `~/.claude/skills/` before running the task; a missing one fails
-  the task early with a clear message. Omit if the task needs no specific skill.
-- **requiresEnv** (optional) — API keys this task needs (e.g. `FMP_API_KEY`, `FINMIND_TOKEN`,
-  `SEC_EDGAR_USER_AGENT`). The harness fails fast if any is unset, so you don't burn a run.
 - **timeoutMs** (optional) — per-task wall-clock cap in milliseconds. Default is 20 minutes.
+
+Tasks no longer declare skills or required env keys. The harness installs every skill in the
+repo into the container, and the agent selects whichever it needs autonomously. The harness
+forwards whatever API keys are present in its own environment; each skill declares its own
+required env keys in its `SKILL.md` frontmatter (`env:`).
 
 ## Notes
 

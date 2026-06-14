@@ -12,6 +12,8 @@
     --accent:#58a6ff; --ok:#3fb950; --err:#f85149; --warn:#d29922;
     --radius:10px; --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
     --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --skill-used:#a78bfa; --skill-unused:#6e7681;
+    --tab-h:40px;
   }
   * { box-sizing:border-box; }
   html,body { margin:0; height:100%; }
@@ -22,8 +24,8 @@
 
   /* ── Top bar ───────────────────────────────────────────────────────────── */
   header {
-    position:sticky; top:0; z-index:10; background:rgba(13,17,23,.92);
-    backdrop-filter:blur(8px); border-bottom:1px solid var(--line);
+    position:sticky; top:0; z-index:20; background:rgba(13,17,23,.95);
+    backdrop-filter:blur(10px); border-bottom:1px solid var(--line);
     padding:10px 18px; display:flex; gap:14px; align-items:center; flex-wrap:wrap;
   }
   header h1 { font-size:14px; margin:0; font-weight:600; letter-spacing:.2px; }
@@ -31,22 +33,49 @@
   .spacer { flex:1; }
   .btn {
     background:var(--bg3); color:var(--fg); border:1px solid var(--line);
-    border-radius:8px; padding:6px 12px; font-size:13px; cursor:pointer; font-family:var(--sans);
+    border-radius:8px; padding:6px 12px; font-size:13px; cursor:pointer;
+    font-family:var(--sans); transition:border-color .12s;
   }
   .btn:hover { border-color:var(--accent); }
+  .btn:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
   label.toggle { display:inline-flex; gap:6px; align-items:center; color:var(--dim); font-size:13px; cursor:pointer; user-select:none; }
   #filter {
     background:var(--bg); color:var(--fg); border:1px solid var(--line);
-    border-radius:8px; padding:6px 10px; font-size:13px; width:200px; font-family:var(--sans);
+    border-radius:8px; padding:6px 10px; font-size:13px; width:190px; font-family:var(--sans);
+    transition:border-color .12s;
   }
   #filter:focus { outline:none; border-color:var(--accent); }
 
-  /* ── Layout ────────────────────────────────────────────────────────────── */
-  main { max-width:960px; margin:0 auto; padding:22px 18px 120px; }
+  /* ── Tab bar ───────────────────────────────────────────────────────────── */
+  .tabs {
+    position:sticky; top:55px; z-index:19; background:rgba(13,17,23,.95);
+    backdrop-filter:blur(10px); border-bottom:1px solid var(--line);
+    display:flex; gap:0; padding:0 18px;
+  }
+  .tab {
+    height:var(--tab-h); padding:0 16px; border:none; background:transparent;
+    color:var(--dim); font-size:13px; font-weight:500; cursor:pointer;
+    border-bottom:2px solid transparent; transition:color .12s, border-color .12s;
+    font-family:var(--sans); display:inline-flex; align-items:center; gap:6px;
+    position:relative; top:1px;
+  }
+  .tab:hover { color:var(--fg); }
+  .tab.active { color:var(--fg); border-bottom-color:var(--accent); }
+  .tab:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
+  .tab .cnt {
+    font-size:10px; background:var(--bg3); border:1px solid var(--line);
+    border-radius:20px; padding:1px 6px; font-variant-numeric:tabular-nums;
+    transition:background .12s, color .12s;
+  }
+  .tab.active .cnt { background:color-mix(in srgb,var(--accent) 18%,var(--bg3)); border-color:var(--accent); color:var(--accent); }
 
-  /* Empty state */
+  /* ── Layout ────────────────────────────────────────────────────────────── */
+  .panel { max-width:980px; margin:0 auto; padding:22px 18px 120px; }
+  .panel.hidden { display:none !important; }
+
+  /* ── Empty state ────────────────────────────────────────────────────────── */
   .empty {
-    margin-top:12vh; text-align:center; color:var(--dim);
+    margin-top:10vh; text-align:center; color:var(--dim);
     border:1.5px dashed var(--line); border-radius:16px; padding:54px 24px;
   }
   .empty h2 { color:var(--fg); font-weight:600; margin:0 0 8px; }
@@ -64,13 +93,12 @@
   .stat .v { font-size:15px; font-weight:600; font-variant-numeric:tabular-nums; }
   .stat .v.ok { color:var(--ok); } .stat .v.err { color:var(--err); }
 
-  /* ── Events ────────────────────────────────────────────────────────────── */
+  /* ── Events (Timeline) ─────────────────────────────────────────────────── */
   .event { margin:8px 0; display:flex; gap:10px; align-items:flex-start; }
   .gutter { flex:0 0 88px; text-align:right; padding-top:2px; }
   .role { font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:var(--faint); font-weight:600; }
   .body { flex:1; min-width:0; }
 
-  /* prose: rendered markdown for assistant text + final result */
   .prose { background:var(--bg2); border:1px solid var(--line); border-radius:var(--radius); padding:2px 16px; overflow-wrap:anywhere; }
   .prose.user { background:#13233b; border-color:#1f3a5f; }
   .prose h1,.prose h2,.prose h3,.prose h4 { line-height:1.3; margin:.9em 0 .4em; }
@@ -88,10 +116,11 @@
   .prose th,.prose td { border:1px solid var(--line); padding:5px 10px; text-align:left; }
   .prose th { background:var(--bg3); }
 
-  /* tool call block — coloured by family via --c */
+  /* tool call block */
   .tool { border:1px solid var(--line); border-left:3px solid var(--c,#94a3b8); border-radius:var(--radius); background:var(--bg2); overflow:hidden; }
   .tool > summary { list-style:none; cursor:pointer; padding:9px 13px; display:flex; gap:9px; align-items:center; }
   .tool > summary::-webkit-details-marker { display:none; }
+  .tool > summary:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
   .tool .badge {
     flex:0 0 auto; font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:.3px;
     color:var(--c,#94a3b8); border:1px solid var(--c,#94a3b8); border-radius:6px;
@@ -101,68 +130,243 @@
   .tool .sum { color:var(--dim); font-family:var(--mono); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1; min-width:0; }
   .tool .chev { color:var(--faint); transition:transform .12s; }
   .tool[open] .chev { transform:rotate(90deg); }
-  .tool.skill { border-left-width:4px; background:color-mix(in srgb, var(--c) 7%, var(--bg2)); }
-  .tool.skill .name { color:var(--c); }
+  .tool.skill-tool { border-left-width:4px; background:color-mix(in srgb, var(--c) 7%, var(--bg2)); }
   .tool .detail { padding:0 13px 12px; }
   .tool .lbl { font-size:10.5px; text-transform:uppercase; letter-spacing:.6px; color:var(--faint); margin:10px 0 4px; }
   pre.raw { background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:10px 12px; margin:0; overflow:auto; max-height:340px; font-family:var(--mono); font-size:12px; line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere; color:#cdd9e5; }
-  pre.raw.result { border-color:#244; }
+  pre.raw.result-out { border-color:#244; }
   .result-err pre.raw { border-color:var(--err); }
   .pill { font-size:10.5px; padding:1px 7px; border-radius:20px; border:1px solid var(--line); color:var(--dim); }
   .pill.err { color:var(--err); border-color:var(--err); }
   .pill.ok { color:var(--ok); border-color:var(--ok); }
 
-  /* thinking — minimised by default */
+  /* skill attribution tag on timeline tool blocks */
+  .skill-tag {
+    font-size:10px; padding:1px 6px; border-radius:5px; font-weight:600;
+    background:color-mix(in srgb,var(--skill-used) 15%,transparent);
+    border:1px solid color-mix(in srgb,var(--skill-used) 40%,transparent);
+    color:var(--skill-used); font-family:var(--mono); white-space:nowrap; flex-shrink:0;
+    cursor:pointer; transition:background .12s;
+  }
+  .skill-tag:hover { background:color-mix(in srgb,var(--skill-used) 25%,transparent); }
+
+  /* thinking */
   details.think { border:1px dashed var(--line); border-radius:var(--radius); background:transparent; }
   details.think > summary { list-style:none; cursor:pointer; padding:7px 13px; color:var(--faint); font-size:12.5px; font-style:italic; display:flex; gap:8px; align-items:center; }
   details.think > summary::-webkit-details-marker { display:none; }
+  details.think > summary:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
   details.think .think-body { padding:2px 15px 12px; color:var(--dim); font-size:13px; white-space:pre-wrap; overflow-wrap:anywhere; font-style:italic; }
   body.hide-thinking details.think { display:none; }
 
   .hidden { display:none !important; }
-  .drop-hint { position:fixed; inset:0; background:rgba(13,17,23,.85); display:none; align-items:center; justify-content:center; z-index:50; font-size:20px; color:var(--accent); border:3px dashed var(--accent); }
+  .drop-hint { position:fixed; inset:0; background:rgba(13,17,23,.85); display:none; align-items:center; justify-content:center; z-index:50; font-size:20px; color:var(--accent); border:3px dashed var(--accent); pointer-events:none; }
   body.dragging .drop-hint { display:flex; }
+
+  /* ── Skills panel ───────────────────────────────────────────────────────── */
+  .skills-section-title {
+    font-size:11px; text-transform:uppercase; letter-spacing:.8px; color:var(--dim);
+    margin:24px 0 12px; padding-bottom:8px; border-bottom:1px solid var(--line);
+    display:flex; align-items:center; gap:10px;
+  }
+  .skills-section-title .s-cnt {
+    font-size:11px; background:var(--bg3); border:1px solid var(--line);
+    border-radius:20px; padding:1px 7px; color:var(--faint);
+  }
+
+  .skill-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px; margin-bottom:24px; }
+
+  .skill-card {
+    background:var(--bg2); border:1px solid var(--line); border-radius:var(--radius);
+    overflow:hidden; transition:border-color .15s;
+  }
+  .skill-card.used { border-left:3px solid var(--skill-used); }
+  .skill-card.unused { border-left:3px solid var(--line); opacity:.65; }
+  .skill-card:hover { border-color:var(--accent); opacity:1; }
+
+  .skill-card-head {
+    padding:10px 13px; display:flex; align-items:center; gap:9px; cursor:pointer;
+  }
+  .skill-card-head:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
+  .skill-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .skill-dot.used { background:var(--skill-used); box-shadow:0 0 6px color-mix(in srgb,var(--skill-used) 50%,transparent); }
+  .skill-dot.unused { background:var(--skill-unused); }
+  .skill-name { font-family:var(--mono); font-size:12.5px; font-weight:600; flex:1; }
+  .skill-name.used { color:var(--skill-used); }
+  .skill-name.unused { color:var(--faint); }
+  .skill-pills { display:flex; gap:5px; flex-wrap:wrap; }
+  .skill-pill {
+    font-size:10px; padding:2px 7px; border-radius:20px; font-variant-numeric:tabular-nums;
+    border:1px solid; white-space:nowrap;
+  }
+  .skill-pill.consult { color:#58a6ff; border-color:color-mix(in srgb,#58a6ff 40%,transparent); background:color-mix(in srgb,#58a6ff 10%,transparent); }
+  .skill-pill.invoke { color:#3fb950; border-color:color-mix(in srgb,#3fb950 40%,transparent); background:color-mix(in srgb,#3fb950 10%,transparent); }
+  .skill-pill.none { color:var(--faint); border-color:var(--line); }
+
+  .skill-card details.skill-detail > summary { display:none; }
+  .skill-drilldown { background:var(--bg3); border-top:1px solid var(--line); padding:10px 13px; }
+  .skill-drilldown.hidden { display:none; }
+  .skill-inv { margin:5px 0; }
+  .skill-inv .inv-type {
+    font-size:9.5px; text-transform:uppercase; letter-spacing:.5px; padding:1px 5px;
+    border-radius:4px; font-weight:700; margin-right:5px; vertical-align:middle;
+  }
+  .inv-type.consult { background:color-mix(in srgb,#58a6ff 15%,transparent); color:#58a6ff; }
+  .inv-type.invoke  { background:color-mix(in srgb,#3fb950 15%,transparent); color:#3fb950; }
+  .skill-inv .inv-detail { font-family:var(--mono); font-size:11.5px; color:var(--dim); overflow-wrap:anywhere; }
+  .skill-inv .inv-result { font-size:11px; color:var(--faint); margin-top:2px; overflow-wrap:anywhere; font-family:var(--mono); max-height:60px; overflow:hidden; white-space:pre-wrap; }
+  .skill-inv .inv-result.err { color:var(--err); }
+
+  /* subagents section */
+  .subagent-list { display:flex; flex-direction:column; gap:8px; margin-bottom:24px; }
+  .subagent-row {
+    background:var(--bg2); border:1px solid var(--line); border-left:3px solid #f472b6;
+    border-radius:var(--radius); padding:10px 13px; display:flex; gap:10px; align-items:flex-start;
+  }
+  .subagent-badge {
+    font-size:10px; font-weight:700; font-family:var(--mono); padding:2px 7px;
+    border-radius:6px; border:1px solid #f472b6; color:#f472b6;
+    background:color-mix(in srgb,#f472b6 12%,transparent); flex-shrink:0;
+  }
+  .subagent-desc { font-size:13px; color:var(--fg); }
+  .subagent-meta { font-size:11px; color:var(--faint); margin-top:3px; font-family:var(--mono); }
+
+  /* ── Code panel ─────────────────────────────────────────────────────────── */
+  .code-artifact {
+    background:var(--bg2); border:1px solid var(--line); border-radius:var(--radius);
+    margin-bottom:16px; overflow:hidden;
+  }
+  .code-artifact-head {
+    padding:9px 13px; display:flex; gap:9px; align-items:center; flex-wrap:wrap;
+    border-bottom:1px solid var(--line); cursor:pointer; user-select:none;
+  }
+  .code-artifact-head:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
+  .code-lang-badge {
+    font-size:10px; font-weight:700; font-family:var(--mono); padding:2px 7px; border-radius:5px;
+    border:1px solid; flex-shrink:0;
+  }
+  .code-lang-badge.python { color:#f8d76e; border-color:color-mix(in srgb,#f8d76e 40%,transparent); background:color-mix(in srgb,#f8d76e 10%,transparent); }
+  .code-lang-badge.javascript,.code-lang-badge.typescript { color:#3fb950; border-color:color-mix(in srgb,#3fb950 40%,transparent); background:color-mix(in srgb,#3fb950 10%,transparent); }
+  .code-lang-badge.json { color:#2dd4bf; border-color:color-mix(in srgb,#2dd4bf 40%,transparent); background:color-mix(in srgb,#2dd4bf 10%,transparent); }
+  .code-lang-badge.bash { color:#3fb950; border-color:color-mix(in srgb,#3fb950 40%,transparent); background:color-mix(in srgb,#3fb950 10%,transparent); }
+  .code-lang-badge.html { color:#e3873c; border-color:color-mix(in srgb,#e3873c 40%,transparent); background:color-mix(in srgb,#e3873c 10%,transparent); }
+  .code-lang-badge.text { color:var(--dim); border-color:var(--line); background:var(--bg3); }
+  .code-source-badge {
+    font-size:10px; padding:2px 7px; border-radius:5px; border:1px solid var(--line);
+    color:var(--faint); background:var(--bg3); font-family:var(--mono); flex-shrink:0;
+  }
+  .code-title { font-family:var(--mono); font-size:12.5px; color:var(--fg); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .code-skill-tag { font-size:10px; padding:2px 6px; border-radius:5px; font-weight:600; background:color-mix(in srgb,var(--skill-used) 15%,transparent); border:1px solid color-mix(in srgb,var(--skill-used) 40%,transparent); color:var(--skill-used); font-family:var(--mono); flex-shrink:0; }
+  .copy-btn {
+    font-size:11px; padding:3px 9px; border-radius:6px; border:1px solid var(--line);
+    background:var(--bg3); color:var(--dim); cursor:pointer; font-family:var(--sans);
+    transition:border-color .12s, color .12s; flex-shrink:0;
+  }
+  .copy-btn:hover { border-color:var(--accent); color:var(--accent); }
+  .copy-btn:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .copy-btn.copied { border-color:var(--ok); color:var(--ok); }
+  .code-chev { color:var(--faint); transition:transform .12s; flex-shrink:0; }
+  .code-artifact.open .code-chev { transform:rotate(90deg); }
+
+  .code-body { display:none; }
+  .code-artifact.open .code-body { display:block; }
+
+  /* code block with line numbers */
+  .code-block-wrap { display:flex; overflow:auto; max-height:480px; background:var(--bg); border-top:1px solid var(--line); font-family:var(--mono); font-size:12px; line-height:1.6; }
+  .code-lines { flex-shrink:0; text-align:right; padding:12px 10px 12px 14px; color:var(--faint); user-select:none; border-right:1px solid var(--line); background:rgba(22,27,34,.6); }
+  .code-lines span { display:block; }
+  .code-text { flex:1; padding:12px 14px; overflow:auto; white-space:pre; color:#cdd9e5; min-width:0; }
+
+  /* syntax highlight classes */
+  .hl-kw  { color:#ff7b72; }   /* keywords */
+  .hl-str { color:#a5d6ff; }   /* strings */
+  .hl-num { color:#79c0ff; }   /* numbers */
+  .hl-cmt { color:#8b949e; font-style:italic; } /* comments */
+  .hl-fn  { color:#d2a8ff; }   /* function names */
+  .hl-bi  { color:#ffa657; }   /* built-ins / decorators */
+
+  /* ── Responsive ─────────────────────────────────────────────────────────── */
+  @media (max-width:640px) {
+    .tabs { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+    .skill-grid { grid-template-columns:1fr; }
+    .gutter { flex:0 0 62px; }
+    #filter { width:130px; }
+  }
 </style>
 </head>
 <body class="hide-thinking">
   <header>
-    <h1><span class="dot">●</span> Task Run Viewer</h1>
+    <h1><span class="dot" aria-hidden="true">●</span> Task Run Viewer</h1>
     <button class="btn" id="open">Open .jsonl…</button>
-    <span id="fname" class="role"></span>
+    <span id="fname" class="role" aria-live="polite"></span>
     <span class="spacer"></span>
-    <input id="filter" type="search" placeholder="Filter events…" disabled>
+    <input id="filter" type="search" placeholder="Filter timeline…" disabled aria-label="Filter timeline events">
     <label class="toggle"><input type="checkbox" id="thinking"> Thinking</label>
     <label class="toggle"><input type="checkbox" id="expand"> Expand all</label>
-    <input id="file" type="file" accept=".jsonl,.json,application/json" class="hidden">
+    <input id="file" type="file" accept=".jsonl,.json,application/json" class="hidden" aria-hidden="true">
   </header>
 
-  <main id="main">
+  <nav class="tabs" role="tablist" aria-label="View panels">
+    <button class="tab active" id="tab-timeline" role="tab" aria-selected="true" aria-controls="panel-timeline">
+      Timeline <span class="cnt" id="cnt-timeline">–</span>
+    </button>
+    <button class="tab" id="tab-skills" role="tab" aria-selected="false" aria-controls="panel-skills">
+      Skills <span class="cnt" id="cnt-skills">–</span>
+    </button>
+    <button class="tab" id="tab-code" role="tab" aria-selected="false" aria-controls="panel-code">
+      Code <span class="cnt" id="cnt-code">–</span>
+    </button>
+  </nav>
+
+  <div id="panel-timeline" class="panel" role="tabpanel" aria-labelledby="tab-timeline">
     <div class="empty" id="empty">
       <h2>Drop a task-run log here</h2>
       <p>Open any <code>*.stream.jsonl</code> from <code>test/e2e/logs/&lt;run&gt;/</code> —
          or pass <code>?file=logs/latest/01-booking.stream.jsonl</code> when serving over HTTP.</p>
       <div class="legend" id="legend"></div>
     </div>
-  </main>
+  </div>
 
-  <div class="drop-hint">Drop the .jsonl to view it</div>
+  <div id="panel-skills" class="panel hidden" role="tabpanel" aria-labelledby="tab-skills">
+    <div class="empty" id="skills-empty">
+      <h2>No log loaded</h2>
+      <p>Open a <code>*.stream.jsonl</code> to see skill attribution.</p>
+    </div>
+  </div>
+
+  <div id="panel-code" class="panel hidden" role="tabpanel" aria-labelledby="tab-code">
+    <div class="empty" id="code-empty">
+      <h2>No log loaded</h2>
+      <p>Open a <code>*.stream.jsonl</code> to see code artifacts.</p>
+    </div>
+  </div>
+
+  <div class="drop-hint" aria-hidden="true">Drop the .jsonl to view it</div>
 
 <script>
 /* ════════════════════════════════════════════════════════════════════════════
-   Task Run Viewer — a dependency-free renderer for Claude Code stream-json logs.
+   Task Run Viewer — an upgraded dependency-free renderer for Claude Code stream-json logs.
 
-   A run is a sequence of newline-delimited JSON records:
-     system/init           one header with model, cwd, available tools & skills
-     assistant             content blocks: thinking | text | tool_use
-     user                  content blocks: tool_result (keyed by tool_use_id) | text
-     system/thinking_tokens noise — counted, not shown
-     result                final summary: success/error, duration, cost, usage
+   Three tabs:
+     Timeline — chronological event stream with skill attribution tags
+     Skills   — which skills were actually used vs available-but-unused
+     Code     — all code the agent wrote, with syntax highlighting + copy
 
-   Tool calls (assistant.tool_use) and their outputs (user.tool_result) live in
-   separate records; we index results by id and stitch them under the call.
+   Skill attribution:
+     Skills are used IMPLICITLY via file-path patterns, not a dedicated tool.
+     We scan every tool's input text for: ~/.claude/skills/<name> OR /home/.../.claude/skills/<name>
+     Read calls → "consult"; Bash calls → "invoke"
+
+   Code extraction:
+     Write/Edit tool calls with code content
+     Bash heredocs: interpreter << 'EOF' ... EOF
+     Bash -c/-e inline: python3 -c "...", node -e "...", bun -e "..."
+
+   XSS safety: all user-controlled content is passed through escapeHtml() before
+   any innerHTML assignment. The only raw innerHTML comes from our own highlighter
+   output which itself escapes first.
    ════════════════════════════════════════════════════════════════════════════ */
 
-/* ── Tool colour families ─ Skill is the deliberate standout (violet). ─────── */
+/* ── Tool colour families ───────────────────────────────────────────────── */
 const TOOL_THEME = {
   Skill:     { c:'#c084fc', icon:'✦', skill:true },
   Bash:      { c:'#3fb950', icon:'❯' },
@@ -183,52 +387,65 @@ const TOOL_THEME = {
 const FALLBACK = { c:'#94a3b8', icon:'⚒' };
 const theme = name => TOOL_THEME[name] || FALLBACK;
 
-/* ── Minimal markdown → HTML (escaped first, so it is XSS-safe). ───────────── */
-function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+/* ── XSS-safe escaping — ALWAYS called before any innerHTML ──────────────── */
+function escapeHtml(s){
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
 
+/* ── Minimal markdown → HTML (escaped first, so it is XSS-safe) ───────────── */
 function inlineMd(t){
   t = escapeHtml(t);
   const codes = [];
-  t = t.replace(/`([^`]+)`/g, (_,c) => { codes.push(c); return ''+(codes.length-1)+''; });
+  t = t.replace(/`([^`]+)`/g, (_,c) => { codes.push(c); return '\x00'+(codes.length-1)+'\x00'; });
   t = t.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
        .replace(/\b__([^_]+)__\b/g,'<strong>$1</strong>')
        .replace(/\*([^*\n]+)\*/g,'<em>$1</em>')
        .replace(/~~([^~]+)~~/g,'<del>$1</del>')
        .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
-  return t.replace(/(\d+)/g, (_,i) => '<code>'+codes[+i]+'</code>');
+  return t.replace(/\x00(\d+)\x00/g, (_,i) => '<code>'+escapeHtml(codes[+i])+'</code>');
 }
 
 function renderMarkdown(src){
   if (src == null) return '';
   src = String(src).replace(/\r\n/g,'\n');
-  // Protect fenced code blocks before any line parsing.
   const fences = [];
   src = src.replace(/```(\w*)\n?([\s\S]*?)```/g, (_,lang,code) => {
     fences.push('<pre class="code"><code>'+escapeHtml(code.replace(/\n$/,''))+'</code></pre>');
-    return ' F'+(fences.length-1)+' ';
+    return '\x01'+(fences.length-1)+'\x01';
   });
-
   const lines = src.split('\n');
   const out = [];
   let para = [];
   const flush = () => { if (para.length){ out.push('<p>'+para.map(inlineMd).join('<br>')+'</p>'); para = []; } };
   const isSep = s => /^\s*\|?[\s:|-]*-[\s:|-]*\|?\s*$/.test(s) && s.includes('-');
-
   for (let i = 0; i < lines.length; i++) {
     const ln = lines[i], t = ln.trim();
     let m;
-    if ((m = /^ F(\d+) $/.exec(t)))      { flush(); out.push(fences[+m[1]]); continue; }
-    if (!t)                                         { flush(); continue; }
-    if ((m = /^(#{1,6})\s+(.*)$/.exec(t)))          { flush(); const h=m[1].length; out.push('<h'+h+'>'+inlineMd(m[2])+'</h'+h+'>'); continue; }
-    if (/^(\*\*\*|---|___)\s*$/.test(t))            { flush(); out.push('<hr>'); continue; }
-    if (t[0] === '>')                               { flush(); const q=[]; while(i<lines.length && lines[i].trim()[0]==='>'){ q.push(lines[i].trim().replace(/^>\s?/,'')); i++; } i--; out.push('<blockquote>'+inlineMd(q.join('\n')).replace(/\n/g,'<br>')+'</blockquote>'); continue; }
-    // Table: header row followed by a separator row.
+    if ((m = /^\x01(\d+)\x01$/.exec(t)))   { flush(); out.push(fences[+m[1]]); continue; }
+    if (!t)                                 { flush(); continue; }
+    if ((m = /^(#{1,6})\s+(.*)$/.exec(t))) { flush(); const h=m[1].length; out.push('<h'+h+'>'+inlineMd(m[2])+'</h'+h+'>'); continue; }
+    if (/^(\*\*\*|---|___)\s*$/.test(t))   { flush(); out.push('<hr>'); continue; }
+    if (t[0] === '>') {
+      flush();
+      const q=[];
+      while(i<lines.length && lines[i].trim()[0]==='>'){ q.push(lines[i].trim().replace(/^>\s?/,'')); i++; }
+      i--;
+      out.push('<blockquote>'+inlineMd(q.join('\n')).replace(/\n/g,'<br>')+'</blockquote>');
+      continue;
+    }
     if (t.includes('|') && i+1 < lines.length && isSep(lines[i+1])) {
       flush();
       const cells = r => r.trim().replace(/^\||\|$/g,'').split('|').map(c=>c.trim());
       let tbl = '<table><thead><tr>'+cells(t).map(c=>'<th>'+inlineMd(c)+'</th>').join('')+'</tr></thead><tbody>';
       i += 2;
-      while (i < lines.length && lines[i].includes('|')) { tbl += '<tr>'+cells(lines[i]).map(c=>'<td>'+inlineMd(c)+'</td>').join('')+'</tr>'; i++; }
+      while (i < lines.length && lines[i].includes('|')) {
+        tbl += '<tr>'+cells(lines[i]).map(c=>'<td>'+inlineMd(c)+'</td>').join('')+'</tr>'; i++;
+      }
       i--; out.push(tbl+'</tbody></table>'); continue;
     }
     if (/^[-*+]\s+/.test(t) || /^\d+[.)]\s+/.test(t)) {
@@ -254,12 +471,16 @@ function renderMarkdown(src){
 
 /* ── Helpers ───────────────────────────────────────────────────────────────── */
 const $ = (s,r=document) => r.querySelector(s);
-function el(tag, cls, html){ const n=document.createElement(tag); if(cls)n.className=cls; if(html!=null)n.innerHTML=html; return n; }
+function el(tag, cls, html){
+  const n=document.createElement(tag);
+  if(cls) n.className=cls;
+  if(html!=null) n.innerHTML=html;
+  return n;
+}
 function fmtDur(ms){ if(ms==null)return'—'; if(ms<1000)return ms+'ms'; const s=ms/1000; if(s<60)return s.toFixed(1)+'s'; const m=Math.floor(s/60); return m+'m '+Math.round(s%60)+'s'; }
 function fmtNum(n){ return n==null?'—':n.toLocaleString('en-US'); }
 function clip(s,n){ s=String(s).replace(/\s+/g,' ').trim(); return s.length>n? s.slice(0,n-1)+'…' : s; }
 
-/* One-line summary of a tool's input, for the collapsed call header. */
 function toolSummary(name, inp){
   if (!inp || typeof inp !== 'object') return '';
   const f = k => inp[k];
@@ -274,7 +495,6 @@ function toolSummary(name, inp){
   }
 }
 
-/* tool_result content may be a string or an array of blocks. Normalise to text. */
 function resultText(content){
   if (content == null) return '';
   if (typeof content === 'string') return content;
@@ -287,14 +507,183 @@ function resultText(content){
   return JSON.stringify(content, null, 2);
 }
 
-/* ── Parse + analyse a run ───────────────────────────────────────────────────── */
-function parse(text){
+/* ── Skill Attribution ──────────────────────────────────────────────────────
+   Scans tool inputs for ~/.claude/skills/<name> or /home/.../.claude/skills/<name>
+   Returns the first matched skill name, or null.
+   ─────────────────────────────────────────────────────────────────────────── */
+const SKILL_PATH_RE = /(?:~|\/home\/[^/]+)\/.claude\/skills\/([a-z0-9-]+)/g;
+
+function attributeSkillFromTool(toolName, input) {
+  if (!input || typeof input !== 'object') return null;
+  let searchText = '';
+  if (toolName === 'Bash') {
+    searchText = input.command || '';
+  } else {
+    searchText = (input.file_path || '') + ' ' + (input.new_string || '') + ' ' + (input.old_string || '');
+  }
+  const m = SKILL_PATH_RE.exec(searchText);
+  SKILL_PATH_RE.lastIndex = 0;
+  return m ? m[1] : null;
+}
+
+function getAllSkillsFromTool(toolName, input) {
+  if (!input || typeof input !== 'object') return [];
+  let searchText = '';
+  if (toolName === 'Bash') {
+    searchText = input.command || '';
+  } else {
+    searchText = (input.file_path || '') + ' ' + (input.new_string || '') + ' ' + (input.old_string || '');
+  }
+  SKILL_PATH_RE.lastIndex = 0;
+  const found = new Set();
+  let m;
+  while ((m = SKILL_PATH_RE.exec(searchText)) !== null) found.add(m[1]);
+  return [...found];
+}
+
+/* ── Code Extraction ────────────────────────────────────────────────────────
+   Extracts code artifacts from:
+     1. Write / Edit tool calls (use file_path for language)
+     2. Bash heredocs: interpreter << 'EOF' ... EOF
+     3. Bash inline -c/-e: python3 -c "...", node -e "...", bun -e "..."
+   ─────────────────────────────────────────────────────────────────────────── */
+function inferLang(interpreter, filePath) {
+  if (filePath) {
+    const ext = (filePath.split('.').pop() || '').toLowerCase();
+    const extMap = { py:'python', ts:'typescript', tsx:'typescript', js:'javascript', mjs:'javascript', json:'json', sh:'bash', bash:'bash', html:'html', css:'text' };
+    if (extMap[ext]) return extMap[ext];
+  }
+  if (interpreter) {
+    if (/python/.test(interpreter)) return 'python';
+    if (/node|bun/.test(interpreter)) return 'javascript';
+    if (/bash|sh/.test(interpreter)) return 'bash';
+  }
+  return 'text';
+}
+
+function extractCodeFromBash(command) {
+  const artifacts = [];
+  if (!command) return artifacts;
+
+  // Heredocs: interpreter << 'DELIM' ... DELIM  (handles various delimiters)
+  // Two passes: with quotes around delimiter, then without
+  const heredocRe = /(\w+(?:3|run)?)\s+(?:-[cmwe]\s+\S+\s+)?<<\s*['"]?(\w+)['"]?\s*\n([\s\S]*?)\n\2(?:\s|$)/g;
+  let m;
+  while ((m = heredocRe.exec(command)) !== null) {
+    const interpreter = m[1].toLowerCase();
+    const body = m[3];
+    if (body.trim().length > 15 && (interpreter === 'python3' || interpreter === 'python' || interpreter === 'node' || interpreter === 'bun')) {
+      artifacts.push({
+        subtype: 'heredoc',
+        interpreter,
+        lang: inferLang(interpreter, null),
+        code: body,
+        title: interpreter + ' heredoc',
+      });
+    }
+  }
+
+  // Inline -c "..." or -e "..." (single-quoted too, best-effort)
+  // We only grab quoted inline; skip if we couldn't extract cleanly
+  const dashcRe = /(?:python3?|node|bun)\s+-[ce]\s+"((?:[^"\\]|\\.)*)"/g;
+  while ((m = dashcRe.exec(command)) !== null) {
+    const body = m[1].replace(/\\n/g,'\n').replace(/\\"/g,'"').replace(/\\\\/g,'\\');
+    if (body.trim().length > 15) {
+      artifacts.push({
+        subtype: 'inline',
+        interpreter: 'python3',
+        lang: 'python',
+        code: body,
+        title: 'python3 -c inline',
+      });
+    }
+  }
+
+  return artifacts;
+}
+
+/* ── Syntax Highlighter (offline, regex-based) ───────────────────────────────
+   Escapes HTML first, then applies non-destructive span wrapping.
+   Only wraps leaf tokens — cannot nest, so order matters:
+     1. strings (capture group protects from further processing)
+     2. comments
+     3. numbers
+     4. keywords (word-boundary matched)
+     5. built-ins / decorators
+   Returns HTML-safe string.
+   ─────────────────────────────────────────────────────────────────────────── */
+const PYTHON_KW = /\b(and|as|assert|async|await|break|class|continue|def|del|elif|else|except|finally|for|from|global|if|import|in|is|lambda|nonlocal|not|or|pass|raise|return|try|while|with|yield|True|False|None)\b/g;
+const PYTHON_BI = /\b(print|len|range|list|dict|set|tuple|int|float|str|bool|type|open|enumerate|zip|map|filter|sorted|reversed|isinstance|hasattr|getattr|setattr|sum|min|max|abs|round|repr|input|super|property|staticmethod|classmethod|object)\b/g;
+const JS_KW     = /\b(const|let|var|function|return|if|else|for|while|do|switch|case|break|continue|new|delete|typeof|instanceof|in|of|class|extends|import|export|default|async|await|try|catch|finally|throw|this|super|null|undefined|true|false|void)\b/g;
+const JS_BI     = /\b(console|JSON|Object|Array|Math|Date|Promise|fetch|require|module|exports|process|Buffer|setTimeout|setInterval|clearTimeout|clearInterval)\b/g;
+const JSON_KEY  = /("(?:[^"\\]|\\.)*")\s*:/g;
+const BASH_KW   = /\b(if|then|else|elif|fi|for|while|do|done|case|esac|in|function|return|local|export|echo|read|exit|shift|set|unset|readonly|declare|source|cd|ls|grep|sed|awk|find|cat|curl|python3?|node|bun|mkdir|rm|cp|mv|chmod|sudo)\b/g;
+const NUM_RE    = /\b(\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\b/g;
+
+function highlightLine(line, lang) {
+  // line is already HTML-escaped; we add span tags around tokens
+  const wrap = (re, cls) => line.replace(re, m => `<span class="${cls}">${m}</span>`);
+
+  if (lang === 'json') {
+    // strings first
+    line = line.replace(/"(?:[^"\\]|\\.)*"/g, m => `<span class="hl-str">${m}</span>`);
+    // then numbers and booleans/null
+    line = line.replace(/\b(true|false|null)\b/g, m => `<span class="hl-kw">${m}</span>`);
+    line = line.replace(NUM_RE, m => `<span class="hl-num">${m}</span>`);
+    return line;
+  }
+
+  if (lang === 'python') {
+    // inline strings — triple-quote not handled (too complex for single-line)
+    line = line.replace(/("""[\s\S]*?"""|'''[\s\S]*?'''|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')/g,
+      m => `<span class="hl-str">${m}</span>`);
+    line = line.replace(/#.*$/, m => `<span class="hl-cmt">${m}</span>`);
+    line = line.replace(NUM_RE, m => `<span class="hl-num">${m}</span>`);
+    line = line.replace(PYTHON_KW, m => `<span class="hl-kw">${m}</span>`);
+    line = line.replace(PYTHON_BI, m => `<span class="hl-bi">${m}</span>`);
+    // decorators
+    line = line.replace(/@\w+/g, m => `<span class="hl-bi">${m}</span>`);
+    // function defs
+    line = line.replace(/\bdef\s+(\w+)/g, (_, fn) => `<span class="hl-kw">def</span> <span class="hl-fn">${fn}</span>`);
+    return line;
+  }
+
+  if (lang === 'javascript' || lang === 'typescript') {
+    line = line.replace(/(["'`])(?:[^\\]|\\.)*?\1/g, m => `<span class="hl-str">${m}</span>`);
+    line = line.replace(/\/\/.*$/, m => `<span class="hl-cmt">${m}</span>`);
+    line = line.replace(NUM_RE, m => `<span class="hl-num">${m}</span>`);
+    line = line.replace(JS_KW, m => `<span class="hl-kw">${m}</span>`);
+    line = line.replace(JS_BI, m => `<span class="hl-bi">${m}</span>`);
+    line = line.replace(/\bfunction\s+(\w+)/g, (_, fn) => `<span class="hl-kw">function</span> <span class="hl-fn">${fn}</span>`);
+    return line;
+  }
+
+  if (lang === 'bash') {
+    line = line.replace(/(["'])(?:[^\\]|\\.)*?\1/g, m => `<span class="hl-str">${m}</span>`);
+    line = line.replace(/#.*$/, m => `<span class="hl-cmt">${m}</span>`);
+    line = line.replace(BASH_KW, m => `<span class="hl-kw">${m}</span>`);
+    line = line.replace(/\$\{?\w+\}?/g, m => `<span class="hl-bi">${m}</span>`);
+    return line;
+  }
+
+  return line; // text / html — no highlighting, but already escaped
+}
+
+function syntaxHighlight(code, lang) {
+  // Escape first, then highlight line by line
+  return escapeHtml(code)
+    .split('\n')
+    .map(line => highlightLine(line, lang))
+    .join('\n');
+}
+
+/* ── Parse + analyse a run ───────────────────────────────────────────────── */
+function parse(text) {
   const records = [];
   for (const line of text.split('\n')) {
     const s = line.trim(); if (!s) continue;
-    try { records.push(JSON.parse(s)); } catch { /* skip malformed line */ }
+    try { records.push(JSON.parse(s)); } catch { /* skip malformed */ }
   }
-  // Index tool_result blocks by the tool_use_id they answer.
   const results = {};
   for (const r of records) {
     if (r.type !== 'user') continue;
@@ -304,65 +693,194 @@ function parse(text){
   return { records, results };
 }
 
-/* ── Render ────────────────────────────────────────────────────────────────── */
-function render(text, filename){
-  const main = $('#main'); main.innerHTML = '';
+/* Derive skill usage map and code artifacts from all tool_use blocks */
+function analyseRun(records, results) {
+  const init = records.find(r => r.type === 'system' && r.subtype === 'init');
+  const availableSkills = init?.skills || [];
+
+  // skillMap: name -> { consults: [{toolName, detail, toolUseId, result}], invocations: [...] }
+  const skillMap = {};
+  const codeArtifacts = []; // { source, lang, title, code, toolUseId, skillName }
+  const subagents = [];     // { tool, subagentType, description, toolUseId }
+  let toolCallIndex = 0;
+
+  for (const r of records) {
+    if (r.type !== 'assistant') continue;
+    const blocks = r.message?.content || [];
+    for (const b of blocks) {
+      if (b.type !== 'tool_use') continue;
+      const name = b.name;
+      const inp = b.input || {};
+      const res = results[b.id] || null;
+      toolCallIndex++;
+
+      // --- Skill attribution ---
+      const skillNames = getAllSkillsFromTool(name, inp);
+      for (const skillName of skillNames) {
+        if (!skillMap[skillName]) skillMap[skillName] = { consults: [], invocations: [] };
+        const attrType = (name === 'Bash') ? 'invocation' : 'consult';
+        const detail = (name === 'Bash') ? (inp.command || '').trim() : (inp.file_path || '');
+        const resText = res ? resultText(res.content) : null;
+        const entry = { tool: name, detail, toolUseId: b.id, result: resText, isError: res?.is_error || false };
+        if (attrType === 'consult') skillMap[skillName].consults.push(entry);
+        else skillMap[skillName].invocations.push(entry);
+      }
+
+      // --- Code artifacts ---
+      if (name === 'Write') {
+        const fp = inp.file_path || '';
+        const content = inp.content || '';
+        if (content.trim().length > 5) {
+          codeArtifacts.push({
+            source: 'Write',
+            lang: inferLang(null, fp),
+            title: fp || '(untitled)',
+            code: content,
+            toolUseId: b.id,
+            skillName: skillNames[0] || null,
+          });
+        }
+      }
+      if (name === 'Edit') {
+        const fp = inp.file_path || '';
+        const ns = inp.new_string || '';
+        if (ns.trim().length > 5) {
+          codeArtifacts.push({
+            source: 'Edit',
+            lang: inferLang(null, fp),
+            title: fp || '(untitled)',
+            code: ns,
+            toolUseId: b.id,
+            skillName: skillNames[0] || null,
+          });
+        }
+      }
+      if (name === 'Bash') {
+        const cmd = inp.command || '';
+        const bashArtifacts = extractCodeFromBash(cmd);
+        for (const art of bashArtifacts) {
+          codeArtifacts.push({
+            source: 'Bash',
+            lang: art.lang,
+            title: art.title,
+            code: art.code,
+            toolUseId: b.id,
+            skillName: skillNames[0] || null,
+          });
+        }
+      }
+
+      // --- Subagents ---
+      if (name === 'Agent' || name === 'Task') {
+        subagents.push({
+          tool: name,
+          subagentType: inp.subagent_type || '?',
+          description: inp.description || inp.prompt || '',
+          toolUseId: b.id,
+        });
+      }
+    }
+  }
+
+  const usedSkillNames = new Set(Object.keys(skillMap));
+  const unusedSkills = availableSkills.filter(s => !usedSkillNames.has(s));
+
+  return { skillMap, availableSkills, unusedSkills, codeArtifacts, subagents };
+}
+
+/* ── Global run state ────────────────────────────────────────────────────── */
+let currentAnalysis = null; // populated after render()
+
+/* ── Render ──────────────────────────────────────────────────────────────── */
+function render(text, filename) {
   const { records, results } = parse(text);
   const init   = records.find(r => r.type === 'system' && r.subtype === 'init');
   const result = records.find(r => r.type === 'result');
+  const analysis = analyseRun(records, results);
+  currentAnalysis = analysis;
 
   let thinkBlocks = 0, toolCalls = 0, skillCalls = 0;
-  const consumed = new Set();   // tool_use_ids already shown under their call
+  const consumed = new Set();
 
-  if (init) main.appendChild(initCard(init));
+  // ── Timeline panel ─────────────────────────────────────────────────────────
+  const tl = $('#panel-timeline');
+  tl.innerHTML = '';
+
+  // Summary cards always at top
+  if (init) tl.appendChild(initCard(init, analysis));
+  // Result card comes after events, built after loop; create placeholder
+  const resultPlaceholder = document.createComment('result-placeholder');
+  tl.appendChild(resultPlaceholder);
 
   records.forEach(r => {
     if (r.type === 'assistant') {
       const blocks = r.message?.content || [];
       for (const b of blocks) {
-        if (b.type === 'thinking')      { thinkBlocks++; main.appendChild(thinkingEvent(b)); }
-        else if (b.type === 'text' && b.text?.trim()) main.appendChild(proseEvent('assistant', b.text));
+        if (b.type === 'thinking') { thinkBlocks++; tl.appendChild(thinkingEvent(b)); }
+        else if (b.type === 'text' && b.text?.trim()) tl.appendChild(proseEvent('assistant', b.text));
         else if (b.type === 'tool_use') {
           toolCalls++; if (b.name === 'Skill') skillCalls++;
           consumed.add(b.id);
-          main.appendChild(toolEvent(b, results[b.id]));
+          tl.appendChild(toolEvent(b, results[b.id], analysis));
         }
       }
     } else if (r.type === 'user') {
       const c = r.message?.content;
-      if (typeof c === 'string' && c.trim())        main.appendChild(proseEvent('user', c));
+      if (typeof c === 'string' && c.trim()) tl.appendChild(proseEvent('user', c));
       else if (Array.isArray(c)) for (const b of c) {
-        if (b.type === 'text' && b.text?.trim())    main.appendChild(proseEvent('user', b.text));
-        // tool_result blocks are rendered under their call; orphans (no matching
-        // call in this file) are shown standalone so nothing is silently dropped.
+        if (b.type === 'text' && b.text?.trim()) tl.appendChild(proseEvent('user', b.text));
         else if (b.type === 'tool_result' && !consumed.has(b.tool_use_id))
-          main.appendChild(toolEvent({ name:'(result)', id:b.tool_use_id, input:null }, b));
+          tl.appendChild(toolEvent({ name:'(result)', id:b.tool_use_id, input:null }, b, analysis));
       }
     }
   });
 
-  if (result) main.appendChild(resultCard(result, { thinkBlocks, toolCalls, skillCalls, init }));
+  const rcCard = result ? resultCard(result, { thinkBlocks, toolCalls, skillCalls, init }) : null;
+  if (rcCard) tl.insertBefore(rcCard, resultPlaceholder);
+  tl.removeChild(resultPlaceholder);
+
+  // ── Skills panel ───────────────────────────────────────────────────────────
+  renderSkillsPanel(analysis);
+
+  // ── Code panel ─────────────────────────────────────────────────────────────
+  renderCodePanel(analysis);
+
+  // ── Tab counts ─────────────────────────────────────────────────────────────
+  const eventCount = tl.querySelectorAll('.event').length;
+  $('#cnt-timeline').textContent = eventCount;
+  const usedCount = Object.keys(analysis.skillMap).length;
+  $('#cnt-skills').textContent = usedCount + '/' + analysis.availableSkills.length;
+  $('#cnt-code').textContent = analysis.codeArtifacts.length;
 
   $('#fname').textContent = filename || '';
   $('#filter').disabled = false;
   applyFilter();
 }
 
-function initCard(init){
+/* ── Init card ───────────────────────────────────────────────────────────── */
+function initCard(init, analysis) {
   const c = el('div','card');
   c.appendChild(el('div','ctitle','Run'));
   const stats = el('div','stats');
-  const add = (k,v) => { const s=el('div','stat'); s.append(el('div','k',k), el('div','v',escapeHtml(String(v)))); stats.appendChild(s); };
+  const add = (k,v) => {
+    const s=el('div','stat');
+    s.append(el('div','k',k), el('div','v',escapeHtml(String(v))));
+    stats.appendChild(s);
+  };
   if (init.model) add('Model', init.model);
   if (init.permissionMode) add('Permission', init.permissionMode);
-  if (init.tools)  add('Tools', init.tools.length);
-  if (init.skills) add('Skills', init.skills.length);
+  if (init.tools)  add('Tools avail', init.tools.length);
+  if (init.skills) {
+    const usedCount = Object.keys(analysis?.skillMap || {}).length;
+    add('Skills used', usedCount + ' / ' + init.skills.length);
+  }
   if (init.claude_code_version) add('Version', init.claude_code_version);
   if (init.cwd)    add('CWD', init.cwd.replace(/^.*\//,'…/'));
   c.appendChild(stats);
   return c;
 }
 
+/* ── Row wrap ────────────────────────────────────────────────────────────── */
 function rowWrap(role, node){
   const ev = el('div','event');
   const g = el('div','gutter'); g.appendChild(el('div','role', role));
@@ -378,24 +896,43 @@ function proseEvent(role, md){
 
 function thinkingEvent(b){
   const d = el('details','think');
-  const sum = el('summary'); sum.innerHTML = '💭 thinking <span class="role" style="margin-left:auto">'+clip(b.thinking,60)+'</span>';
+  const sum = el('summary');
+  sum.innerHTML = '&#x1F4AD; thinking <span class="role" style="margin-left:auto">'+escapeHtml(clip(b.thinking||'', 60))+'</span>';
   d.appendChild(sum);
   d.appendChild(el('div','think-body', escapeHtml(b.thinking || '')));
   const ev = rowWrap('', d); ev.classList.add('think-row'); return ev;
 }
 
-function toolEvent(b, res){
+function toolEvent(b, res, analysis){
   const isResultOnly = b.name === '(result)';
   const th = isResultOnly ? FALLBACK : theme(b.name);
-  const d = el('details', 'tool' + (th.skill ? ' skill' : ''));
+  const d = el('details', 'tool' + (th.skill ? ' skill-tool' : ''));
   d.style.setProperty('--c', th.c);
 
+  // Skill attribution for this call
+  const skillNames = (analysis && !isResultOnly && b.input)
+    ? getAllSkillsFromTool(b.name, b.input)
+    : [];
+
   const sum = el('summary');
-  const badge = el('span','badge', th.icon + (th.skill ? ' SKILL' : ''));
+  const badge = el('span','badge', escapeHtml(th.icon + (th.skill ? ' SKILL' : '')));
   const name  = el('span','name', escapeHtml(isResultOnly ? 'tool result' : b.name));
   const oneLine = isResultOnly ? clip(resultText(res?.content), 120) : clip(toolSummary(b.name, b.input), 120);
   const summ  = el('span','sum', escapeHtml(oneLine));
-  sum.append(badge, name, summ, el('span','chev','›'));
+  sum.append(badge, name, summ);
+
+  // Skill tag(s) on this tool block
+  for (const sn of skillNames) {
+    const tag = el('span', 'skill-tag', escapeHtml(sn));
+    tag.title = 'Click to view in Skills tab';
+    tag.setAttribute('role','button');
+    tag.setAttribute('tabindex','0');
+    tag.addEventListener('click', e => { e.stopPropagation(); switchTab('skills'); });
+    tag.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); e.stopPropagation(); switchTab('skills'); } });
+    sum.appendChild(tag);
+  }
+
+  sum.appendChild(el('span','chev','›'));
   if (res?.is_error) sum.appendChild(el('span','pill err','error'));
   d.appendChild(sum);
 
@@ -406,7 +943,7 @@ function toolEvent(b, res){
   }
   if (res) {
     detail.appendChild(el('div','lbl', res.is_error ? 'result · error' : 'result'));
-    const pre = el('pre','raw result', escapeHtml(resultText(res.content)));
+    const pre = el('pre','raw result-out', escapeHtml(resultText(res.content)));
     if (res.is_error) { d.classList.add('result-err'); }
     detail.appendChild(pre);
   } else if (!isResultOnly) {
@@ -417,11 +954,18 @@ function toolEvent(b, res){
   return rowWrap('', d);
 }
 
+/* ── Result card ─────────────────────────────────────────────────────────── */
 function resultCard(r, counts){
   const c = el('div','card result' + (r.is_error ? ' error' : ''));
   c.appendChild(el('div','ctitle', r.is_error ? 'Result · error' : 'Result'));
   const stats = el('div','stats');
-  const add = (k,v,cls) => { const s=el('div','stat'); const vv=el('div','v'+(cls?' '+cls:'')); vv.textContent=v; s.append(el('div','k',k), vv); stats.appendChild(s); };
+  const add = (k,v,cls) => {
+    const s=el('div','stat');
+    const vv=el('div','v'+(cls?' '+cls:''));
+    vv.textContent=v;
+    s.append(el('div','k',k), vv);
+    stats.appendChild(s);
+  };
   add('Status', r.is_error ? 'error' : (r.subtype||'ok'), r.is_error?'err':'ok');
   if (r.num_turns!=null)  add('Turns', r.num_turns);
   add('Tools', counts.toolCalls);
@@ -436,7 +980,6 @@ function resultCard(r, counts){
   add('Thinking', counts.thinkBlocks + ' blk');
   if (r.total_cost_usd!=null) add('Cost', '$'+r.total_cost_usd.toFixed(4));
   c.appendChild(stats);
-
   if (r.result) {
     const p = el('div','prose', renderMarkdown(r.result)); p.style.marginTop='14px';
     c.appendChild(p);
@@ -444,10 +987,249 @@ function resultCard(r, counts){
   return c;
 }
 
-/* ── Controls ─────────────────────────────────────────────────────────────── */
+/* ── Skills panel renderer ───────────────────────────────────────────────── */
+function renderSkillsPanel(analysis) {
+  const panel = $('#panel-skills');
+  panel.innerHTML = '';
+
+  const { skillMap, availableSkills, unusedSkills, subagents } = analysis;
+  const usedSkillNames = Object.keys(skillMap);
+
+  if (!availableSkills.length && !usedSkillNames.length) {
+    panel.appendChild(el('div','empty','<h2>No skill data</h2><p>This log has no init record with a skills list.</p>'));
+    return;
+  }
+
+  // ── Used skills section ─────────────────────────────────────────────────
+  const usedTitle = el('div', 'skills-section-title');
+  usedTitle.innerHTML = `<span>Skills used</span><span class="s-cnt">${usedSkillNames.length}</span>`;
+  panel.appendChild(usedTitle);
+
+  if (usedSkillNames.length === 0) {
+    panel.appendChild(el('div', '', '<p style="color:var(--dim)">No skills were invoked in this run.</p>'));
+  } else {
+    const grid = el('div','skill-grid');
+    for (const [skillName, data] of Object.entries(skillMap)) {
+      const card = buildSkillCard(skillName, data, true);
+      grid.appendChild(card);
+    }
+    panel.appendChild(grid);
+  }
+
+  // ── Subagents section ───────────────────────────────────────────────────
+  if (subagents.length) {
+    const subTitle = el('div','skills-section-title');
+    subTitle.innerHTML = `<span>Subagent delegations</span><span class="s-cnt">${subagents.length}</span>`;
+    panel.appendChild(subTitle);
+
+    const list = el('div','subagent-list');
+    for (const sa of subagents) {
+      const row = el('div','subagent-row');
+      const badge = el('span','subagent-badge', escapeHtml(sa.subagentType));
+      const desc = el('div');
+      desc.innerHTML = `<div class="subagent-desc">${escapeHtml(clip(sa.description, 180))}</div>`;
+      desc.innerHTML += `<div class="subagent-meta">${escapeHtml(sa.tool)} · id: ${escapeHtml(sa.toolUseId || '')}</div>`;
+      row.append(badge, desc);
+      list.appendChild(row);
+    }
+    panel.appendChild(list);
+  }
+
+  // ── Available-but-unused section ────────────────────────────────────────
+  const unusedTitle = el('div','skills-section-title');
+  unusedTitle.innerHTML = `<span style="color:var(--warn)">Available but never used</span><span class="s-cnt">${unusedSkills.length}</span>`;
+  panel.appendChild(unusedTitle);
+
+  if (unusedSkills.length === 0) {
+    panel.appendChild(el('div','','<p style="color:var(--ok)">All available skills were used.</p>'));
+  } else {
+    const grid = el('div','skill-grid');
+    for (const skillName of unusedSkills) {
+      const card = buildSkillCard(skillName, { consults: [], invocations: [] }, false);
+      grid.appendChild(card);
+    }
+    panel.appendChild(grid);
+  }
+}
+
+function buildSkillCard(skillName, data, isUsed) {
+  const totalConsults   = data.consults.length;
+  const totalInvocations = data.invocations.length;
+
+  const card = el('div', 'skill-card ' + (isUsed ? 'used' : 'unused'));
+  const head = el('div','skill-card-head');
+  head.setAttribute('tabindex', '0');
+  head.setAttribute('role', 'button');
+  head.setAttribute('aria-expanded', 'false');
+
+  const dot  = el('span', 'skill-dot ' + (isUsed ? 'used' : 'unused'));
+  const name = el('span', 'skill-name ' + (isUsed ? 'used' : 'unused'), escapeHtml(skillName));
+  const pills = el('div', 'skill-pills');
+
+  if (isUsed) {
+    if (totalConsults > 0) {
+      pills.appendChild(el('span','skill-pill consult', `${totalConsults} consult${totalConsults>1?'s':''}`));
+    }
+    if (totalInvocations > 0) {
+      pills.appendChild(el('span','skill-pill invoke', `${totalInvocations} invoke${totalInvocations>1?'s':''}`));
+    }
+    if (totalConsults === 0 && totalInvocations === 0) {
+      pills.appendChild(el('span','skill-pill none','detected'));
+    }
+  } else {
+    pills.appendChild(el('span','skill-pill none','not used'));
+  }
+
+  head.append(dot, name, pills);
+
+  // Drilldown (only for used skills with entries)
+  const drilldown = el('div','skill-drilldown hidden');
+  let hasEntries = false;
+
+  if (isUsed) {
+    const allEntries = [
+      ...data.consults.map(e => ({...e, type:'consult'})),
+      ...data.invocations.map(e => ({...e, type:'invocation'})),
+    ];
+    for (const entry of allEntries) {
+      hasEntries = true;
+      const row = el('div','skill-inv');
+      const typeSpan = el('span','inv-type ' + (entry.type==='consult'?'consult':'invoke'),
+        entry.type==='consult'?'read':'bash');
+      const detail = el('span','inv-detail', escapeHtml(clip(entry.detail, 160)));
+      row.append(typeSpan, detail);
+      if (entry.result) {
+        const resPre = el('div','inv-result' + (entry.isError?' err':''), escapeHtml(clip(entry.result, 240)));
+        row.appendChild(resPre);
+      }
+      drilldown.appendChild(row);
+    }
+  }
+
+  card.appendChild(head);
+  if (hasEntries) card.appendChild(drilldown);
+
+  // Toggle drilldown
+  if (hasEntries) {
+    const toggle = () => {
+      const isOpen = !drilldown.classList.contains('hidden');
+      drilldown.classList.toggle('hidden', isOpen);
+      head.setAttribute('aria-expanded', String(!isOpen));
+    };
+    head.addEventListener('click', toggle);
+    head.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggle(); } });
+  }
+
+  return card;
+}
+
+/* ── Code panel renderer ─────────────────────────────────────────────────── */
+function renderCodePanel(analysis) {
+  const panel = $('#panel-code');
+  panel.innerHTML = '';
+
+  const { codeArtifacts } = analysis;
+  if (!codeArtifacts.length) {
+    panel.appendChild(el('div','empty','<h2>No code artifacts</h2><p>No Write, Edit, or Bash heredoc/inline code was found in this run.</p>'));
+    return;
+  }
+
+  for (let i = 0; i < codeArtifacts.length; i++) {
+    const art = codeArtifacts[i];
+    panel.appendChild(buildCodeArtifact(art, i));
+  }
+}
+
+function buildCodeArtifact(art, idx) {
+  const wrapper = el('div','code-artifact');
+  const langLabel = art.lang || 'text';
+
+  // Header
+  const head = el('div','code-artifact-head');
+  head.setAttribute('tabindex','0');
+  head.setAttribute('role','button');
+  head.setAttribute('aria-expanded','false');
+  head.setAttribute('aria-label', `${art.source} code artifact: ${art.title}`);
+
+  const langBadge = el('span', 'code-lang-badge ' + langLabel, escapeHtml(langLabel));
+  const srcBadge  = el('span', 'code-source-badge', escapeHtml(art.source));
+  const title     = el('span', 'code-title', escapeHtml(art.title));
+
+  head.append(langBadge, srcBadge, title);
+
+  if (art.skillName) {
+    head.appendChild(el('span','code-skill-tag', escapeHtml(art.skillName)));
+  }
+
+  const copyBtn = el('button','copy-btn','Copy');
+  copyBtn.type = 'button';
+  copyBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    navigator.clipboard?.writeText(art.code).then(() => {
+      copyBtn.textContent = 'Copied';
+      copyBtn.classList.add('copied');
+      setTimeout(() => { copyBtn.textContent = 'Copy'; copyBtn.classList.remove('copied'); }, 1600);
+    }).catch(() => { copyBtn.textContent = 'Error'; setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1200); });
+  });
+  copyBtn.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); copyBtn.click(); } });
+
+  head.appendChild(copyBtn);
+  head.appendChild(el('span','code-chev','›'));
+
+  // Body
+  const body = el('div','code-body');
+  const wrapDiv = el('div','code-block-wrap');
+
+  const lines = art.code.split('\n');
+  const lineNumDiv = el('div','code-lines');
+  lineNumDiv.innerHTML = lines.map((_,i) => `<span>${i+1}</span>`).join('');
+
+  const codeDiv = el('div','code-text');
+  // syntaxHighlight escapes HTML itself; result is safe HTML string
+  codeDiv.innerHTML = syntaxHighlight(art.code, art.lang);
+
+  wrapDiv.append(lineNumDiv, codeDiv);
+  body.appendChild(wrapDiv);
+  wrapper.append(head, body);
+
+  // Toggle
+  const toggle = () => {
+    const isOpen = wrapper.classList.contains('open');
+    wrapper.classList.toggle('open', !isOpen);
+    head.setAttribute('aria-expanded', String(!isOpen));
+  };
+  head.addEventListener('click', e => { if(e.target === copyBtn) return; toggle(); });
+  head.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggle(); } });
+
+  return wrapper;
+}
+
+/* ── Tab switching ────────────────────────────────────────────────────────── */
+function switchTab(tabId) {
+  ['timeline','skills','code'].forEach(id => {
+    const tab = $(`#tab-${id}`);
+    const panel = $(`#panel-${id}`);
+    const active = id === tabId;
+    tab.classList.toggle('active', active);
+    tab.setAttribute('aria-selected', String(active));
+    panel.classList.toggle('hidden', !active);
+  });
+}
+
+['timeline','skills','code'].forEach(id => {
+  $(`#tab-${id}`).addEventListener('click', () => switchTab(id));
+  $(`#tab-${id}`).addEventListener('keydown', e => {
+    if (e.key==='Enter'||e.key===' ') { e.preventDefault(); switchTab(id); }
+    // Arrow key navigation between tabs
+    if (e.key==='ArrowRight') { e.preventDefault(); const ids=['timeline','skills','code']; const i=ids.indexOf(id); switchTab(ids[(i+1)%ids.length]); $(`#tab-${ids[(i+1)%ids.length]}`).focus(); }
+    if (e.key==='ArrowLeft')  { e.preventDefault(); const ids=['timeline','skills','code']; const i=ids.indexOf(id); switchTab(ids[(i+2)%ids.length]); $(`#tab-${ids[(i+2)%ids.length]}`).focus(); }
+  });
+});
+
+/* ── Timeline controls ────────────────────────────────────────────────────── */
 function applyFilter(){
   const q = $('#filter').value.trim().toLowerCase();
-  document.querySelectorAll('.event').forEach(ev => {
+  document.querySelectorAll('#panel-timeline .event').forEach(ev => {
     if (!q) { ev.classList.remove('hidden'); return; }
     const hay = ev._text || (ev._text = (ev.textContent||'').toLowerCase());
     ev.classList.toggle('hidden', !hay.includes(q));
@@ -455,21 +1237,21 @@ function applyFilter(){
 }
 
 $('#thinking').addEventListener('change', e => document.body.classList.toggle('hide-thinking', !e.target.checked));
-$('#expand').addEventListener('change', e => document.querySelectorAll('details.tool').forEach(d => d.open = e.target.checked));
+$('#expand').addEventListener('change', e => document.querySelectorAll('#panel-timeline details.tool').forEach(d => d.open = e.target.checked));
 $('#filter').addEventListener('input', applyFilter);
 $('#open').addEventListener('click', () => $('#file').click());
 $('#file').addEventListener('change', e => { const f=e.target.files[0]; if(f) f.text().then(t => render(t, f.name)); });
 
-/* Drag & drop anywhere */
+/* ── Drag & drop ─────────────────────────────────────────────────────────── */
 ['dragenter','dragover'].forEach(ev => window.addEventListener(ev, e => { e.preventDefault(); document.body.classList.add('dragging'); }));
 ['dragleave','drop'].forEach(ev => window.addEventListener(ev, e => { e.preventDefault(); if(ev==='drop'||e.relatedTarget===null) document.body.classList.remove('dragging'); }));
-window.addEventListener('drop', e => { const f=e.dataTransfer.files[0]; if(f) f.text().then(t => render(t, f.name)); });
+window.addEventListener('drop', e => { const f=e.dataTransfer?.files[0]; if(f) f.text().then(t => render(t, f.name)); });
 
-/* Legend on the empty state */
+/* ── Legend on empty state ────────────────────────────────────────────────── */
 (function legend(){
   const wrap = $('#legend');
   for (const [name,t] of Object.entries(TOOL_THEME)) {
-    const chip = el('span','badge', t.icon+' '+name);
+    const chip = el('span','badge', escapeHtml(t.icon+' '+name));
     chip.style.setProperty('--c', t.c); chip.style.color=t.c; chip.style.borderColor=t.c;
     chip.style.background='color-mix(in srgb,'+t.c+' 12%, transparent)';
     chip.style.fontSize='11px'; chip.style.fontFamily='var(--mono)';
@@ -477,12 +1259,17 @@ window.addEventListener('drop', e => { const f=e.dataTransfer.files[0]; if(f) f.
   }
 })();
 
-/* Auto-load ?file= when served over HTTP. */
+/* ── Auto-load ?file= when served over HTTP ──────────────────────────────── */
 (function autoload(){
   const f = new URLSearchParams(location.search).get('file');
-  if (f) fetch(f).then(r => r.ok ? r.text() : Promise.reject(r.status))
-                 .then(t => render(t, f.split('/').pop()))
-                 .catch(err => { $('#empty').innerHTML = '<h2>Could not load</h2><p>'+escapeHtml(f)+' — '+escapeHtml(String(err))+'</p>'; });
+  if (!f) return;
+  fetch(f)
+    .then(r => r.ok ? r.text() : Promise.reject(r.status))
+    .then(t => render(t, f.split('/').pop()))
+    .catch(err => {
+      const empty = $('#empty');
+      empty.innerHTML = '<h2>Could not load</h2><p>'+escapeHtml(f)+' — '+escapeHtml(String(err))+'</p>';
+    });
 })();
 </script>
 </body>

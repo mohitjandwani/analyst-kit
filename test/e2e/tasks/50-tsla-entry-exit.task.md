@@ -1,7 +1,5 @@
 ---
 id: 50-tsla-entry-exit
-skills: [financialmodellingprep, charting, reporting]
-requiresEnv: [FMP_API_KEY]
 timeoutMs: 1200000
 ---
 

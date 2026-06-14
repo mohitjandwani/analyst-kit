@@ -1,7 +1,5 @@
 ---
 id: 20-delta-nvda-revenue
-skills: [finmind, financialmodellingprep, charting, reporting]
-requiresEnv: [FINMIND_TOKEN, FMP_API_KEY]
 timeoutMs: 1200000
 ---
 
