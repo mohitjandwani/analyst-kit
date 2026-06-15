@@ -172,7 +172,8 @@
       "type": "workflow",
       "description": "Forensic, decision-useful single-stock deep dive for investors and traders. Covers analysis/research on any individual stock, short theses, catalyst identification, valuation, variant-perception work, and proxy / adjacency / value-chain expansion on a stock. Always use before producing stock research — never produce a generic company summary without running this framework first. Triggers: \"analyze X\", \"deep dive on Y\", \"is Z a buy\", \"bull/bear case on X\", \"thesis on Y\", \"what does the market miss about Z\", \"what else moves with X\", \"upstream/downstream plays for Y\", \"picks-and-shovels for Z\", \"pair trade for X\".",
       "requires": [
-        "hfa-core"
+        "hfa-core",
+        "wiki-builder"
       ],
       "env": [],
       "runtime": "none"
