@@ -478,10 +478,17 @@ async function runInContainer(filter: string | null, concurrency: number) {
         rec.audit.attempts.push({ verdict: audit.verdict, summary: audit.summary, findings: audit.findings });
         log(`Phase 5 · [${id}] re-audit ${audit.ok ? '✓ clean' : `✗ still ${badCount(audit)} unsupported/partial`}`);
       }
-      rec.audit.ok = audit.ok;
-      if (AUDIT_GATE && !audit.ok && audit.verdict !== 'error') {
+      // An auditor that couldn't run (verdict 'error' — e.g. pdftotext missing, judge
+      // timeout/unparseable) is NOT a pass: provenance was never verified. Treat it as a
+      // failed audit so the gate fails the task instead of silently going green.
+      const auditErrored = audit.verdict === 'error';
+      rec.audit.ok = audit.ok && !auditErrored;
+      if (AUDIT_GATE && !rec.audit.ok) {
         rec.ok = false;
-        log(`  → [${id}] AUDIT GATE: task FAILED — unsupported sources remain after ${attempt} repair attempt(s)`);
+        const why = auditErrored
+          ? `auditor error (provenance unverified) — ${audit.summary}`
+          : `unsupported sources remain after ${attempt} repair attempt(s)`;
+        log(`  → [${id}] AUDIT GATE: task FAILED — ${why}`);
       }
     }
     return rec;

@@ -5,10 +5,12 @@ FROM node:22-bookworm-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# System runtimes: python (charting/finmind/13f/universe scripts), git, curl, certs.
+# System runtimes: python (charting/finmind/13f/universe scripts), git, curl, certs, and
+# poppler-utils (pdftotext/pdftoppm) — the provenance audit extracts PDF text with pdftotext,
+# and agents render PDF pages with pdftoppm to visually self-check their deliverable.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        python3 python3-pip python3-venv git ca-certificates curl \
+        python3 python3-pip python3-venv git ca-certificates curl poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Python libs used by skill scripts + common agent reach-fors (data fetching/analysis).
