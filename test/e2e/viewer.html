@@ -298,6 +298,7 @@
     <h1><span class="dot" aria-hidden="true">●</span> Task Run Viewer</h1>
     <button class="btn" id="open">Open .jsonl…</button>
     <span id="fname" class="role" aria-live="polite"></span>
+    <span id="livestat" class="role" aria-live="polite" style="font-family:var(--mono);font-size:12px"></span>
     <span class="spacer"></span>
     <input id="filter" type="search" placeholder="Filter timeline…" disabled aria-label="Filter timeline events">
     <label class="toggle"><input type="checkbox" id="thinking"> Thinking</label>
@@ -896,6 +897,7 @@ function proseEvent(role, md){
 
 function thinkingEvent(b){
   const d = el('details','think');
+  d.dataset.k = 'k:' + (b.thinking||'').length + ':' + (b.thinking||'').slice(0, 32); // stable-ish key for live re-render
   const sum = el('summary');
   sum.innerHTML = '&#x1F4AD; thinking <span class="role" style="margin-left:auto">'+escapeHtml(clip(b.thinking||'', 60))+'</span>';
   d.appendChild(sum);
@@ -907,6 +909,7 @@ function toolEvent(b, res, analysis){
   const isResultOnly = b.name === '(result)';
   const th = isResultOnly ? FALLBACK : theme(b.name);
   const d = el('details', 'tool' + (th.skill ? ' skill-tool' : ''));
+  if (b.id) d.dataset.k = 't:' + b.id; // stable key so open/closed state survives live re-render
   d.style.setProperty('--c', th.c);
 
   // Skill attribution for this call
@@ -1240,12 +1243,12 @@ $('#thinking').addEventListener('change', e => document.body.classList.toggle('h
 $('#expand').addEventListener('change', e => document.querySelectorAll('#panel-timeline details.tool').forEach(d => d.open = e.target.checked));
 $('#filter').addEventListener('input', applyFilter);
 $('#open').addEventListener('click', () => $('#file').click());
-$('#file').addEventListener('change', e => { const f=e.target.files[0]; if(f) f.text().then(t => render(t, f.name)); });
+$('#file').addEventListener('change', e => { const f=e.target.files[0]; if(f) f.text().then(t => { stopLive(); setLiveStat(''); render(t, f.name); }); });
 
 /* ── Drag & drop ─────────────────────────────────────────────────────────── */
 ['dragenter','dragover'].forEach(ev => window.addEventListener(ev, e => { e.preventDefault(); document.body.classList.add('dragging'); }));
 ['dragleave','drop'].forEach(ev => window.addEventListener(ev, e => { e.preventDefault(); if(ev==='drop'||e.relatedTarget===null) document.body.classList.remove('dragging'); }));
-window.addEventListener('drop', e => { const f=e.dataTransfer?.files[0]; if(f) f.text().then(t => render(t, f.name)); });
+window.addEventListener('drop', e => { const f=e.dataTransfer?.files[0]; if(f) f.text().then(t => { stopLive(); setLiveStat(''); render(t, f.name); }); });
 
 /* ── Legend on empty state ────────────────────────────────────────────────── */
 (function legend(){
@@ -1259,17 +1262,52 @@ window.addEventListener('drop', e => { const f=e.dataTransfer?.files[0]; if(f) f
   }
 })();
 
-/* ── Auto-load ?file= when served over HTTP ──────────────────────────────── */
+/* ── Live tail ───────────────────────────────────────────────────────────────
+   Poll the served ?file= and re-render on growth. Re-uses render() (so result
+   stitching / counts / panels stay correct) and preserves open <details> + scroll,
+   so the file can be opened mid-run and grows live. Stops a couple cycles after the
+   run's `result` event lands. Manual file open / drag-drop cancels live mode. */
+let LIVE = { on:false, timer:null };
+
+function nonEmptyLines(t){ let n=0; for(const l of t.split('\n')) if(l.trim()) n++; return n; }
+function nearBottom(){ return (window.innerHeight + window.scrollY) >= (document.documentElement.scrollHeight - 140); }
+function captureOpen(){ const s=new Set(); document.querySelectorAll('#panel-timeline details[data-k]').forEach(d=>{ if(d.open) s.add(d.dataset.k); }); return s; }
+function restoreOpen(s){ document.querySelectorAll('#panel-timeline details[data-k]').forEach(d=>{ if(s.has(d.dataset.k)) d.open=true; }); }
+function setLiveStat(txt, color){ const e=$('#livestat'); if(e){ e.textContent=txt; e.style.color=color||'var(--dim)'; } }
+function stopLive(){ LIVE.on=false; if(LIVE.timer){ clearTimeout(LIVE.timer); LIVE.timer=null; } }
+
+function startLive(f){
+  const name = f.split('/').pop();
+  LIVE = { on:true, timer:null, file:f, lines:0, loaded:false, done:false, idle:0 };
+  setLiveStat('● connecting…', '#d29922');
+  const poll = async () => {
+    if (!LIVE.on) return;
+    let text=null, ok=false;
+    try { const r = await fetch(f, { cache:'no-store' }); ok=r.ok; if (ok) text=await r.text(); } catch { /* transient */ }
+    if (LIVE.on && ok) {
+      const n = nonEmptyLines(text);
+      if (n !== LIVE.lines || !LIVE.loaded) {
+        const stick = nearBottom(), prevY = window.scrollY, open = captureOpen();
+        render(text, name);
+        restoreOpen(open);
+        window.scrollTo(0, stick ? document.documentElement.scrollHeight : prevY);
+        LIVE.idle = 0; LIVE.lines = n; LIVE.loaded = true;
+        LIVE.done = /"type"\s*:\s*"result"/.test(text);
+      } else if (LIVE.done) { LIVE.idle++; }
+      setLiveStat(LIVE.done ? '✓ done' : '● live', '#3fb950');
+    } else if (LIVE.on && !ok && !LIVE.loaded) {
+      setLiveStat('● waiting for run…', '#d29922'); // stream file not created yet
+    }
+    if (LIVE.on && !(LIVE.done && LIVE.idle >= 2)) LIVE.timer = setTimeout(poll, 1800);
+    else if (LIVE.on) { setLiveStat('✓ done', '#3fb950'); LIVE.on = false; }
+  };
+  poll();
+}
+
+/* ── Auto-load ?file= when served over HTTP (live-tails while the run is in progress) ── */
 (function autoload(){
   const f = new URLSearchParams(location.search).get('file');
-  if (!f) return;
-  fetch(f)
-    .then(r => r.ok ? r.text() : Promise.reject(r.status))
-    .then(t => render(t, f.split('/').pop()))
-    .catch(err => {
-      const empty = $('#empty');
-      empty.innerHTML = '<h2>Could not load</h2><p>'+escapeHtml(f)+' — '+escapeHtml(String(err))+'</p>';
-    });
+  if (f) startLive(f);
 })();
 </script>
 </body>

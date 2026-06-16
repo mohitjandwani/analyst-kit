@@ -57,6 +57,33 @@ const NO_VIEWER = argv.includes('--no-viewer') || !!process.env.E2E_NO_VIEWER ||
 // container via `passthrough`; E2E_VERBOSE only affects the side it's set on.
 const VERBOSE = argv.includes('--verbose') || !!process.env.E2E_VERBOSE;
 
+// Colored live trace. The trace runs IN-CONTAINER, whose stderr is a non-TTY pipe (via
+// `docker exec`), so host mode forwards E2E_TTY=1 when its own stdout is a TTY; a manual
+// in-container interactive shell has stderr.isTTY itself. Emit ANSI only then — so piped /
+// tee'd / backgrounded runs stay clean plain text. Declared before the dispatch (no TDZ).
+const COLOR = !!process.env.E2E_TTY || !!process.stderr.isTTY;
+const paint = (code: string, s: string) => (COLOR ? `\x1b[${code}m${s}\x1b[0m` : s);
+// Secondary-text grays tuned for a dark terminal — ANSI `dim` (code 2) renders nearly
+// invisible, so use explicit readable greys instead.
+const DIM = '38;5;246'; // tool detail, init/result lines, heartbeat
+const SAY = '38;5;252'; // assistant narration — brighter, so it's actually readable
+// Tool → { 256-color, icon }, mirroring viewer.html's TOOL_THEME (Skill is the violet
+// standout). Bright variants chosen for contrast on a dark background.
+const TOOL_COLOR: Record<string, { code: string; icon: string }> = {
+  Skill:     { code: '38;5;177', icon: '✦' },
+  Task:      { code: '38;5;86',  icon: '⟁' },
+  Agent:     { code: '38;5;86',  icon: '⟁' },
+  Bash:      { code: '38;5;114', icon: '❯' },
+  Read:      { code: '38;5;81',  icon: '▤' },
+  Write:     { code: '38;5;221', icon: '✎' },
+  Edit:      { code: '38;5;215', icon: '✎' },
+  WebSearch: { code: '38;5;117', icon: '⌕' },
+  WebFetch:  { code: '38;5;117', icon: '⌕' },
+  Grep:      { code: '38;5;249', icon: '⌕' },
+  Glob:      { code: '38;5;249', icon: '⌕' },
+};
+const DEFAULT_TOOL = { code: '38;5;249', icon: '⚒' };
+
 // ── Provenance audit (see audit.ts) ──────────────────────────────────────────────────────
 // After a task produces a valid PDF, a cheap judge checks that every source the report cites
 // was actually queried (ground truth = a ledger of real tool calls, incl. sub-agents). On a
@@ -73,7 +100,7 @@ const AUDIT_GATE = !argv.includes('--audit-no-gate');
 if (IN_CONTAINER) {
   await runInContainer(taskFilter, CONCURRENCY);
 } else {
-  hostMode(argv.filter((a) => a !== '--in-container' && a !== '--no-viewer'));
+  await hostMode(argv.filter((a) => a !== '--in-container' && a !== '--no-viewer'));
 }
 
 function flagValue(args: string[], name: string): string | null {
@@ -82,7 +109,7 @@ function flagValue(args: string[], name: string): string | null {
 }
 
 // ── HOST MODE ──────────────────────────────────────────────────────────────────────────
-function hostMode(passthrough: string[]) {
+async function hostMode(passthrough: string[]) {
   loadDotEnv(join(REPO_ROOT, 'test', 'e2e', '.env'), true); // authoritative: overrides host env
 
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -114,36 +141,64 @@ function hostMode(passthrough: string[]) {
   const remoteWs = info.remoteWorkspaceFolder || `/workspaces/${basename(REPO_ROOT)}`;
   const user = info.remoteUser || 'node';
 
-  const envArgs = present.flatMap((k) => ['-e', `${k}=${process.env[k]}`]);
+  // Forward E2E_TTY when the host terminal is a TTY, so the in-container trace colorizes (its
+  // stderr is a non-TTY pipe via docker exec, so it can't detect this itself).
+  const ttyArgs = process.stdout.isTTY ? ['-e', 'E2E_TTY=1'] : [];
+  const envArgs = [...present.flatMap((k) => ['-e', `${k}=${process.env[k]}`]), ...ttyArgs];
   const cmd = [
     'exec', ...envArgs, '-u', user, '-w', remoteWs, info.containerId,
     'bun', `${remoteWs}/test/e2e/run.ts`, '--in-container', ...passthrough,
   ];
   console.error(`▶ running harness in ${info.containerId.slice(0, 12)} (forwarding: ${present.join(', ') || 'none'})`);
-  const r = spawnSync('docker', cmd, { stdio: 'inherit' });
-  const status = r.status ?? 1;
 
-  // The container wrote logs to the mounted workspace, so they're on the host now.
-  // Serve them through viewer.html and stay up until the user stops the process.
-  if (NO_VIEWER) process.exit(status);
-  startViewer(join(REPO_ROOT, 'test', 'e2e'), status);
+  // --no-viewer (CI, piping, scripted/background runs): the proven BLOCKING path, unchanged.
+  if (NO_VIEWER) {
+    const r = spawnSync('docker', cmd, { stdio: 'inherit' });
+    process.exit(r.status ?? 1);
+  }
+
+  // Viewer path: start the static server FIRST (so the event loop is free to serve while the
+  // run streams to the terminal), run the harness async, open the browser as soon as the run
+  // writes its first stream log, then keep the viewer up for review until Ctrl+C. viewer.html
+  // live-tails, so the timeline grows as the agent works.
+  const e2eDir = join(REPO_ROOT, 'test', 'e2e');
+  let srv: { server: ReturnType<typeof createServer>; base: string };
+  try {
+    srv = await serveE2E(e2eDir);
+  } catch (e: any) {
+    console.error(`✗ could not start viewer (${e?.message}); running without it.`);
+    const r = spawnSync('docker', cmd, { stdio: 'inherit' });
+    process.exit(r.status ?? 1);
+  }
+  watchAndOpen(e2eDir, srv.base); // non-blocking: polls logs/latest, opens the browser when ready
+
+  const child = spawn('docker', cmd, { stdio: 'inherit' });
+  const status: number = await new Promise((res) => {
+    child.on('close', (code) => res(code ?? 1));
+    child.on('error', (err) => { console.error(`✗ run failed to spawn: ${err.message}`); res(1); });
+  });
+
+  // Run finished — keep the viewer alive for review (it stays tailing the now-complete log).
+  const latest = join(e2eDir, 'logs', 'latest');
+  const streams = existsSync(latest)
+    ? readdirSync(latest).filter((f) => f.endsWith('.stream.jsonl')).sort() : [];
+  if (!streams.length) { try { srv.server.close(); } catch { /* ignore */ } process.exit(status); }
+  const bar = '─'.repeat(64);
+  console.log(`\n${bar}`);
+  console.log(`▶ log viewer running at ${srv.base}/viewer.html  (Ctrl+C to stop)`);
+  streams.forEach((f) => console.log(`    ${f.replace(/\.stream\.jsonl$/, '').padEnd(24)} ${srv.base}/viewer.html?file=logs/latest/${f}`));
+  console.log(bar);
+  const stop = () => { try { srv.server.close(); } catch { /* ignore */ } process.exit(status); };
+  process.on('SIGINT', stop);
+  process.on('SIGTERM', stop);
 }
 
 // ── LOG VIEWER ─────────────────────────────────────────────────────────────────────────
-// A zero-dependency static server scoped to test/e2e/, so viewer.html can fetch the run's
-// `*.stream.jsonl` via ?file=. Stays alive (keeps the event loop busy) until Ctrl+C, then
-// exits with the run's real status so scripted callers still see pass/fail.
-function startViewer(e2eDir: string, status: number): void {
+// A zero-dependency static server scoped to test/e2e/, so viewer.html can fetch a run's
+// `*.stream.jsonl` via ?file=. Returns the server + base URL; the caller opens the browser and
+// owns the lifecycle. viewer.html live-tails the stream, so it can be opened mid-run.
+function serveE2E(e2eDir: string): Promise<{ server: ReturnType<typeof createServer>; base: string }> {
   const root = pathResolve(e2eDir);
-  const latest = join(root, 'logs', 'latest');
-  const streams = existsSync(latest)
-    ? readdirSync(latest).filter((f) => f.endsWith('.stream.jsonl')).sort()
-    : [];
-  if (!streams.length) {
-    console.error('▶ no stream logs to view; skipping viewer.');
-    process.exit(status);
-  }
-
   const MIME: Record<string, string> = {
     '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
     '.css': 'text/css', '.json': 'application/json', '.jsonl': 'application/json',
@@ -156,32 +211,43 @@ function startViewer(e2eDir: string, status: number): void {
       // Confine every request to test/e2e/ — no path traversal, no directory listings.
       if (file !== root && !file.startsWith(root + '/')) { res.writeHead(403); return res.end('forbidden'); }
       if (!existsSync(file) || lstatSync(file).isDirectory()) { res.writeHead(404); return res.end('not found'); }
-      res.writeHead(200, { 'content-type': MIME[extname(file)] || 'application/octet-stream' });
+      // no-store so viewer.html's live polling always reads the growing file, never a cached copy.
+      res.writeHead(200, { 'content-type': MIME[extname(file)] || 'application/octet-stream', 'cache-control': 'no-store' });
       res.end(readFileSync(file));
     } catch { res.writeHead(500); res.end('error'); }
   });
+  return new Promise((resolve, reject) => {
+    const basePort = Number(process.env.E2E_VIEWER_PORT) || 8787;
+    const listen = (port: number, tries: number) => {
+      server.once('error', (e: any) => {
+        if (e.code === 'EADDRINUSE' && tries > 0) listen(port + 1, tries - 1);
+        else reject(e);
+      });
+      server.listen(port, '127.0.0.1', () => resolve({ server, base: `http://127.0.0.1:${port}` }));
+    };
+    listen(basePort, 10);
+  });
+}
 
-  const basePort = Number(process.env.E2E_VIEWER_PORT) || 8787;
-  const listen = (port: number, tries: number) => {
-    server.once('error', (e: any) => {
-      if (e.code === 'EADDRINUSE' && tries > 0) listen(port + 1, tries - 1);
-      else { console.error(`✗ could not start viewer: ${e.message}`); process.exit(status); }
-    });
-    server.listen(port, '127.0.0.1', () => {
-      const base = `http://127.0.0.1:${port}`;
+// Poll logs/latest until the run's first stream log exists, then open the browser to it (and
+// print URLs for any others, e.g. under --concurrency). Non-blocking; gives up after ~90s.
+function watchAndOpen(e2eDir: string, base: string): void {
+  const latest = join(e2eDir, 'logs', 'latest');
+  let tries = 0;
+  const tick = () => {
+    let streams: string[] = [];
+    try { streams = existsSync(latest) ? readdirSync(latest).filter((f) => f.endsWith('.stream.jsonl')).sort() : []; } catch { /* not yet */ }
+    if (streams.length) {
       const urls = streams.map((f) => `${base}/viewer.html?file=logs/latest/${f}`);
-      const bar = '─'.repeat(64);
-      console.log(`\n${bar}`);
-      console.log(`▶ log viewer running at ${base}/viewer.html  (Ctrl+C to stop)`);
-      streams.forEach((f, i) => console.log(`    ${f.replace(/\.stream\.jsonl$/, '').padEnd(24)} ${urls[i]}`));
-      console.log(bar);
+      console.error(`▶ live log viewer: ${urls[0]}${urls.length > 1 ? `  (+${urls.length - 1} more below)` : ''}`);
+      urls.slice(1).forEach((u) => console.error(`    also: ${u}`));
       openBrowser(urls[0]);
-      const stop = () => { try { server.close(); } catch { /* ignore */ } process.exit(status); };
-      process.on('SIGINT', stop);
-      process.on('SIGTERM', stop);
-    });
+      return;
+    }
+    if (tries++ < 90) setTimeout(tick, 1000);
+    else console.error(`▶ viewer up at ${base}/viewer.html (no stream logs yet — open manually).`);
   };
-  listen(basePort, 10);
+  setTimeout(tick, 500);
 }
 
 function openBrowser(url: string): void {
@@ -229,6 +295,12 @@ function fail(msg: string): never {
 
 // ── IN-CONTAINER MODE ──────────────────────────────────────────────────────────────────
 async function runInContainer(filter: string | null, concurrency: number) {
+  // Keys normally arrive via `docker exec -e` (host mode forwards them). Load test/e2e/.env
+  // here too so a single task can be launched directly from inside the container —
+  // `bun test/e2e/run.ts --in-container --task <id>` — with no manual sourcing. Non-override,
+  // so an explicitly-exported shell var still wins; harmless in the normal flow (keys already set).
+  loadDotEnv(join(REPO_ROOT, 'test', 'e2e', '.env'));
+
   const { getSkills } = await import(pathToFileURL(join(REPO_ROOT, 'src', 'registry.js')).href);
   const { parseFrontmatter } = await import(pathToFileURL(join(REPO_ROOT, 'src', 'frontmatter.js')).href);
 
@@ -462,7 +534,7 @@ function runClaude(prompt: string, cwd: string, streamPath: string, timeoutMs: n
     // 30s, say how long we've been running and the last stream event we saw. The tag keeps
     // pulses attributable when several tasks run concurrently.
     const pulse = setInterval(() => {
-      console.error(`  · ${tag}still running (${Math.round((Date.now() - start) / 1000)}s) — last: ${lastActivity}`);
+      console.error(paint(DIM, `  · ${tag}still running (${Math.round((Date.now() - start) / 1000)}s) — last: ${lastActivity}`));
     }, 30_000);
 
     child.stdout.on('data', (d) => {
@@ -477,7 +549,7 @@ function runClaude(prompt: string, cwd: string, streamPath: string, timeoutMs: n
           if (ev?.type === 'result') lastResult = ev;
           if (ev?.session_id) sessionId = ev.session_id; // last wins; needed to --resume for repair
           lastActivity = describeEvent(ev) ?? lastActivity;
-          if (VERBOSE) traceEvent(ev, tag);
+          traceEvent(ev, tag, VERBOSE); // always on; --verbose appends full tool-input JSON
         } catch { /* partial/non-JSON */ }
       }
     });
@@ -509,22 +581,44 @@ function describeEvent(ev: any): string | null {
   return null;
 }
 
-// --verbose: one line per interesting stream event, prefixed so it reads distinctly from
-// phase logs. Tool inputs are truncated — the full record is always in the .stream.jsonl.
-function traceEvent(ev: any, tag = '') {
+// Live trace: one colored line per interesting stream event, prefixed so it reads distinctly
+// from phase logs. Always on (so you see the current skill/tool without --verbose); `verbose`
+// appends the full tool-input JSON. Color is gated by COLOR (see top); the full record is
+// always in the .stream.jsonl.
+function traceEvent(ev: any, tag = '', verbose = false) {
   if (ev?.type === 'system' && ev.subtype === 'init') {
-    console.error(`    ∙ ${tag}init: model=${ev.model} session=${(ev.session_id || '').slice(0, 8)}`);
+    console.error(`    ${paint('38;5;177', '∙')} ${tag}${paint(DIM, `init model=${ev.model}`)}`);
   } else if (ev?.type === 'assistant') {
     for (const c of ev.message?.content ?? []) {
       if (c.type === 'tool_use') {
-        console.error(`    ⚒ ${tag}${c.name} ${JSON.stringify(c.input ?? {}).slice(0, 140)}`);
+        const th = TOOL_COLOR[c.name] ?? DEFAULT_TOOL;
+        const detail = toolDetail(c.name, c.input);
+        const extra = verbose ? ' ' + JSON.stringify(c.input ?? {}).slice(0, 140) : '';
+        console.error(`    ${paint(th.code, `${th.icon} ${tag}${c.name}`)} ${paint(DIM, detail + extra)}`);
       } else if (c.type === 'text' && c.text?.trim()) {
-        console.error(`    ✎ ${tag}${c.text.trim().replace(/\s+/g, ' ').slice(0, 160)}`);
+        console.error(`    ${paint(SAY, `✎ ${tag}${c.text.trim().replace(/\s+/g, ' ').slice(0, 160)}`)}`);
       }
     }
   } else if (ev?.type === 'result') {
-    console.error(`    ∙ ${tag}result: ${ev.subtype} cost=$${typeof ev.total_cost_usd === 'number' ? ev.total_cost_usd.toFixed(4) : '?'} turns=${ev.num_turns ?? '?'}`);
+    const cost = typeof ev.total_cost_usd === 'number' ? `$${ev.total_cost_usd.toFixed(4)}` : '?';
+    console.error(`    ${paint('38;5;177', '∙')} ${tag}${paint(DIM, `result ${ev.subtype} cost=${cost} turns=${ev.num_turns ?? '?'}`)}`);
   }
+}
+
+// A short, human-readable summary of a tool call's input for the live trace — the meaningful
+// field per family (skill name, subagent + model, the command/path/query), not raw JSON.
+function toolDetail(name: string, input: any): string {
+  const s = (v: any) => String(v ?? '').replace(/\s+/g, ' ').trim();
+  if (name === 'Skill') return `→ ${s(input?.skill ?? input?.command) || '?'}`;
+  if (name === 'Task' || name === 'Agent') {
+    return `→ ${s(input?.subagent_type) || '?'}${input?.model ? ` [${s(input.model)}]` : ''}`;
+  }
+  if (name === 'Bash') return s(input?.command).slice(0, 100);
+  if (name === 'Read' || name === 'Write' || name === 'Edit' || name === 'NotebookEdit') return s(input?.file_path).slice(0, 100);
+  if (name === 'WebSearch') return s(input?.query).slice(0, 100);
+  if (name === 'WebFetch') return s(input?.url).slice(0, 100);
+  if (name === 'Grep' || name === 'Glob') return s(input?.pattern).slice(0, 100);
+  return JSON.stringify(input ?? {}).slice(0, 100);
 }
 
 // Best-effort: copy the freshest Claude transcript for post-mortem (stream-json is primary).

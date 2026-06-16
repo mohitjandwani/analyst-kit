@@ -100,26 +100,55 @@ memory and avoids installing every skill N times. (Note: `devcontainer up` is ke
 workspace folder, so launching the harness twice would reuse the **same** container anyway;
 use `--concurrency` instead of running the harness in parallel yourself.)
 
-## Viewing the logs
+## Viewing the logs (live)
 
-When a host run finishes, the harness **auto-starts a local viewer** and opens your browser
-to the run's `*.stream.jsonl`. The viewer (`viewer.html`) renders the run as a timeline:
-assistant text and the final result are formatted as Markdown, every tool call is
-colour-coded by family (Skill is the violet standout), each call is stitched to its result,
-and thinking is collapsed by default (toggle it from the header).
+The harness **auto-opens a local viewer at run start** and it **live-tails** while the agent
+works — the browser opens within a few seconds of the run beginning, and the timeline grows in
+real time. The viewer (`viewer.html`) renders the run as a timeline: assistant text and the
+final result are Markdown, every tool call is colour-coded by family (Skill is the violet
+standout), each call is stitched to its result, and thinking is collapsed by default. A status
+pill in the header shows `● live` while tailing and `✓ done` once the run's `result` lands.
 
 ```
-────────────────────────────────────────────────────────────────
-▶ log viewer running at http://127.0.0.1:8787/viewer.html  (Ctrl+C to stop)
-    00-smoke                 http://127.0.0.1:8787/viewer.html?file=logs/latest/00-smoke.stream.jsonl
-────────────────────────────────────────────────────────────────
+▶ live log viewer: http://127.0.0.1:8787/viewer.html?file=logs/latest/00-smoke.stream.jsonl
 ```
 
-The server stays up (scoped to `test/e2e/`) until you press Ctrl+C, which exits with the
-run's pass/fail status. Knobs:
+Under the hood it polls the served `*.stream.jsonl` every ~2s and re-renders on growth,
+preserving your expanded panels and scroll position. The server stays up (scoped to
+`test/e2e/`) until you press Ctrl+C, which exits with the run's pass/fail status. Knobs:
 
-- `--no-viewer` flag, or `E2E_NO_VIEWER=1` — skip the viewer and exit immediately. Auto-off
-  when `CI` is set, so it never hangs a pipeline.
+- `--no-viewer` flag, or `E2E_NO_VIEWER=1` — skip the viewer entirely; the harness then uses
+  the simple blocking run path. Auto-off when `CI` is set, so it never hangs a pipeline.
 - `E2E_VIEWER_PORT=9000` — override the port (default `8787`; auto-increments if taken).
 
-You can also open `viewer.html` directly (no server) and drag any `*.stream.jsonl` onto it.
+You can also open `viewer.html` directly (no server) and drag any `*.stream.jsonl` onto it
+(a manual open cancels live mode).
+
+## Watching the run in the terminal
+
+Independently of the browser viewer, every run prints a **colorized live trace** to the
+terminal — one line per tool call, coloured by family and showing the active skill/subagent:
+
+```
+  ✦ Skill → single-stock-deep-dive
+  ❯ Bash  python edgar.py exhibits STM --items 2.02
+  ⟁ Task → general-purpose [haiku]
+  ▤ Read  research/STM-deep-dive/09-valuation.md
+```
+
+Colour is emitted only when your terminal is a TTY (the harness forwards `E2E_TTY=1` into the
+container for this), so piped / `tee`'d / backgrounded output stays clean plain text. Pass
+`--verbose` to also append each tool call's full input JSON.
+
+## Running a single task from inside the container
+
+After `npm run container:terminal` (opens a shell in the running devcontainer), launch one
+task directly — the harness loads `test/e2e/.env` in `--in-container` mode, so the API keys are
+already present, no manual sourcing:
+
+```bash
+bun test/e2e/run.ts --in-container --task 60-stm-deep-dive   # from inside the container
+```
+
+There is also an in-container convenience script: `npm run e2e:task -- 60-stm-deep-dive`
+(**run it from inside the container only** — unlike the host-side `container:terminal`).
