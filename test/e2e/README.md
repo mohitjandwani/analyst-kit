@@ -57,7 +57,20 @@ natively-listed installed skills and the task body. The harness only:
   `html2pdf` on the agent's `.html` deliverable (in `output/` or the workdir) as a
   post-processing step (recorded as `autoPdf` in `report.json`).
 - **Verifies exactly one valid PDF** — file exists, non-empty, `%PDF-` header. Content is
-  reviewed manually.
+  reviewed manually. This is the **only** thing that decides a task's pass/fail.
+- **Runs a data-provenance audit (`audit.ts`) — advisory, never fails the task.** A judge
+  (Sonnet by default) checks that every source the report's **data** cites — the report
+  contract's `references` + the agent's `data_sources.md` — was actually queried, against a
+  deterministic **ledger** of real tool calls (main agent *and* sub-agents). It audits the
+  data handed to the reporting skill, **not** the rendered PDF (reporting is a deterministic
+  renderer that already fails loudly on bad input). A source counts as sourced when its
+  **skill ran** — a data skill calls its provider's API inside its scripts, so the host never
+  shows on a command line; crediting the skill is done deterministically in code (so
+  skill-sourced data is never false-flagged). On a genuinely unsupported source the harness
+  resumes the same agent session to **fetch the real data or drop that data/claim and
+  re-render** (up to `--audit-retries`, default 1). It only improves the deliverable; it
+  never flips pass/fail. Flags: `--no-audit`, `--audit-model <m>` (default `sonnet`),
+  `--audit-retries <n>`. Findings are recorded under `audit` in `report.json`.
 
 ## Running (available once the harness lands)
 

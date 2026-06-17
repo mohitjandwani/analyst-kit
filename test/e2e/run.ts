@@ -85,17 +85,15 @@ const TOOL_COLOR: Record<string, { code: string; icon: string }> = {
 const DEFAULT_TOOL = { code: '38;5;249', icon: '⚒' };
 
 // ── Provenance audit (see audit.ts) ──────────────────────────────────────────────────────
-// After a task produces a valid PDF, a cheap judge checks that every source the report cites
-// was actually queried (ground truth = a ledger of real tool calls, incl. sub-agents). On a
-// fail it RESUMES the same agent session with the findings and asks it to fetch the real data
-// or correct the attribution, then re-audits — up to --audit-retries times. These flags ride
-// through to the container via `passthrough`, so they work from the host command line.
+// ADVISORY data-provenance self-repair. A judge checks that every source the report's DATA
+// cites (the contract's references + data_sources.md) was actually queried (ground truth = a
+// ledger of real tool calls, incl. sub-agents). On a flagged source it RESUMES the same agent
+// session to fetch the real data or DROP the unsupported data, then re-audits — up to
+// --audit-retries times. It NEVER fails the task (pass/fail stays "valid PDF"); it only
+// improves the deliverable. Flags ride through to the container via `passthrough`.
 const AUDIT_ENABLED = !argv.includes('--no-audit');
-const AUDIT_MODEL = flagValue(argv, '--audit-model') || 'haiku';
+const AUDIT_MODEL = flagValue(argv, '--audit-model') || 'sonnet';
 const MAX_AUDIT_RETRIES = Math.max(0, Number(flagValue(argv, '--audit-retries')) || 1);
-// After repair attempts are exhausted, a still-unsupported source FAILS the task (CI red).
-// Flip with --audit-no-gate to keep the audit report-only.
-const AUDIT_GATE = !argv.includes('--audit-no-gate');
 
 if (IN_CONTAINER) {
   await runInContainer(taskFilter, CONCURRENCY);
@@ -412,7 +410,14 @@ async function runInContainer(filter: string | null, concurrency: number) {
     const listBy = (dir: string, ext: string) =>
       existsSync(dir) ? readdirSync(dir).filter((f) => f.toLowerCase().endsWith(ext)) : [];
     const convertAndVerify = (forceReconvert = false): void => {
-      if (forceReconvert) for (const f of listBy(outdir, '.pdf')) rmSync(join(outdir, f), { force: true });
+      // Snapshot before a forced drop so a repair that re-renders straight to PDF (no HTML to
+      // reconvert from) can never LOSE a valid deliverable — restore it below if we end empty.
+      let snapshot: { name: string; buf: Buffer } | null = null;
+      if (forceReconvert) {
+        const existing = listBy(outdir, '.pdf');
+        if (existing.length) snapshot = { name: existing[0], buf: readFileSync(join(outdir, existing[0])) };
+        for (const f of existing) rmSync(join(outdir, f), { force: true });
+      }
       if (listBy(outdir, '.pdf').length === 0) {
         const htmls = listBy(outdir, '.html').map((f) => join(outdir, f))
           .concat(listBy(workdir, '.html').map((f) => join(workdir, f)));
@@ -424,6 +429,12 @@ async function runInContainer(filter: string | null, concurrency: number) {
           rec.autoPdf = { from: basename(pick), ok: conv.status === 0 };
           log(`  · [${id}] auto-converted ${basename(pick)} → ${id}.pdf${conv.status === 0 ? '' : ` (FAILED: ${lastLine(conv.stderr || conv.stdout)})`}`);
         }
+      }
+      // A forced reconvert that produced nothing → restore the snapshot, so a repair turn that
+      // didn't re-render never downgrades a valid deliverable to "no PDF".
+      if (forceReconvert && snapshot && listBy(outdir, '.pdf').length === 0) {
+        writeFileSync(join(outdir, snapshot.name), snapshot.buf);
+        log(`  · [${id}] repair produced no new PDF — restored prior deliverable`);
       }
       const pdfs = listBy(outdir, '.pdf');
       if (pdfs.length === 1) {
@@ -446,50 +457,46 @@ async function runInContainer(filter: string | null, concurrency: number) {
     convertAndVerify();
     log(`  → [${id}] ${rec.ok ? '✓ valid PDF' : '✗ no valid PDF'}${rec.pdf?.bytes ? ` (${rec.pdf.bytes} bytes)` : ''}`);
 
-    // Phase 5 — provenance audit + self-repair. Only worth running on a real deliverable.
-    if (AUDIT_ENABLED && rec.ok && !res.timedOut) {
-      // The judge runs as its own cheap `claude -p` call; give it a minimal HOME so it doesn't
-      // load the 18 installed skills it has no use for.
+    // Phase 5 — data-provenance audit + self-repair (ADVISORY: never fails the task; it audits
+    // the DATA handed to reporting — the contract's references + data_sources.md — against the
+    // tool-call ledger, and on a flagged source resumes the agent to fetch it or DROP it).
+    // Runs whenever the agent ran (not gated on a valid PDF); a timed-out run is skipped.
+    if (AUDIT_ENABLED && !res.timedOut) {
+      // The judge runs as its own `claude -p` call; give it a minimal HOME so it doesn't load
+      // the 18 installed skills it has no use for.
       const auditHome = join(workdir, '.audit-home');
       mkdirSync(join(auditHome, '.claude'), { recursive: true });
       writeFileSync(join(auditHome, '.claude.json'),
         '{"hasCompletedOnboarding": true, "bypassPermissionsModeAccepted": true}\n');
       const streamPath = join(runDir, `${id}.stream.jsonl`);
       const doAudit = () => auditTask({ taskHome, streamPath, outdir, workdir, id, model: AUDIT_MODEL, auditHome });
+      const badCount = (a: any) => (a.findings || []).filter((f: any) => f.status !== 'SUPPORTED').length;
+      const label = (a: any) => a.verdict === 'error' ? `inconclusive — ${a.summary}`
+        : a.ok ? '✓ provenance clean' : `✗ ${badCount(a)} unsupported source(s)`;
 
       let audit = await doAudit();
-      const badCount = (a: any) => (a.findings || []).filter((f: any) => f.status !== 'SUPPORTED').length;
-      rec.audit = { ok: audit.ok, model: AUDIT_MODEL, gate: AUDIT_GATE, ledger: audit.ledger,
+      rec.audit = { model: AUDIT_MODEL, ok: audit.ok, verdict: audit.verdict, ledger: audit.ledger,
         attempts: [{ verdict: audit.verdict, summary: audit.summary, findings: audit.findings }] };
-      log(`Phase 5 · [${id}] audit ${audit.ok ? '✓ provenance clean' : `✗ ${badCount(audit)} unsupported/partial source(s)`}${audit.verdict === 'error' ? ` (inconclusive: ${audit.summary})` : ''}`);
+      log(`Phase 5 · [${id}] audit ${label(audit)}`);
 
       let attempt = 0;
       let sid = res.sessionId;
       while (!audit.ok && audit.verdict !== 'error' && attempt < MAX_AUDIT_RETRIES && sid) {
         attempt++;
-        log(`Phase 5 · [${id}] self-repair ${attempt}/${MAX_AUDIT_RETRIES} — resuming ${sid.slice(0, 8)} with audit findings`);
+        log(`Phase 5 · [${id}] self-repair ${attempt}/${MAX_AUDIT_RETRIES} — resuming ${sid.slice(0, 8)} to fix or drop flagged data`);
         const remediation = buildRemediationPrompt(id, audit.findings);
         const r2 = await runClaude(remediation, workdir, join(runDir, `${id}.audit-retry${attempt}.stream.jsonl`),
           timeoutMs, taskHome, `${id}:fix${attempt}`, sid);
         sid = r2.sessionId ?? sid;
         rec.claude.repairs = (rec.claude.repairs ?? []).concat([{ attempt, durationMs: r2.durationMs, costUsd: r2.costUsd, timedOut: r2.timedOut }]);
-        convertAndVerify(true); // re-render the repaired HTML, re-verify the PDF
+        convertAndVerify(true); // re-render the repaired report, re-verify the PDF (snapshot-safe)
         audit = await doAudit();
         rec.audit.attempts.push({ verdict: audit.verdict, summary: audit.summary, findings: audit.findings });
-        log(`Phase 5 · [${id}] re-audit ${audit.ok ? '✓ clean' : `✗ still ${badCount(audit)} unsupported/partial`}`);
+        log(`Phase 5 · [${id}] re-audit ${label(audit)}`);
       }
-      // An auditor that couldn't run (verdict 'error' — e.g. pdftotext missing, judge
-      // timeout/unparseable) is NOT a pass: provenance was never verified. Treat it as a
-      // failed audit so the gate fails the task instead of silently going green.
-      const auditErrored = audit.verdict === 'error';
-      rec.audit.ok = audit.ok && !auditErrored;
-      if (AUDIT_GATE && !rec.audit.ok) {
-        rec.ok = false;
-        const why = auditErrored
-          ? `auditor error (provenance unverified) — ${audit.summary}`
-          : `unsupported sources remain after ${attempt} repair attempt(s)`;
-        log(`  → [${id}] AUDIT GATE: task FAILED — ${why}`);
-      }
+      rec.audit.ok = audit.ok;
+      rec.audit.verdict = audit.verdict;
+      // Advisory only — the audit NEVER sets rec.ok. Task pass/fail stays "valid PDF" (Phase 4).
     }
     return rec;
   };

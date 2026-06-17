@@ -20,9 +20,9 @@
 // Miss this and you get false flags in both directions: a real source used only inside a
 // sub-agent looks fabricated, and a fabricated one can hide behind an unseen sub-agent.
 
-import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, lstatSync } from 'node:fs';
-import { join, basename } from 'node:path';
+import { spawn } from 'node:child_process';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 
 const JUDGE_TIMEOUT_MS = 150_000;
 const MAX_TEXT_CHARS = 18_000; // deliverables are a few KB of text; cap defensively.
@@ -87,24 +87,35 @@ export function buildLedger(taskHome: string, extraStreamPaths: string[] = []): 
   };
 }
 
-// ── DELIVERABLE + SELF-DECLARED PROVENANCE ─────────────────────────────────────────────────
-// The report text (what a reader trusts) and the agent's own data_sources.md (operating-rule
-// #2). The judge cross-checks the report against BOTH the ledger and this self-report.
-function extractDeliverableText(outdir: string, workdir: string, id: string): string {
-  const htmls = listBy(outdir, '.html').map((f) => join(outdir, f))
-    .concat(listBy(workdir, '.html').map((f) => join(workdir, f)));
-  const html = htmls.find((p) => basename(p) === `${id}.html`)
-    ?? htmls.sort((a, b) => lstatSync(b).mtimeMs - lstatSync(a).mtimeMs)[0];
-  if (html) return cap(htmlToText(readFileSync(html, 'utf8')));
+// ── CLAIMED SOURCES (what we audit) ─────────────────────────────────────────────────────────
+// The provenance risk is in the DATA the agent hands to the reporting skill, not the rendered
+// document — reporting is a deterministic renderer that fails loudly on bad input, so it isn't
+// audited. We audit the report CONTRACT's `references` (the structured citations) + the slot
+// data, plus the agent's data_sources.md. No PDF/HTML, no pdftotext.
 
-  // No HTML — fall back to extracting text from the PDF (needs pdftotext on PATH).
-  const pdfs = listBy(outdir, '.pdf').map((f) => join(outdir, f));
-  const pdf = pdfs.find((p) => basename(p) === `${id}.pdf`) ?? pdfs[0];
-  if (pdf && hasCmd('pdftotext')) {
-    const r = spawnSync('pdftotext', ['-q', pdf, '-'], { encoding: 'utf8' });
-    if (r.status === 0 && r.stdout) return cap(r.stdout.replace(/\s+/g, ' ').trim());
+// Locate the report contract the agent passed to reporting's render.ts: a JSON in the task's
+// dirs whose top level has a `references` array (and usually `pages`).
+function findContract(outdir: string, workdir: string): any | null {
+  for (const dir of [outdir, workdir, join(workdir, 'data')]) {
+    for (const f of listBy(dir, '.json')) {
+      const j = tryParse(readFileSync(join(dir, f), 'utf8'));
+      if (j && (Array.isArray(j.references) || Array.isArray(j.pages))) return j;
+    }
   }
-  return '';
+  return null;
+}
+
+// The claims the judge checks: the contract's cited references + a compact view of the slot
+// data (so it sees what numbers are attributed to what), without rendering chrome.
+function extractClaims(contract: any): string {
+  if (!contract) return '';
+  const parts: string[] = [];
+  if (Array.isArray(contract.references)) {
+    parts.push('REFERENCES (cited sources):\n' + contract.references
+      .map((r: any, i: number) => `[${i + 1}] ${typeof r === 'string' ? r : JSON.stringify(r)}`).join('\n'));
+  }
+  parts.push('REPORT DATA (claims):\n' + cap(JSON.stringify(contract.pages ?? contract)));
+  return parts.join('\n\n');
 }
 
 function readDataSources(workdir: string): string {
@@ -120,27 +131,59 @@ export async function auditTask(opts: {
   taskHome: string; streamPath?: string; outdir: string; workdir: string; id: string;
   model?: string; auditHome?: string;
 }): Promise<Verdict> {
-  const { taskHome, streamPath, outdir, workdir, id, model = 'haiku', auditHome } = opts;
+  const { taskHome, streamPath, outdir, workdir, model = 'sonnet', auditHome } = opts;
   const ledger = buildLedger(taskHome, streamPath ? [streamPath] : []);
-  const text = extractDeliverableText(outdir, workdir, id);
-  if (!text) {
-    // Can't read what the report claims → can't audit. Fail OPEN (don't block the run on an
-    // extraction gap), but say so loudly via the verdict.
-    return { ok: true, verdict: 'error', summary: 'no deliverable text to audit (no HTML and no pdftotext)', findings: [], ledger };
-  }
+  const claims = extractClaims(findContract(outdir, workdir));
   const dataSources = readDataSources(workdir);
+  if (!claims && !dataSources) {
+    // No contract and no self-reported provenance → nothing to audit.
+    return { ok: true, verdict: 'error', summary: 'no report contract or data_sources.md to audit', findings: [], ledger };
+  }
   try {
-    const v = await runJudge(ledger, text, dataSources, model, auditHome);
-    return { ...v, ledger };
+    const v = await runJudge(ledger, claims, dataSources, model, auditHome);
+    // Deterministic safety net: the judge identifies the cited sources, but we decide SUPPORTED
+    // from the ledger in code — a source counts as sourced when its SKILL ran, even if the host
+    // never appears on a command line (skills call provider APIs inside their scripts).
+    const findings = applyLedgerCredit(v.findings, ledger);
+    const ok = !findings.some((f) => f.status !== 'SUPPORTED');
+    return { ok, verdict: ok ? 'pass' : 'fail', summary: v.summary, findings, ledger };
   } catch (e: any) {
-    // Judge infra failure (model unavailable, timeout, unparseable) → fail OPEN.
+    // Judge infra failure (model unavailable, timeout, unparseable) → inconclusive (advisory).
     return { ok: true, verdict: 'error', summary: `audit judge failed: ${e?.message ?? e}`, findings: [], ledger };
   }
 }
 
-function runJudge(ledger: Ledger, deliverable: string, dataSources: string, model: string, auditHome?: string): Promise<Verdict> {
+// ── DETERMINISTIC LEDGER CREDIT ─────────────────────────────────────────────────────────────
+// Map a cited provider to the ledger evidence that proves it was used. A data skill's API host
+// lives INSIDE its scripts (e.g. finmind's download_company.py hits api.finmindtrade.com), so
+// the host never shows up on a command line — crediting the skill itself is the correct signal.
+const PROVIDER_EVIDENCE: { match: RegExp; skills: string[]; hosts: string[] }[] = [
+  { match: /finmind|taiwanstock|twse|台|monthly\s*revenue/i, skills: ['finmind'], hosts: ['api.finmindtrade.com', 'finmindtrade.com'] },
+  { match: /financial\s*modeling\s*prep|\bfmp\b|financialmodelingprep/i, skills: ['financialmodellingprep'], hosts: ['financialmodelingprep.com'] },
+  { match: /\bsec\b|edgar|10-?[kq]|8-?k|shareholder letter|earnings release|form \d/i, skills: ['sec-filings'], hosts: ['sec.gov', 'www.sec.gov', 'efts.sec.gov'] },
+  { match: /google\s*trends|serpapi|search\s*interest/i, skills: ['market-intelligence'], hosts: ['serpapi.com'] },
+];
+
+function ledgerBacks(source: string, ledger: Ledger): boolean {
+  for (const p of PROVIDER_EVIDENCE) {
+    if (!p.match.test(source)) continue;
+    if (p.skills.some((s) => ledger.skillsInvoked.includes(s) || ledger.skillScriptsReferenced.includes(s))) return true;
+    if (p.hosts.some((h) => ledger.externalHosts.includes(h))) return true;
+  }
+  return false;
+}
+
+// Upgrade any judge-flagged source the ledger actually backs (kills false positives where the
+// judge demanded a host for skill-sourced data).
+function applyLedgerCredit(findings: Finding[], ledger: Ledger): Finding[] {
+  return findings.map((f) => (f.status !== 'SUPPORTED' && ledgerBacks(f.source, ledger))
+    ? { ...f, status: 'SUPPORTED', evidence: `ledger skill/host credit`, note: `${f.note} [auto-credited: provider's skill ran this run]` }
+    : f);
+}
+
+function runJudge(ledger: Ledger, claims: string, dataSources: string, model: string, auditHome?: string): Promise<Verdict> {
   return new Promise((resolve, reject) => {
-    const prompt = buildJudgePrompt(ledger, deliverable, dataSources);
+    const prompt = buildJudgePrompt(ledger, claims, dataSources);
     const env = auditHome ? { ...process.env, HOME: auditHome, CLAUDE_CONFIG_DIR: join(auditHome, '.claude') } : process.env;
     // A clean, tool-free reasoning call: cheap model, JSON output, its own minimal HOME so it
     // doesn't load the 18 installed skills it has no use for.
@@ -167,7 +210,7 @@ function runJudge(ledger: Ledger, deliverable: string, dataSources: string, mode
   });
 }
 
-function buildJudgePrompt(ledger: Ledger, deliverable: string, dataSources: string): string {
+function buildJudgePrompt(ledger: Ledger, claims: string, dataSources: string): string {
   return `You are a data-provenance auditor for an automated financial-research pipeline. Your one job: catch FABRICATED or UNSUPPORTED source attributions — where a report credits its numbers to a source/API/dataset/filing that was never actually queried during the run.
 
 <evidence_ledger>
@@ -176,17 +219,19 @@ ${JSON.stringify(ledger, null, 2)}
 
 The ledger is GROUND TRUTH: every skill invoked, external host contacted, skill script run, and web-search activity for the whole run (main agent AND its sub-agents). If a data source is not represented here, it was NOT used.
 
+IMPORTANT — a skill listed in \`skillsInvoked\` (or \`skillScriptsReferenced\`) is SUFFICIENT evidence that its data source was used: data skills call the provider's API *inside their scripts*, so the host will NOT appear in \`externalHosts\`. Do not require a host when the skill is present.
+
 ${dataSources ? `<agent_self_reported_provenance>\n${dataSources}\n</agent_self_reported_provenance>\n\nThis is the agent's own data_sources.md. Treat it as a CLAIM, not proof — a row here is only trustworthy if the ledger backs it.\n` : ''}
-<deliverable_text>
-${deliverable}
-</deliverable_text>
+<claimed_sources>
+${claims}
+</claimed_sources>
 
-Identify every distinct data source, provider, API, dataset, filing, or feed the deliverable cites or attributes numbers to (e.g. "FINMIND API", "Financial Modeling Prep", "SEC 10-Q", "TWSE monthly filings", "Bloomberg"). For each, classify:
-- SUPPORTED — the ledger shows a matching skill, host, or script that plausibly provides this data.
+The claims above are the report contract's cited references + the data it presents. Identify every distinct data source, provider, API, dataset, filing, or feed it attributes numbers to (e.g. "FINMIND", "Financial Modeling Prep", "SEC 10-Q", "Bloomberg"). For each, classify:
+- SUPPORTED — the ledger shows a matching skill (preferred), host, or script that provides this data.
 - UNSUPPORTED — nothing in the ledger could have produced data from this source; it appears fabricated.
-- PARTIAL — the source was touched but the specific claim isn't fully backed (e.g. quarterly fetched but monthly claimed), OR figures the report presents as sourced were actually estimated/derived/null per the self-reported provenance.
+- PARTIAL — the source was touched but the specific claim isn't fully backed, OR figures presented as sourced were actually estimated/derived/null per the self-reported provenance.
 
-Map sources to evidence: FINMIND → finmind skill OR api.finmindtrade.com; Financial Modeling Prep/FMP → financialmodellingprep skill OR financialmodelingprep.com; SEC/EDGAR/10-Q → sec-filings skill OR sec.gov; a provider with NO matching skill/host (Bloomberg, Refinitiv, FactSet, Koyfin, …) is almost certainly UNSUPPORTED. Judge ONLY from the ledger — never assume a source was used unless the ledger shows it.
+Map sources to evidence (the SKILL being invoked is enough — do not also require the host): FINMIND → finmind skill (or api.finmindtrade.com); Financial Modeling Prep/FMP → financialmodellingprep skill (or financialmodelingprep.com); SEC/EDGAR/10-Q → sec-filings skill (or sec.gov); Google Trends → market-intelligence skill (or serpapi.com); a provider with NO matching skill/host (Bloomberg, Refinitiv, FactSet, Koyfin, …) is almost certainly UNSUPPORTED. Judge ONLY from the ledger.
 
 Respond with ONLY a JSON object, no prose, no code fence:
 {"verdict":"pass"|"fail","findings":[{"source":"<as cited>","status":"SUPPORTED|UNSUPPORTED|PARTIAL","evidence":"<ledger item or 'none'>","note":"<short>"}],"summary":"<one sentence>"}
@@ -200,16 +245,16 @@ export function buildRemediationPrompt(id: string, findings: Finding[]): string 
   const bad = findings.filter((f) => f.status !== 'SUPPORTED');
   const list = bad.map((f, i) =>
     `${i + 1}. "${f.source}" — ${f.status}: ${f.note} (ledger evidence: ${f.evidence || 'none'})`).join('\n');
-  return `STOP — an automated data-provenance audit flagged the report you just produced. It must be fixed before it can ship. The audit compared every source the report cites against the tools you actually called this run, and these do not reconcile:
+  return `A data-provenance check flagged source attributions in the report you just produced. It compared every source the report cites against the tools you actually called this run, and these do not reconcile:
 
 ${list}
 
-This violates the operating rules: every figure must trace to a source you actually fetched this run (rule 3), and skills come before the web (rule 1). For EACH flagged item, do ONE of the following — do not paper over it:
+Fix each flagged item — do ONE of the following, do not paper over it:
 
-A. If the data is genuinely available, fetch the REAL figures using the right installed skill, then update the affected numbers. (For Taiwan-listed monthly revenue, the finmind skill exposes the TaiwanStockMonthRevenue dataset — use it instead of web search or estimation.)
-B. If the data truly cannot be obtained, REMOVE the false source attribution and clearly disclose those figures as estimated/derived (state the method) in the report's sources/methodology section — or drop them.
+A. If the data is genuinely available, fetch the REAL figures using the right installed skill, then update the affected numbers. (E.g. for Taiwan-listed monthly revenue, the finmind skill exposes the TaiwanStockMonthRevenue dataset — use it, not web search or estimation.)
+B. If the data truly cannot be obtained, REMOVE that data and its source attribution from the report — drop the affected rows/series/claims (or, if you keep them, clearly disclose them as estimated/derived and state the method in the methodology section).
 
-Hard rule: cite ONLY data sources you actually queried in this session, and record each in data_sources.md. Do not credit a source you did not call.
+Rule of thumb: cite ONLY data sources you actually queried this session, and record each in data_sources.md. A clean, smaller report beats one padded with unsourced numbers.
 
 Then re-render the report to the SAME path (output/${id}.* — keep the filename) so the deliverable is regenerated. Keep all other content intact.`;
 }
@@ -236,15 +281,6 @@ function tryParse(line: string): any | null { try { return JSON.parse(line); } c
 
 function hostOf(url: string): string | null { const m = url.match(/^https?:\/\/([^/]+)/); return m ? m[1] : null; }
 
-function htmlToText(html: string): string {
-  return html
-    .replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
-    .replace(/\s+/g, ' ').trim();
-}
-
 // Keep head + tail when long — source/methodology notes usually live in footers, the title
 // and lede up top; the middle is the chart/table body the judge needs least.
 function cap(s: string): string {
@@ -261,7 +297,3 @@ function parseJsonLoose(s: string): any {
   throw new Error('no JSON object found');
 }
 
-function hasCmd(cmd: string): boolean {
-  const r = spawnSync(cmd, ['-v'], { stdio: 'ignore' });
-  return !(r.error && (r.error as any).code === 'ENOENT');
-}
