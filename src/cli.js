@@ -1,15 +1,23 @@
-import { existsSync, rmSync } from 'node:fs';
+import { existsSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { getSkills } from './registry.js';
 import { listPersonas, resolveTarget } from './resolve.js';
 import { getAdapter, PLATFORMS } from './adapters/index.js';
 import { install } from './install.js';
+import { buildRoutingTable } from './routing-table.js';
 import { requiredEnv, resolveEnv, parseEnvFile } from './env.js';
+
+// `hfa <target>` / `hfa setup <target>` installs ALL skills for a runtime. Cowork
+// is marketplace/GUI-based, so it prints the in-app steps + writes its global-
+// instructions table instead of copying files.
+const SETUP_TARGETS = [...PLATFORMS, 'cowork'];
 
 const HELP = `
 hfa — Hedge Fund Analyst skills installer
 
 Usage:
+  hfa <claude-code|codex|openclaw|cowork> [--scope user|project]    # install ALL skills (cowork: print steps)
+  hfa setup <claude-code|codex|openclaw|cowork> [--scope user|project]
   hfa list [--type capability|composite] [--persona <name>]
   hfa install <skill|persona> --platform <${PLATFORMS.join('|')}> [--scope user|project] [--dry-run] [-y]
   hfa update <skill|persona> --platform <p> [--scope user|project]
@@ -114,12 +122,42 @@ function cmdDoctor(flags) {
   console.log('');
 }
 
+async function cmdSetup(platform, flags) {
+  if (!platform || !SETUP_TARGETS.includes(platform)) {
+    throw new Error(`setup requires a platform: ${SETUP_TARGETS.join(' | ')}`);
+  }
+  if (platform === 'cowork') { cmdSetupCowork(); return; }
+  await install('all', {
+    platform, scope: flags.scope || 'user', dryRun: !!flags.dryRun, yes: true,
+  });
+}
+
+// Cowork has no CLI install — it's a desktop app whose skills come from the plugin
+// marketplace. Generate the paste-ready Global Instructions table + print the steps.
+function cmdSetupCowork() {
+  const out = join(process.cwd(), 'cowork-global-instructions.md');
+  writeFileSync(out, buildRoutingTable(getSkills(), { includeLoad: false }) + '\n');
+  console.log(`
+  Claude Cowork installs inside the Claude desktop app (no terminal). One-time setup:
+    1. Customize → Plugins → Personal plugins → +  → Add marketplace:  MohitKumar1991/hedge-fund-analyst
+    2. Add a plugin:  us-stock-analyst   (or international-analyst / taiwan-stock-analyst)
+    3. Settings → Capabilities → enable Code execution
+    4. Settings → Cowork → Global instructions → paste the contents of:
+         ${out}
+`);
+}
+
 export async function main(argv) {
   const { _, flags } = parseArgs(argv);
   const cmd = _[0];
   if (!cmd || flags.help) { console.log(HELP); return; }
 
   try {
+    // Simple cross-platform entrypoint: `hfa <platform>` or `hfa setup <platform>`.
+    if (cmd === 'setup' || SETUP_TARGETS.includes(cmd)) {
+      await cmdSetup(cmd === 'setup' ? _[1] : cmd, flags);
+      return;
+    }
     switch (cmd) {
       case 'list':
         cmdList(flags); break;

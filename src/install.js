@@ -5,6 +5,7 @@ import { getAdapter } from './adapters/index.js';
 import { resolveTarget, personaByName } from './resolve.js';
 import { requiredEnv, resolveEnv } from './env.js';
 import { fileCount } from './adapters/copy.js';
+import { upsertRoutingTable } from './routing-table.js';
 import { VERSION_FILE } from './paths.js';
 
 // Record what was installed in ~/.hfa/install-manifest.jsonl so the guided
@@ -51,6 +52,14 @@ export async function install(target, opts = {}) {
     written.push({ name: s.name, dest, files: fileCount(s.dir) });
   }
   recordInstall(target, platform, scope);
+
+  // Advertise the installed skills in the runtime's common prompt (routing table),
+  // merging with anything already listed so repeated installs accumulate.
+  if (typeof adapter.commonPromptFile === 'function') {
+    const promptFile = adapter.commonPromptFile(scope);
+    const changed = upsertRoutingTable(promptFile, closure, { skillsDir: adapter.installDir(scope) });
+    log(`  ${changed ? '✓ updated' : '= unchanged'} routing table → ${promptFile}`);
+  }
 
   // Resolve API keys across the whole closure.
   const vars = requiredEnv(closure);

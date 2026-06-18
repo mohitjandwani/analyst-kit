@@ -55,8 +55,10 @@ export function personaByName(name) {
   return listPersonas().find((p) => p.name === name) || null;
 }
 
-// Resolve a target that may be a skill name or a persona name into a closure.
+// Resolve a target into a closure. `all` installs every shipped skill; otherwise
+// the target may be a persona name or a single skill name.
 export function resolveTarget(name, skills = getSkills()) {
+  if (name === 'all') return resolveClosure(skills.map((s) => s.name), skills);
   const persona = personaByName(name);
   if (persona) return resolveClosure(persona.skills, skills);
   return resolveClosure([name], skills);
