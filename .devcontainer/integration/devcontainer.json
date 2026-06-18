@@ -1,0 +1,20 @@
+{
+  // A SECOND devcontainer config, separate from ../devcontainer.json (the skills
+  // e2e harness). Open it via "Dev Containers: Reopen in Container" → pick
+  // "hfa-integration", or: devcontainer up --config .devcontainer/integration/devcontainer.json
+  "name": "hfa-integration",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "."
+  },
+
+  // Claude Code refuses uid 0; `node` (uid 1000) is synced to the host user so
+  // writes into the mounted workspace keep host ownership.
+  "remoteUser": "node",
+
+  // Keep the container up after create for inspection / re-running the installers.
+  "overrideCommand": true,
+
+  // Seed Claude state, print CLI versions, and run the integration tests once.
+  "postCreateCommand": "bash .devcontainer/integration/post-create.sh"
+}
