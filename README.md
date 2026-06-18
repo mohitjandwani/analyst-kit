@@ -75,6 +75,22 @@ dependencies. Use `--scope project` to install into `./.claude/skills` instead o
 `~/.claude/skills`, `--dry-run` to preview, and `--platform codex` to target Codex.
 Other commands: `update`, `uninstall`, `env`.
 
+### Windows: use WSL2
+
+HFA's skills run a POSIX/bash runtime (`hfa-core`), so on Windows they are
+supported **only inside WSL2**. This matches what the agents themselves require:
+Claude Code's sandbox runs on macOS, Linux, and WSL2 (native Windows is
+unsupported), and Codex's Linux mode is WSL2 as well.
+
+- **Recommended:** install [WSL2](https://learn.microsoft.com/windows/wsl/install),
+  then run Claude Code (or Codex) **and** this installer *inside* your WSL2
+  distribution — everything then behaves exactly like Linux.
+- Native Windows (PowerShell/cmd) cannot run the bash runtime at all. Native
+  Windows + Git Bash will run the scripts but without enforced `.env` file
+  permissions (`chmod` is a no-op on NTFS) and without sandboxing — unsupported.
+
+`node bin/hfa.js doctor --platform claude-code` warns when run on native Windows.
+
 ## Personas (plugins)
 
 Three persona plugins bundle the research workflows for different markets. All
