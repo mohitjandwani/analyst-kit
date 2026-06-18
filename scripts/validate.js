@@ -42,6 +42,28 @@ for (const s of skills) {
   }
 }
 
+// hfa-core's onboarding wizard prompts for keys at runtime using a SHIPPED
+// catalog (references/api-keys.tsv) — the root .env.example does not travel with
+// an installed skill. Enforce that every key any skill declares in env: has a
+// catalog row, so the wizard can always describe what it asks for (this is what
+// keeps the two key sources from drifting).
+const KEYS_TSV = join(SKILLS_DIR, 'hfa-core', 'references', 'api-keys.tsv');
+if (!existsSync(KEYS_TSV)) {
+  err('[hfa-core] references/api-keys.tsv missing — the setup wizard has no key catalog');
+} else {
+  const catalog = new Set(
+    readFileSync(KEYS_TSV, 'utf8')
+      .split('\n')
+      .filter((l) => l.trim() && !l.startsWith('#'))
+      .map((l) => l.split('\t')[0].trim())
+      .filter(Boolean),
+  );
+  const usedEnv = new Set(skills.flatMap((s) => s.env));
+  for (const k of usedEnv) {
+    if (!catalog.has(k)) err(`[hfa-core] api-keys.tsv has no row for "${k}" (a skill declares it in env:) — the setup wizard can't describe it`);
+  }
+}
+
 // Cycle check — load-bearing: capabilities may require capabilities, so a
 // requires chain (e.g. reporting → charting) could loop without this.
 function hasCycle() {

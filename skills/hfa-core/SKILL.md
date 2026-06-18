@@ -20,7 +20,10 @@ or learnings.
 
 ## The `~/.hfa/` data home
 
-Fixed per-user location for everything HFA persists (override with `$HFA_HOME`):
+Default per-user location for everything HFA persists. Resolution order:
+explicit `$HFA_HOME` → the `~/.hfa/home-path` pointer (written when the user relocates
+their data during onboarding) → `~/.hfa`. `~/.hfa` always remains as a fixed *bootstrap*
+that holds the `core-path` / `home-path` pointers even after the data is relocated:
 
 | Path | Purpose |
 |---|---|
@@ -33,7 +36,8 @@ Fixed per-user location for everything HFA persists (override with `$HFA_HOME`):
 | `learnings.jsonl` | per-user learnings log (patterns / pitfalls / preferences) |
 | `last-update-check`, `update-snoozed` | update-check cache (1 day) and snooze (7 days) |
 | `.onboarded`, `.telemetry-prompted`, `.env-prompted-<KEY>` | once-ever prompt markers |
-| `core-path` | cached location of this skill on disk |
+| `core-path` | (bootstrap) cached location of this skill on disk |
+| `home-path` | (bootstrap) absolute path to the relocated data home, if the user moved it |
 | `install-manifest.jsonl` | what `hfa install` installed (drives guided upgrades) |
 
 ## Scripts (`bin/`)
@@ -50,6 +54,14 @@ Fixed per-user location for everything HFA persists (override with `$HFA_HOME`):
   `curl --max-time 3`.
 - `hfa-learn add '<one-line-json>' | recent [--skill S] [--topic T] [--limit N]` —
   learnings log.
+- `hfa-setup status | home <dir> | set-key <K> <V> | skip-key <K> | ack-telemetry | finish`
+  — first-run onboarding backend. `status` reports the data home and which installed
+  skills need which API keys; `home` relocates the `~/.hfa` data home (migrating existing
+  data and writing the `home-path` pointer); `set-key` / `skip-key` persist or decline a
+  key; `finish` writes the onboarding + telemetry markers. Non-interactive by design — the
+  agent runs the conversation and calls these to persist. `_hfa-home.sh` (sourced by every
+  script) resolves the data home; `references/api-keys.tsv` maps each key to a
+  description + signup URL so the prompts work on the user's machine.
 
 All scripts are defensive: they never exit non-zero from the skill's point of view,
 never block on the network, and a total failure of this runtime must never stop a

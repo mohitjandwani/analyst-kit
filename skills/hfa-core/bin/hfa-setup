@@ -1,0 +1,159 @@
+#!/usr/bin/env bash
+# hfa-setup — first-run onboarding backend. The AGENT drives the conversation;
+# these subcommands only report state and persist the user's choices. They are
+# deliberately NON-INTERACTIVE (no `read`) because in an agent runtime there is
+# no human at the bash prompt — the model collects answers and calls these.
+#
+#   hfa-setup status            machine-readable onboarding state for the agent
+#   hfa-setup home <dir>        relocate the data home + migrate existing data
+#   hfa-setup set-key K VALUE   write an API key into <home>/.env (chmod 600)
+#   hfa-setup skip-key K        mark a key declined (so it is not re-prompted)
+#   hfa-setup ack-telemetry     record that the telemetry notice was shown
+#   hfa-setup finish            mark onboarding complete (+ telemetry notice)
+#
+# Contract (shared by all hfa-* scripts): defensive, never blocks, never
+# hard-fails the calling skill. Secrets ONLY ever go to <home>/.env (chmod 600),
+# never to the plaintext `config` store.
+set -uo pipefail
+
+DIR="$(cd "$(dirname "$0")" && pwd)"
+CORE="$(dirname "$DIR")"
+SKILLS_DIR="$(dirname "$CORE")"   # where sibling skills are installed on disk
+BOOT="$HOME/.hfa"                 # fixed bootstrap (holds the pointer files)
+[ -r "$DIR/_hfa-home.sh" ] && . "$DIR/_hfa-home.sh"
+HFA_HOME="${HFA_HOME:-$BOOT}"
+KEYS_TSV="$CORE/references/api-keys.tsv"
+
+# --- helpers ---------------------------------------------------------------
+
+# Extract the env: keys from a SKILL.md frontmatter (block or inline form),
+# bounded to the frontmatter so the body can't leak false positives.
+skill_env_keys() { # $1 = path to SKILL.md
+  awk '
+    NR==1 && /^---[[:space:]]*$/ { fm=1; next }
+    fm && /^---[[:space:]]*$/ { exit }
+    fm && /^env:[[:space:]]*\[/ {
+      s=$0; sub(/^env:[[:space:]]*\[/,"",s); sub(/\].*/,"",s);
+      n=split(s, a, /[, ]+/); for (i=1;i<=n;i++) if (a[i]!="") print a[i]; next
+    }
+    fm && /^env:[[:space:]]*$/ { b=1; next }
+    fm && b && /^[[:space:]]*-[[:space:]]*/ {
+      k=$0; sub(/^[[:space:]]*-[[:space:]]*/,"",k); sub(/[[:space:]].*/,"",k); print k; next
+    }
+    fm && b && /^[^[:space:]]/ { b=0 }
+  ' "$1" 2>/dev/null | grep -E '^[A-Z][A-Z0-9_]*$'
+}
+
+key_desc() { awk -F'\t' -v k="$1" '$1==k{print $2; exit}' "$KEYS_TSV" 2>/dev/null; }
+key_url()  { awk -F'\t' -v k="$1" '$1==k{print $3; exit}' "$KEYS_TSV" 2>/dev/null; }
+
+key_present() { # process env, then <home>/.env, then ./.env
+  [ -n "$(printenv "$1" 2>/dev/null)" ] && return 0
+  grep -qE "^$1=." "$HFA_HOME/.env" 2>/dev/null && return 0
+  grep -qE "^$1=." ./.env 2>/dev/null && return 0
+  return 1
+}
+
+# --- subcommands -----------------------------------------------------------
+
+status() {
+  echo "HOME: $HFA_HOME"
+  [ -f "$BOOT/home-path" ] && echo "HOME_RELOCATED: yes" || echo "HOME_RELOCATED: no"
+  [ -f "$HFA_HOME/.onboarded" ] && echo "ONBOARDED: yes" || echo "ONBOARDED: no"
+  echo "TELEMETRY: $("$DIR/hfa-config" get telemetry 2>/dev/null || echo community)"
+
+  pairs=""; skills=""
+  for sk in "$SKILLS_DIR"/*/SKILL.md; do
+    [ -f "$sk" ] || continue
+    name="$(basename "$(dirname "$sk")")"
+    [ "$name" = "hfa-core" ] && continue
+    skills="${skills:+$skills,}$name"
+    for k in $(skill_env_keys "$sk"); do
+      pairs="${pairs}${k} ${name}
+"
+    done
+  done
+  echo "SKILLS: ${skills:-none}"
+
+  keys="$(printf '%s' "$pairs" | awk '{print $1}' | sort -u | grep -v '^$')"
+  for k in $keys; do
+    nb="$(printf '%s' "$pairs" | awk -v k="$k" '$1==k{print $2}' | paste -sd, - 2>/dev/null)"
+    pres=no; key_present "$k" && pres=yes
+    prom=no; [ -f "$HFA_HOME/.env-prompted-$k" ] && prom=yes
+    echo "KEY $k present=$pres prompted=$prom needed_by=${nb:-?} url=$(key_url "$k") desc=$(key_desc "$k")"
+  done
+}
+
+set_home() {
+  NEW="${1:-}"
+  [ -n "$NEW" ] || { echo "usage: hfa-setup home <dir>" >&2; return 1; }
+  case "$NEW" in
+    "~")   NEW="$HOME" ;;
+    "~/"*) NEW="$HOME/${NEW#~/}" ;;
+  esac
+  mkdir -p "$NEW" 2>/dev/null || { echo "cannot create $NEW" >&2; return 1; }
+  NEW="$(cd "$NEW" 2>/dev/null && pwd)" || { echo "cannot access $NEW" >&2; return 1; }
+
+  OLD="$HFA_HOME"
+  if [ "$OLD" != "$NEW" ] && [ -d "$OLD" ]; then
+    # Migrate everything EXCEPT the bootstrap pointers, then remove the originals.
+    find "$OLD" -mindepth 1 -maxdepth 1 ! -name core-path ! -name home-path \
+      -exec cp -R {} "$NEW/" \; 2>/dev/null || true
+    find "$OLD" -mindepth 1 -maxdepth 1 ! -name core-path ! -name home-path \
+      -exec rm -rf {} \; 2>/dev/null || true
+  fi
+
+  mkdir -p "$BOOT" 2>/dev/null || true
+  if [ "$NEW" = "$BOOT" ]; then
+    rm -f "$BOOT/home-path" 2>/dev/null || true   # back to default: no pointer needed
+  else
+    printf '%s' "$NEW" > "$BOOT/home-path" 2>/dev/null || true
+  fi
+  echo "HOME: $NEW"
+}
+
+set_key() {
+  K="${1:-}"; V="${2:-}"
+  [ -n "$K" ] && [ -n "$V" ] || { echo "usage: hfa-setup set-key <KEY> <VALUE>" >&2; return 1; }
+  mkdir -p "$HFA_HOME" 2>/dev/null || true
+  ENV="$HFA_HOME/.env"
+  touch "$ENV" 2>/dev/null || true
+  grep -vE "^${K}=" "$ENV" 2>/dev/null > "$ENV.tmp" || true
+  printf '%s=%s\n' "$K" "$V" >> "$ENV.tmp"
+  mv "$ENV.tmp" "$ENV" 2>/dev/null || true
+  chmod 600 "$ENV" 2>/dev/null || true
+  touch "$HFA_HOME/.env-prompted-$K" 2>/dev/null || true
+  echo "set $K"
+}
+
+skip_key() {
+  K="${1:-}"; [ -n "$K" ] || { echo "usage: hfa-setup skip-key <KEY>" >&2; return 1; }
+  mkdir -p "$HFA_HOME" 2>/dev/null || true
+  touch "$HFA_HOME/.env-prompted-$K" 2>/dev/null || true
+  echo "skipped $K"
+}
+
+ack_telemetry() {
+  mkdir -p "$HFA_HOME" 2>/dev/null || true
+  touch "$HFA_HOME/.telemetry-prompted" 2>/dev/null || true
+  echo "telemetry notice acknowledged"
+}
+
+finish() {
+  mkdir -p "$HFA_HOME" 2>/dev/null || true
+  touch "$HFA_HOME/.onboarded" "$HFA_HOME/.telemetry-prompted" 2>/dev/null || true
+  echo "onboarding complete"
+}
+
+# --- dispatch --------------------------------------------------------------
+cmd="${1:-}"; [ $# -gt 0 ] && shift
+case "$cmd" in
+  status)        status ;;
+  home)          set_home "$@" ;;
+  set-key)       set_key "$@" ;;
+  skip-key)      skip_key "$@" ;;
+  ack-telemetry) ack_telemetry ;;
+  finish)        finish ;;
+  *) echo "usage: hfa-setup status | home <dir> | set-key <K> <V> | skip-key <K> | ack-telemetry | finish" >&2 ;;
+esac
+exit 0
