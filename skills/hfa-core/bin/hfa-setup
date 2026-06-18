@@ -9,6 +9,9 @@
 #   hfa-setup set-key K VALUE   write an API key into <home>/.env (chmod 600)
 #   hfa-setup skip-key K        mark a key declined (so it is not re-prompted)
 #   hfa-setup ack-telemetry     record that the telemetry notice was shown
+#   hfa-setup disable SKILL     turn a skill off (a required API key is missing)
+#   hfa-setup enable SKILL      turn a skill back on
+#   hfa-setup reconcile         enable skills with all keys, disable those missing any
 #   hfa-setup finish            mark onboarding complete (+ telemetry notice)
 #
 # Contract (shared by all hfa-* scripts): defensive, never blocks, never
@@ -23,6 +26,7 @@ BOOT="$HOME/.hfa"                 # fixed bootstrap (holds the pointer files)
 [ -r "$DIR/_hfa-home.sh" ] && . "$DIR/_hfa-home.sh"
 HFA_HOME="${HFA_HOME:-$BOOT}"
 KEYS_TSV="$CORE/references/api-keys.tsv"
+DISABLED_FILE="$HFA_HOME/disabled"   # one disabled skill name per line
 
 # --- helpers ---------------------------------------------------------------
 
@@ -54,6 +58,59 @@ key_present() { # process env, then <home>/.env, then ./.env
   return 1
 }
 
+# --- disable state ---------------------------------------------------------
+# A skill is "disabled" when a required API key is missing/declined. Soft model:
+# the name is recorded here and each skill's preamble self-reports DISABLED so the
+# agent refuses to run it — channel-agnostic and reversible (no file surgery).
+
+is_disabled() { [ -f "$DISABLED_FILE" ] && grep -qx "$1" "$DISABLED_FILE"; }
+
+do_disable() {
+  mkdir -p "$HFA_HOME" 2>/dev/null || true
+  is_disabled "$1" && return 0
+  printf '%s\n' "$1" >> "$DISABLED_FILE" 2>/dev/null || true
+}
+
+do_enable() {
+  [ -f "$DISABLED_FILE" ] || return 0
+  grep -vx "$1" "$DISABLED_FILE" > "$DISABLED_FILE.tmp" 2>/dev/null || true
+  mv "$DISABLED_FILE.tmp" "$DISABLED_FILE" 2>/dev/null || true
+}
+
+# Missing keys (space-separated) for an installed skill; empty if all present.
+skill_missing_keys() { # $1 = skill name
+  smk_out=""
+  for smk_k in $(skill_env_keys "$SKILLS_DIR/$1/SKILL.md"); do
+    key_present "$smk_k" || smk_out="${smk_out:+$smk_out }$smk_k"
+  done
+  printf '%s' "$smk_out"
+}
+
+# Enable any skill whose keys are now ALL present. Never disables — safe for the
+# lazy set-key path, where an untouched key must not silently disable other skills.
+enable_complete() {
+  for ec_sk in "$SKILLS_DIR"/*/SKILL.md; do
+    [ -f "$ec_sk" ] || continue
+    ec_name="$(basename "$(dirname "$ec_sk")")"
+    [ "$ec_name" = "hfa-core" ] && continue
+    [ -n "$(skill_env_keys "$ec_sk")" ] || continue
+    [ -z "$(skill_missing_keys "$ec_name")" ] && do_enable "$ec_name"
+  done
+}
+
+# Full sweep: each key-needing skill enabled iff all its keys are present, else
+# disabled. Used at the END of full setup, once every key has been offered.
+reconcile() {
+  for rc_sk in "$SKILLS_DIR"/*/SKILL.md; do
+    [ -f "$rc_sk" ] || continue
+    rc_name="$(basename "$(dirname "$rc_sk")")"
+    [ "$rc_name" = "hfa-core" ] && continue
+    [ -n "$(skill_env_keys "$rc_sk")" ] || continue
+    if [ -z "$(skill_missing_keys "$rc_name")" ]; then do_enable "$rc_name"; else do_disable "$rc_name"; fi
+  done
+  echo "reconciled"
+}
+
 # --- subcommands -----------------------------------------------------------
 
 status() {
@@ -81,6 +138,18 @@ status() {
     pres=no; key_present "$k" && pres=yes
     prom=no; [ -f "$HFA_HOME/.env-prompted-$k" ] && prom=yes
     echo "KEY $k present=$pres prompted=$prom needed_by=${nb:-?} url=$(key_url "$k") desc=$(key_desc "$k")"
+  done
+
+  # Per-skill enable/disable state, so the agent can summarize after setup.
+  for sk2 in "$SKILLS_DIR"/*/SKILL.md; do
+    [ -f "$sk2" ] || continue
+    name2="$(basename "$(dirname "$sk2")")"
+    [ "$name2" = "hfa-core" ] && continue
+    keys2="$(skill_env_keys "$sk2" | paste -sd, - 2>/dev/null)"
+    [ -n "$keys2" ] || continue
+    miss2="$(printf '%s' "$(skill_missing_keys "$name2")" | tr ' ' ',')"
+    dis2=no; is_disabled "$name2" && dis2=yes
+    echo "SKILL $name2 disabled=$dis2 keys=$keys2 missing=${miss2:-none}"
   done
 }
 
@@ -123,6 +192,7 @@ set_key() {
   mv "$ENV.tmp" "$ENV" 2>/dev/null || true
   chmod 600 "$ENV" 2>/dev/null || true
   touch "$HFA_HOME/.env-prompted-$K" 2>/dev/null || true
+  enable_complete   # re-enable any skill whose keys are now all present
   echo "set $K"
 }
 
@@ -130,6 +200,13 @@ skip_key() {
   K="${1:-}"; [ -n "$K" ] || { echo "usage: hfa-setup skip-key <KEY>" >&2; return 1; }
   mkdir -p "$HFA_HOME" 2>/dev/null || true
   touch "$HFA_HOME/.env-prompted-$K" 2>/dev/null || true
+  # The user declined this key -> disable every installed skill that needs it.
+  for skp_sk in "$SKILLS_DIR"/*/SKILL.md; do
+    [ -f "$skp_sk" ] || continue
+    skp_name="$(basename "$(dirname "$skp_sk")")"
+    [ "$skp_name" = "hfa-core" ] && continue
+    skill_env_keys "$skp_sk" | grep -qx "$K" && do_disable "$skp_name"
+  done
   echo "skipped $K"
 }
 
@@ -153,7 +230,10 @@ case "$cmd" in
   set-key)       set_key "$@" ;;
   skip-key)      skip_key "$@" ;;
   ack-telemetry) ack_telemetry ;;
+  disable)       [ -n "${1:-}" ] && { do_disable "$1"; echo "disabled $1"; } || echo "usage: hfa-setup disable <skill>" >&2 ;;
+  enable)        [ -n "${1:-}" ] && { do_enable "$1"; echo "enabled $1"; } || echo "usage: hfa-setup enable <skill>" >&2 ;;
+  reconcile)     reconcile ;;
   finish)        finish ;;
-  *) echo "usage: hfa-setup status | home <dir> | set-key <K> <V> | skip-key <K> | ack-telemetry | finish" >&2 ;;
+  *) echo "usage: hfa-setup status | home <dir> | set-key <K> <V> | skip-key <K> | disable <skill> | enable <skill> | reconcile | ack-telemetry | finish" >&2 ;;
 esac
 exit 0

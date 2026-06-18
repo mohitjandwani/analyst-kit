@@ -34,6 +34,7 @@ new_home() {
   H="$(mktemp -d)"; CLEAN="$CLEAN $H"
   export HOME="$H"; unset HFA_HOME
   mkdir -p "$H/.hfa"; printf '%s' "$CORE" > "$H/.hfa/core-path"
+  cd "$H" 2>/dev/null || true   # hermetic CWD so no stray ./.env (e.g. the repo's) leaks in
 }
 section() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 
@@ -119,6 +120,33 @@ new_home
 "$BIN/hfa-setup" finish >/dev/null
 assert_file "finish: onboarded"      "$HOME/.hfa/.onboarded"
 assert_file "finish: telemetry-prompted" "$HOME/.hfa/.telemetry-prompted"
+
+# ── disable / enable / reconcile (skills with missing keys) ───────────────
+section "hfa-setup disable / enable / reconcile"
+new_home
+DIS="$HOME/.hfa/disabled"
+# Declining a key disables EVERY skill that needs it (FMP → company-wiki + financialmodellingprep).
+"$BIN/hfa-setup" skip-key FMP_API_KEY >/dev/null
+grep -qx company-wiki "$DIS" 2>/dev/null && ok "skip-key disables a skill needing that key" || bad "skip-key disables a skill needing that key"
+grep -qx financialmodellingprep "$DIS" 2>/dev/null && ok "skip-key disables ALL skills needing the key" || bad "skip-key disables ALL skills needing the key"
+# Providing the key re-enables the now-complete skill.
+"$BIN/hfa-setup" set-key FMP_API_KEY abc123 >/dev/null
+grep -qx company-wiki "$DIS" 2>/dev/null && bad "set-key re-enables a now-complete skill" || ok "set-key re-enables a now-complete skill"
+# Explicit toggles.
+"$BIN/hfa-setup" disable finmind >/dev/null
+grep -qx finmind "$DIS" 2>/dev/null && ok "disable subcommand turns a skill off" || bad "disable subcommand turns a skill off"
+"$BIN/hfa-setup" enable finmind >/dev/null
+grep -qx finmind "$DIS" 2>/dev/null && bad "enable subcommand turns a skill on" || ok "enable subcommand turns a skill on"
+# reconcile: with no keys, every key-needing skill ends disabled; key-less ones never are.
+new_home
+"$BIN/hfa-setup" reconcile >/dev/null
+grep -qx company-wiki "$HOME/.hfa/disabled" 2>/dev/null && ok "reconcile disables skills missing keys" || bad "reconcile disables skills missing keys"
+grep -qx charting "$HOME/.hfa/disabled" 2>/dev/null && bad "key-less skill is never disabled" || ok "key-less skill is never disabled"
+assert_contains "status reports per-skill disabled state" "SKILL company-wiki disabled=yes" "$("$BIN/hfa-setup" status)"
+# The preamble surfaces the disabled state so the agent can refuse to run it.
+assert_contains "preamble reports DISABLED: yes for a disabled skill" "DISABLED: yes" "$("$BIN/hfa-preamble" --skill company-wiki --env FMP_API_KEY 2>/dev/null)"
+"$BIN/hfa-setup" enable company-wiki >/dev/null
+assert_contains "preamble reports DISABLED: no once re-enabled" "DISABLED: no" "$("$BIN/hfa-preamble" --skill company-wiki --env FMP_API_KEY 2>/dev/null)"
 
 # ── hfa-preamble: state echo + dedupe + start logging ─────────────────────
 section "hfa-preamble"

@@ -125,7 +125,7 @@
       "name": "hfa-core",
       "folder": "hfa-core",
       "type": "capability",
-      "description": "Shared runtime for Hedge Fund Analyst skills: the ~/.hfa data home, config store, local usage analytics with opt-in telemetry, daily update checks, and a per-user learnings log every skill reads and appends to. Loaded automatically as a dependency of every other skill. Triggers: \"hfa setup\", \"hfa config\", \"check for hfa updates\", \"upgrade hfa skills\", \"show my hfa learnings\", \"turn hfa telemetry on/off\", \"show my hfa usage\".",
+      "description": "Shared runtime for Hedge Fund Analyst skills: the ~/.hfa data home, config store, local usage analytics with opt-in telemetry, daily update checks, and a per-user learnings log every skill reads and appends to. Loaded automatically as a dependency of every other skill. Triggers: \"set up hfa\", \"help me set up hedge fund analyst\", \"configure all skills\", \"hfa config\", \"enable/disable a skill\", \"check for hfa updates\", \"upgrade hfa skills\", \"show my hfa learnings\", \"turn hfa telemetry on/off\", \"show my hfa usage\".",
       "requires": [],
       "env": [],
       "runtime": "none"

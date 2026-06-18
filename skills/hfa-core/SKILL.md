@@ -5,7 +5,8 @@ description: >
   Shared runtime for Hedge Fund Analyst skills: the ~/.hfa data home, config store,
   local usage analytics with opt-in telemetry, daily update checks, and a per-user
   learnings log every skill reads and appends to. Loaded automatically as a dependency
-  of every other skill. Triggers: "hfa setup", "hfa config", "check for hfa updates",
+  of every other skill. Triggers: "set up hfa", "help me set up hedge fund analyst",
+  "configure all skills", "hfa config", "enable/disable a skill", "check for hfa updates",
   "upgrade hfa skills", "show my hfa learnings", "turn hfa telemetry on/off", "show my
   hfa usage".
 ---
@@ -36,6 +37,7 @@ that holds the `core-path` / `home-path` pointers even after the data is relocat
 | `learnings.jsonl` | per-user learnings log (patterns / pitfalls / preferences) |
 | `last-update-check`, `update-snoozed` | update-check cache (1 day) and snooze (7 days) |
 | `.onboarded`, `.telemetry-prompted`, `.env-prompted-<KEY>` | once-ever prompt markers |
+| `disabled` | skill names turned off because a required API key is missing/declined |
 | `core-path` | (bootstrap) cached location of this skill on disk |
 | `home-path` | (bootstrap) absolute path to the relocated data home, if the user moved it |
 | `install-manifest.jsonl` | what `hfa install` installed (drives guided upgrades) |
@@ -54,18 +56,37 @@ that holds the `core-path` / `home-path` pointers even after the data is relocat
   `curl --max-time 3`.
 - `hfa-learn add '<one-line-json>' | recent [--skill S] [--topic T] [--limit N]` —
   learnings log.
-- `hfa-setup status | home <dir> | set-key <K> <V> | skip-key <K> | ack-telemetry | finish`
-  — first-run onboarding backend. `status` reports the data home and which installed
-  skills need which API keys; `home` relocates the `~/.hfa` data home (migrating existing
-  data and writing the `home-path` pointer); `set-key` / `skip-key` persist or decline a
-  key; `finish` writes the onboarding + telemetry markers. Non-interactive by design — the
-  agent runs the conversation and calls these to persist. `_hfa-home.sh` (sourced by every
-  script) resolves the data home; `references/api-keys.tsv` maps each key to a
-  description + signup URL so the prompts work on the user's machine.
+- `hfa-setup status | home <dir> | set-key <K> <V> | skip-key <K> | disable <skill> | enable <skill> | reconcile | ack-telemetry | finish`
+  — onboarding + setup backend. `status` reports the data home, which installed skills need
+  which API keys, and each skill's enable/disable state; `home` relocates the `~/.hfa` data
+  home (migrating data + writing the `home-path` pointer); `set-key` writes a key (and
+  re-enables any now-complete skill); `skip-key` records a decline (and disables the skills
+  that need that key); `disable`/`enable` toggle a skill; `reconcile` enables every skill
+  whose keys are all present and disables the rest; `finish` writes the onboarding +
+  telemetry markers. Non-interactive by design — the agent drives the conversation and
+  calls these to persist. `_hfa-home.sh` (sourced by every script) resolves the data home;
+  `references/api-keys.tsv` maps each key to a description + signup URL; the full **setup
+  playbook** the agent follows lives in `references/intro.md`.
 
 All scripts are defensive: they never exit non-zero from the skill's point of view,
 never block on the network, and a total failure of this runtime must never stop a
 skill from doing its actual job.
+
+## Full setup & disabling skills
+
+When the user asks to set up HFA (e.g. "set up hfa", "help me set up hedge fund analyst",
+"configure all skills"), **Read `references/intro.md` and follow it** — it walks the data
+home, the telemetry notice, and **every** installed skill's API keys in one pass. (A
+single skill's preamble, by contrast, only handles that one skill's key on demand — the
+lazy path.)
+
+A skill whose required key the user doesn't provide is **disabled**: its name is recorded
+in `~/.hfa/disabled`, its preamble then echoes `DISABLED: yes`, and the agent must refuse
+to run it and point the user at "set up hfa" (or simply accept the key, which re-enables it
+via `hfa-setup set-key`). This is a *soft* disable — channel-agnostic and reversible, with
+no file surgery on installed skills — so it behaves identically across the plugin,
+installer, and codex channels (the install-time routing table still lists the skill; the
+runtime preamble is what gates it).
 
 ## Telemetry tiers
 
