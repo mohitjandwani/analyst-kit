@@ -7,6 +7,7 @@ set -uo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 CORE="$(dirname "$DIR")"
+[ -r "$DIR/_hfa-home.sh" ] && . "$DIR/_hfa-home.sh"
 HFA_HOME="${HFA_HOME:-$HOME/.hfa}"
 export HFA_HOME
 
@@ -36,6 +37,7 @@ find "$HFA_HOME/sessions" -type f -mmin +240 -delete 2>/dev/null || true
 
 VER="$(tr -d '[:space:]' < "$CORE/VERSION" 2>/dev/null)"
 echo "HFA_VERSION: ${VER:-unknown}"
+echo "HFA_HOME: $HFA_HOME"
 
 TIER="$("$DIR/hfa-config" get telemetry 2>/dev/null || echo community)"
 case "$TIER" in off|anonymous|community) ;; *) TIER=community ;; esac
