@@ -145,7 +145,10 @@ export function resolveFilePath(brainDir: string, urlPath: string): string | nul
     .replace(/^\/wiki\//, '')
     .replace(/^\//, '')
     .replace(/\/$/, '')
-    .replace(/\.html$/, '');
+    .replace(/\.html$/, '')
+    // Markdown inter-page links keep their `.md` extension (e.g. href="06-drivers.md"),
+    // so the URL can arrive with `.md`. Strip it — `rel + '.md'` is re-appended below.
+    .replace(/\.md$/, '');
 
   const brainAbs = path.resolve(brainDir);
   const sep = path.sep;

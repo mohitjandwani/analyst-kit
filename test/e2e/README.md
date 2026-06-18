@@ -30,30 +30,47 @@ Key conventions:
   report. Each skill declares its own required env keys in its `SKILL.md` frontmatter (`env:`).
 - The frontmatter `id` names the output (`pdfs/<id>.pdf`) and the log files.
 - Every task's PDF lands in one flat folder, `pdfs/`, for easy manual review.
-- Task bodies describe **intent only** — the harness automatically appends an output contract
-  asking for a single self-contained `output/<id>.html` (writing `output/<id>.pdf` directly
-  also counts).
+- Task bodies are **self-describing prompts** — each states its own deliverable (e.g. "a
+  branded PDF report written to `output/<id>.pdf`"). The harness adds **no** preamble to the
+  user prompt; cross-cutting behavior (skills-first, source-tracking, no made-up data, plan
+  & verify, clarify) lives in a **system prompt** (`system-prompt.md`) appended to Claude
+  Code's default. The PDF check keys off `output/<id>`; an `.html` left in the workdir is
+  auto-converted (see below), so an `output/<id>.pdf` or any `.html` deliverable counts.
 - Frontmatter is parsed by the repo's minimal parser (`src/frontmatter.js`): scalars only,
   and **no inline `#` comments**.
 
-## What the harness does around each task (cost discipline)
+## What the harness does around each task
 
-The premium agent should spend its turns on judgment, not plumbing, so the harness:
+The harness keeps the user prompt realistic — it does **not** inject an environment brief, a
+cost-discipline playbook, or an output contract into it. The agent works from its
+natively-listed installed skills and the task body. The harness only:
 
-- **Injects an environment brief** — each task workdir gets a `CLAUDE.md` (auto-loaded
-  project memory) stating what is pre-verified: tools on PATH (`html2pdf`, `python3`+polars,
-  `bun`), where skills live, and which API keys are present. The agent must not burn turns
-  probing any of this.
-- **Installs `agents/*.md`** into `~/.claude/agents/` — notably `data-extractor`
-  (`model: haiku`), which the brief tells the main agent to delegate **all** data gathering
-  to (FMP for GAAP metrics, IR press releases for non-GAAP KPIs; returns raw JSON records).
-- **Routes math and boilerplate to scripts** — the brief points at the charting skill's
-  one-shot CLIs (`python3 -m pipeline.cli yoy …` for Polars-computed growth,
-  `bun scripts/render.ts …` for contract → self-contained HTML), so the model never
-  hand-computes YoY or hand-writes Highcharts pages.
-- **Converts HTML → PDF itself** — after the run, if `output/` has an `.html` but no PDF,
-  the harness runs `html2pdf` as a post-processing step (recorded as `autoPdf` in
-  `report.json`).
+- **Appends a system prompt** — `test/e2e/system-prompt.md` is passed via
+  `--append-system-prompt` (it augments Claude Code's default, which already lists installed
+  skills). It carries the cross-cutting rules: search skills before the web, record every
+  source in `data_sources.md`, never state data from memory, plan-with-skills then verify,
+  and clarify-then-record-in-learnings. Edit that file to change agent behavior; the user
+  prompt stays the bare task. The harness installs **skills only** — no agent definitions;
+  any data-gathering sub-agent is launched via the Task tool per a skill's own recipe (e.g.
+  `sec-filings`).
+- **Converts HTML → PDF itself** — after the run, if `output/` has no PDF, the harness runs
+  `html2pdf` on the agent's `.html` deliverable (in `output/` or the workdir) as a
+  post-processing step (recorded as `autoPdf` in `report.json`).
+- **Verifies exactly one valid PDF** — file exists, non-empty, `%PDF-` header. Content is
+  reviewed manually. This is the **only** thing that decides a task's pass/fail.
+- **Runs a data-provenance audit (`audit.ts`) — advisory, never fails the task.** A judge
+  (Sonnet by default) checks that every source the report's **data** cites — the report
+  contract's `references` + the agent's `data_sources.md` — was actually queried, against a
+  deterministic **ledger** of real tool calls (main agent *and* sub-agents). It audits the
+  data handed to the reporting skill, **not** the rendered PDF (reporting is a deterministic
+  renderer that already fails loudly on bad input). A source counts as sourced when its
+  **skill ran** — a data skill calls its provider's API inside its scripts, so the host never
+  shows on a command line; crediting the skill is done deterministically in code (so
+  skill-sourced data is never false-flagged). On a genuinely unsupported source the harness
+  resumes the same agent session to **fetch the real data or drop that data/claim and
+  re-render** (up to `--audit-retries`, default 1). It only improves the deliverable; it
+  never flips pass/fail. Flags: `--no-audit`, `--audit-model <m>` (default `sonnet`),
+  `--audit-retries <n>`. Findings are recorded under `audit` in `report.json`.
 
 ## Running (available once the harness lands)
 
@@ -96,26 +113,55 @@ memory and avoids installing every skill N times. (Note: `devcontainer up` is ke
 workspace folder, so launching the harness twice would reuse the **same** container anyway;
 use `--concurrency` instead of running the harness in parallel yourself.)
 
-## Viewing the logs
+## Viewing the logs (live)
 
-When a host run finishes, the harness **auto-starts a local viewer** and opens your browser
-to the run's `*.stream.jsonl`. The viewer (`viewer.html`) renders the run as a timeline:
-assistant text and the final result are formatted as Markdown, every tool call is
-colour-coded by family (Skill is the violet standout), each call is stitched to its result,
-and thinking is collapsed by default (toggle it from the header).
+The harness **auto-opens a local viewer at run start** and it **live-tails** while the agent
+works — the browser opens within a few seconds of the run beginning, and the timeline grows in
+real time. The viewer (`viewer.html`) renders the run as a timeline: assistant text and the
+final result are Markdown, every tool call is colour-coded by family (Skill is the violet
+standout), each call is stitched to its result, and thinking is collapsed by default. A status
+pill in the header shows `● live` while tailing and `✓ done` once the run's `result` lands.
 
 ```
-────────────────────────────────────────────────────────────────
-▶ log viewer running at http://127.0.0.1:8787/viewer.html  (Ctrl+C to stop)
-    00-smoke                 http://127.0.0.1:8787/viewer.html?file=logs/latest/00-smoke.stream.jsonl
-────────────────────────────────────────────────────────────────
+▶ live log viewer: http://127.0.0.1:8787/viewer.html?file=logs/latest/00-smoke.stream.jsonl
 ```
 
-The server stays up (scoped to `test/e2e/`) until you press Ctrl+C, which exits with the
-run's pass/fail status. Knobs:
+Under the hood it polls the served `*.stream.jsonl` every ~2s and re-renders on growth,
+preserving your expanded panels and scroll position. The server stays up (scoped to
+`test/e2e/`) until you press Ctrl+C, which exits with the run's pass/fail status. Knobs:
 
-- `--no-viewer` flag, or `E2E_NO_VIEWER=1` — skip the viewer and exit immediately. Auto-off
-  when `CI` is set, so it never hangs a pipeline.
+- `--no-viewer` flag, or `E2E_NO_VIEWER=1` — skip the viewer entirely; the harness then uses
+  the simple blocking run path. Auto-off when `CI` is set, so it never hangs a pipeline.
 - `E2E_VIEWER_PORT=9000` — override the port (default `8787`; auto-increments if taken).
 
-You can also open `viewer.html` directly (no server) and drag any `*.stream.jsonl` onto it.
+You can also open `viewer.html` directly (no server) and drag any `*.stream.jsonl` onto it
+(a manual open cancels live mode).
+
+## Watching the run in the terminal
+
+Independently of the browser viewer, every run prints a **colorized live trace** to the
+terminal — one line per tool call, coloured by family and showing the active skill/subagent:
+
+```
+  ✦ Skill → single-stock-deep-dive
+  ❯ Bash  python edgar.py exhibits STM --items 2.02
+  ⟁ Task → general-purpose [haiku]
+  ▤ Read  research/STM-deep-dive/09-valuation.md
+```
+
+Colour is emitted only when your terminal is a TTY (the harness forwards `E2E_TTY=1` into the
+container for this), so piped / `tee`'d / backgrounded output stays clean plain text. Pass
+`--verbose` to also append each tool call's full input JSON.
+
+## Running a single task from inside the container
+
+After `npm run container:terminal` (opens a shell in the running devcontainer), launch one
+task directly — the harness loads `test/e2e/.env` in `--in-container` mode, so the API keys are
+already present, no manual sourcing:
+
+```bash
+bun test/e2e/run.ts --in-container --task 60-stm-deep-dive   # from inside the container
+```
+
+There is also an in-container convenience script: `npm run e2e:task -- 60-stm-deep-dive`
+(**run it from inside the container only** — unlike the host-side `container:terminal`).

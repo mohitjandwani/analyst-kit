@@ -9,9 +9,6 @@ Gather three series covering the last 3 full years:
 
 1. Google Trends search interest for the term "Roblox" (worldwide). Trends data is
    weekly or monthly — aggregate it to calendar quarters (mean interest per quarter).
-   If Google Trends cannot be fetched programmatically from this environment, substitute
-   another public attention proxy (for example the Wikipedia pageviews API for the
-   "Roblox" article) and state the substitution prominently in the deliverable.
 2. Quarterly bookings (a non-GAAP KPI from Roblox's earnings releases).
 3. Quarterly GAAP revenue.
 

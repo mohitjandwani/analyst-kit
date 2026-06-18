@@ -9,7 +9,8 @@
 //     `claude -p`, checks that each produced exactly one valid PDF, writes a report.
 //
 // Keys are passed inline on the host command (or via an optional test/e2e/.env) and never
-// baked into the image. Model selection (Sonnet + Haiku) is baked into the image ENV.
+// baked into the image. Models are baked into the image ENV: the main agent runs on Opus,
+// and it delegates to Sonnet/Haiku subagents per-task (see the Dockerfile + system prompt).
 
 import { spawn, spawnSync } from 'node:child_process';
 import {
@@ -20,6 +21,7 @@ import { createServer } from 'node:http';
 import { join, basename, extname, resolve as pathResolve } from 'node:path';
 import { homedir } from 'node:os';
 import { pathToFileURL } from 'node:url';
+import { auditTask, buildRemediationPrompt } from './audit.ts';
 
 // Secrets the harness forwards into the container (inline > .env file > unset).
 // SEC_EDGAR_UA is what skills/sec-filings/scripts/edgar.py reads; SEC_EDGAR_USER_AGENT is
@@ -31,6 +33,13 @@ const DEFAULT_TIMEOUT_MS = 20 * 60 * 1000;
 // is set by Bun; fall back to deriving it from the URL for plain node.
 const HERE = (import.meta as any).dir ?? new URL('.', import.meta.url).pathname;
 const REPO_ROOT = pathResolve(HERE, '..', '..');
+
+// Behavioral system prompt, APPENDED to Claude Code's default (which already lists the
+// installed skills + tools). Edit test/e2e/system-prompt.md to change the rules. Read once
+// here — before the top-level dispatch below — so the const is initialized when runClaude
+// (called during runInContainer's top-level await) reads it.
+const SYSTEM_PROMPT_FILE = join(REPO_ROOT, 'test', 'e2e', 'system-prompt.md');
+const SYSTEM_PROMPT = existsSync(SYSTEM_PROMPT_FILE) ? readFileSync(SYSTEM_PROMPT_FILE, 'utf8').trim() : '';
 
 const argv = process.argv.slice(2);
 const IN_CONTAINER = argv.includes('--in-container');
@@ -48,10 +57,48 @@ const NO_VIEWER = argv.includes('--no-viewer') || !!process.env.E2E_NO_VIEWER ||
 // container via `passthrough`; E2E_VERBOSE only affects the side it's set on.
 const VERBOSE = argv.includes('--verbose') || !!process.env.E2E_VERBOSE;
 
+// Colored live trace. The trace runs IN-CONTAINER, whose stderr is a non-TTY pipe (via
+// `docker exec`), so host mode forwards E2E_TTY=1 when its own stdout is a TTY; a manual
+// in-container interactive shell has stderr.isTTY itself. Emit ANSI only then — so piped /
+// tee'd / backgrounded runs stay clean plain text. Declared before the dispatch (no TDZ).
+const COLOR = !!process.env.E2E_TTY || !!process.stderr.isTTY;
+const paint = (code: string, s: string) => (COLOR ? `\x1b[${code}m${s}\x1b[0m` : s);
+// Secondary-text grays tuned for a dark terminal — ANSI `dim` (code 2) renders nearly
+// invisible, so use explicit readable greys instead.
+const DIM = '38;5;246'; // tool detail, init/result lines, heartbeat
+const SAY = '38;5;252'; // assistant narration — brighter, so it's actually readable
+// Tool → { 256-color, icon }, mirroring viewer.html's TOOL_THEME (Skill is the violet
+// standout). Bright variants chosen for contrast on a dark background.
+const TOOL_COLOR: Record<string, { code: string; icon: string }> = {
+  Skill:     { code: '38;5;177', icon: '✦' },
+  Task:      { code: '38;5;86',  icon: '⟁' },
+  Agent:     { code: '38;5;86',  icon: '⟁' },
+  Bash:      { code: '38;5;114', icon: '❯' },
+  Read:      { code: '38;5;81',  icon: '▤' },
+  Write:     { code: '38;5;221', icon: '✎' },
+  Edit:      { code: '38;5;215', icon: '✎' },
+  WebSearch: { code: '38;5;117', icon: '⌕' },
+  WebFetch:  { code: '38;5;117', icon: '⌕' },
+  Grep:      { code: '38;5;249', icon: '⌕' },
+  Glob:      { code: '38;5;249', icon: '⌕' },
+};
+const DEFAULT_TOOL = { code: '38;5;249', icon: '⚒' };
+
+// ── Provenance audit (see audit.ts) ──────────────────────────────────────────────────────
+// ADVISORY data-provenance self-repair. A judge checks that every source the report's DATA
+// cites (the contract's references + data_sources.md) was actually queried (ground truth = a
+// ledger of real tool calls, incl. sub-agents). On a flagged source it RESUMES the same agent
+// session to fetch the real data or DROP the unsupported data, then re-audits — up to
+// --audit-retries times. It NEVER fails the task (pass/fail stays "valid PDF"); it only
+// improves the deliverable. Flags ride through to the container via `passthrough`.
+const AUDIT_ENABLED = !argv.includes('--no-audit');
+const AUDIT_MODEL = flagValue(argv, '--audit-model') || 'sonnet';
+const MAX_AUDIT_RETRIES = Math.max(0, Number(flagValue(argv, '--audit-retries')) || 1);
+
 if (IN_CONTAINER) {
   await runInContainer(taskFilter, CONCURRENCY);
 } else {
-  hostMode(argv.filter((a) => a !== '--in-container' && a !== '--no-viewer'));
+  await hostMode(argv.filter((a) => a !== '--in-container' && a !== '--no-viewer'));
 }
 
 function flagValue(args: string[], name: string): string | null {
@@ -60,7 +107,7 @@ function flagValue(args: string[], name: string): string | null {
 }
 
 // ── HOST MODE ──────────────────────────────────────────────────────────────────────────
-function hostMode(passthrough: string[]) {
+async function hostMode(passthrough: string[]) {
   loadDotEnv(join(REPO_ROOT, 'test', 'e2e', '.env'), true); // authoritative: overrides host env
 
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -92,36 +139,64 @@ function hostMode(passthrough: string[]) {
   const remoteWs = info.remoteWorkspaceFolder || `/workspaces/${basename(REPO_ROOT)}`;
   const user = info.remoteUser || 'node';
 
-  const envArgs = present.flatMap((k) => ['-e', `${k}=${process.env[k]}`]);
+  // Forward E2E_TTY when the host terminal is a TTY, so the in-container trace colorizes (its
+  // stderr is a non-TTY pipe via docker exec, so it can't detect this itself).
+  const ttyArgs = process.stdout.isTTY ? ['-e', 'E2E_TTY=1'] : [];
+  const envArgs = [...present.flatMap((k) => ['-e', `${k}=${process.env[k]}`]), ...ttyArgs];
   const cmd = [
     'exec', ...envArgs, '-u', user, '-w', remoteWs, info.containerId,
     'bun', `${remoteWs}/test/e2e/run.ts`, '--in-container', ...passthrough,
   ];
   console.error(`▶ running harness in ${info.containerId.slice(0, 12)} (forwarding: ${present.join(', ') || 'none'})`);
-  const r = spawnSync('docker', cmd, { stdio: 'inherit' });
-  const status = r.status ?? 1;
 
-  // The container wrote logs to the mounted workspace, so they're on the host now.
-  // Serve them through viewer.html and stay up until the user stops the process.
-  if (NO_VIEWER) process.exit(status);
-  startViewer(join(REPO_ROOT, 'test', 'e2e'), status);
+  // --no-viewer (CI, piping, scripted/background runs): the proven BLOCKING path, unchanged.
+  if (NO_VIEWER) {
+    const r = spawnSync('docker', cmd, { stdio: 'inherit' });
+    process.exit(r.status ?? 1);
+  }
+
+  // Viewer path: start the static server FIRST (so the event loop is free to serve while the
+  // run streams to the terminal), run the harness async, open the browser as soon as the run
+  // writes its first stream log, then keep the viewer up for review until Ctrl+C. viewer.html
+  // live-tails, so the timeline grows as the agent works.
+  const e2eDir = join(REPO_ROOT, 'test', 'e2e');
+  let srv: { server: ReturnType<typeof createServer>; base: string };
+  try {
+    srv = await serveE2E(e2eDir);
+  } catch (e: any) {
+    console.error(`✗ could not start viewer (${e?.message}); running without it.`);
+    const r = spawnSync('docker', cmd, { stdio: 'inherit' });
+    process.exit(r.status ?? 1);
+  }
+  watchAndOpen(e2eDir, srv.base); // non-blocking: polls logs/latest, opens the browser when ready
+
+  const child = spawn('docker', cmd, { stdio: 'inherit' });
+  const status: number = await new Promise((res) => {
+    child.on('close', (code) => res(code ?? 1));
+    child.on('error', (err) => { console.error(`✗ run failed to spawn: ${err.message}`); res(1); });
+  });
+
+  // Run finished — keep the viewer alive for review (it stays tailing the now-complete log).
+  const latest = join(e2eDir, 'logs', 'latest');
+  const streams = existsSync(latest)
+    ? readdirSync(latest).filter((f) => f.endsWith('.stream.jsonl')).sort() : [];
+  if (!streams.length) { try { srv.server.close(); } catch { /* ignore */ } process.exit(status); }
+  const bar = '─'.repeat(64);
+  console.log(`\n${bar}`);
+  console.log(`▶ log viewer running at ${srv.base}/viewer.html  (Ctrl+C to stop)`);
+  streams.forEach((f) => console.log(`    ${f.replace(/\.stream\.jsonl$/, '').padEnd(24)} ${srv.base}/viewer.html?file=logs/latest/${f}`));
+  console.log(bar);
+  const stop = () => { try { srv.server.close(); } catch { /* ignore */ } process.exit(status); };
+  process.on('SIGINT', stop);
+  process.on('SIGTERM', stop);
 }
 
 // ── LOG VIEWER ─────────────────────────────────────────────────────────────────────────
-// A zero-dependency static server scoped to test/e2e/, so viewer.html can fetch the run's
-// `*.stream.jsonl` via ?file=. Stays alive (keeps the event loop busy) until Ctrl+C, then
-// exits with the run's real status so scripted callers still see pass/fail.
-function startViewer(e2eDir: string, status: number): void {
+// A zero-dependency static server scoped to test/e2e/, so viewer.html can fetch a run's
+// `*.stream.jsonl` via ?file=. Returns the server + base URL; the caller opens the browser and
+// owns the lifecycle. viewer.html live-tails the stream, so it can be opened mid-run.
+function serveE2E(e2eDir: string): Promise<{ server: ReturnType<typeof createServer>; base: string }> {
   const root = pathResolve(e2eDir);
-  const latest = join(root, 'logs', 'latest');
-  const streams = existsSync(latest)
-    ? readdirSync(latest).filter((f) => f.endsWith('.stream.jsonl')).sort()
-    : [];
-  if (!streams.length) {
-    console.error('▶ no stream logs to view; skipping viewer.');
-    process.exit(status);
-  }
-
   const MIME: Record<string, string> = {
     '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
     '.css': 'text/css', '.json': 'application/json', '.jsonl': 'application/json',
@@ -134,32 +209,43 @@ function startViewer(e2eDir: string, status: number): void {
       // Confine every request to test/e2e/ — no path traversal, no directory listings.
       if (file !== root && !file.startsWith(root + '/')) { res.writeHead(403); return res.end('forbidden'); }
       if (!existsSync(file) || lstatSync(file).isDirectory()) { res.writeHead(404); return res.end('not found'); }
-      res.writeHead(200, { 'content-type': MIME[extname(file)] || 'application/octet-stream' });
+      // no-store so viewer.html's live polling always reads the growing file, never a cached copy.
+      res.writeHead(200, { 'content-type': MIME[extname(file)] || 'application/octet-stream', 'cache-control': 'no-store' });
       res.end(readFileSync(file));
     } catch { res.writeHead(500); res.end('error'); }
   });
+  return new Promise((resolve, reject) => {
+    const basePort = Number(process.env.E2E_VIEWER_PORT) || 8787;
+    const listen = (port: number, tries: number) => {
+      server.once('error', (e: any) => {
+        if (e.code === 'EADDRINUSE' && tries > 0) listen(port + 1, tries - 1);
+        else reject(e);
+      });
+      server.listen(port, '127.0.0.1', () => resolve({ server, base: `http://127.0.0.1:${port}` }));
+    };
+    listen(basePort, 10);
+  });
+}
 
-  const basePort = Number(process.env.E2E_VIEWER_PORT) || 8787;
-  const listen = (port: number, tries: number) => {
-    server.once('error', (e: any) => {
-      if (e.code === 'EADDRINUSE' && tries > 0) listen(port + 1, tries - 1);
-      else { console.error(`✗ could not start viewer: ${e.message}`); process.exit(status); }
-    });
-    server.listen(port, '127.0.0.1', () => {
-      const base = `http://127.0.0.1:${port}`;
+// Poll logs/latest until the run's first stream log exists, then open the browser to it (and
+// print URLs for any others, e.g. under --concurrency). Non-blocking; gives up after ~90s.
+function watchAndOpen(e2eDir: string, base: string): void {
+  const latest = join(e2eDir, 'logs', 'latest');
+  let tries = 0;
+  const tick = () => {
+    let streams: string[] = [];
+    try { streams = existsSync(latest) ? readdirSync(latest).filter((f) => f.endsWith('.stream.jsonl')).sort() : []; } catch { /* not yet */ }
+    if (streams.length) {
       const urls = streams.map((f) => `${base}/viewer.html?file=logs/latest/${f}`);
-      const bar = '─'.repeat(64);
-      console.log(`\n${bar}`);
-      console.log(`▶ log viewer running at ${base}/viewer.html  (Ctrl+C to stop)`);
-      streams.forEach((f, i) => console.log(`    ${f.replace(/\.stream\.jsonl$/, '').padEnd(24)} ${urls[i]}`));
-      console.log(bar);
+      console.error(`▶ live log viewer: ${urls[0]}${urls.length > 1 ? `  (+${urls.length - 1} more below)` : ''}`);
+      urls.slice(1).forEach((u) => console.error(`    also: ${u}`));
       openBrowser(urls[0]);
-      const stop = () => { try { server.close(); } catch { /* ignore */ } process.exit(status); };
-      process.on('SIGINT', stop);
-      process.on('SIGTERM', stop);
-    });
+      return;
+    }
+    if (tries++ < 90) setTimeout(tick, 1000);
+    else console.error(`▶ viewer up at ${base}/viewer.html (no stream logs yet — open manually).`);
   };
-  listen(basePort, 10);
+  setTimeout(tick, 500);
 }
 
 function openBrowser(url: string): void {
@@ -207,6 +293,12 @@ function fail(msg: string): never {
 
 // ── IN-CONTAINER MODE ──────────────────────────────────────────────────────────────────
 async function runInContainer(filter: string | null, concurrency: number) {
+  // Keys normally arrive via `docker exec -e` (host mode forwards them). Load test/e2e/.env
+  // here too so a single task can be launched directly from inside the container —
+  // `bun test/e2e/run.ts --in-container --task <id>` — with no manual sourcing. Non-override,
+  // so an explicitly-exported shell var still wins; harmless in the normal flow (keys already set).
+  loadDotEnv(join(REPO_ROOT, 'test', 'e2e', '.env'));
+
   const { getSkills } = await import(pathToFileURL(join(REPO_ROOT, 'src', 'registry.js')).href);
   const { parseFrontmatter } = await import(pathToFileURL(join(REPO_ROOT, 'src', 'frontmatter.js')).href);
 
@@ -240,15 +332,9 @@ async function runInContainer(filter: string | null, concurrency: number) {
   report.phases.install = { ok: installOk, results: installResults };
   log(`  → ${installResults.filter((r) => r.ok).length}/${installResults.length} installed`);
 
-  // Phase 1b — install agent definitions (e.g. the Haiku-powered data-extractor), so
-  // tasks can delegate data gathering to a cheap model instead of burning premium turns.
-  const agentsSrc = join(e2e, 'agents');
-  const agentsHome = join(homedir(), '.claude', 'agents');
-  const agentFiles = existsSync(agentsSrc) ? readdirSync(agentsSrc).filter((f) => f.endsWith('.md')) : [];
-  mkdirSync(agentsHome, { recursive: true });
-  for (const f of agentFiles) copyFileSync(join(agentsSrc, f), join(agentsHome, f));
-  report.phases.agents = { ok: true, installed: agentFiles };
-  log(`Phase 1b · agents — ${agentFiles.length} agent definitions → ${agentsHome}`);
+  // The harness installs SKILLS only — no agent definitions. Any sub-agent a task needs for
+  // data gathering is launched via the Task tool per the relevant skill's own instructions
+  // (e.g. sec-filings documents the extraction sub-agent recipe).
 
   // Phase 2 — verify each skill folder landed.
   const verify = skills.map((s) => ({ skill: s.folder, present: existsSync(join(skillsHome, s.folder, 'SKILL.md')) }));
@@ -261,13 +347,15 @@ async function runInContainer(filter: string | null, concurrency: number) {
   // front so the worker pool only schedules tasks we actually intend to run.
   const tasksDir = join(e2e, 'tasks');
   const sharedClaude = join(homedir(), '.claude'); // skills + agents were installed here above
+  // --task accepts a comma-separated list, e.g. --task 10-rblx-trends-bookings,20-delta-nvda-revenue
+  const wanted = filter ? new Set(filter.split(',').map((s) => s.trim()).filter(Boolean)) : null;
   const taskFiles = readdirSync(tasksDir)
     .filter((f) => f.endsWith('.task.md')).sort()
     .filter((file) => {
       const { data } = parseFrontmatter(readFileSync(join(tasksDir, file), 'utf8'));
       const id: string = (data && data.id) || file.replace(/\.task\.md$/, '');
       const stem = file.replace(/\.task\.md$/, '');
-      return !filter || filter === id || filter === stem;
+      return !wanted || wanted.has(id) || wanted.has(stem);
     });
   log(`Phase 3 · ${taskFiles.length} task(s) — concurrency ${concurrency}`);
 
@@ -290,20 +378,18 @@ async function runInContainer(filter: string | null, concurrency: number) {
     const outdir = join(workdir, 'output');
     rmSync(workdir, { recursive: true, force: true });
     mkdirSync(outdir, { recursive: true });
-    // Pre-inject environment facts + workflow guidance as project memory, so the agent
-    // never spends turns probing the environment or doing work a script/cheap model should.
-    writeFileSync(join(workdir, 'CLAUDE.md'), envBrief(id));
-    const prompt = (body || '').trim() + outputContractFooter(id);
+    // The user prompt is the bare task body — it states its own deliverable. All behavioral
+    // guidance (skills-first, provenance, no-made-up-data, plan/verify, clarify) lives in the
+    // appended system prompt; tools/skills the agent discovers from its native skill listing.
+    const prompt = (body || '').trim();
 
-    // Per-task Claude HOME. skills/ + agents/ are symlinked to the shared install (read-only
-    // at run time, so safe to share); everything Claude WRITES stays under this home.
+    // Per-task Claude HOME. skills/ is symlinked to the shared install (read-only at run
+    // time, so safe to share); everything Claude WRITES stays under this home.
     const taskHome = join(workdir, 'home');
     const taskClaude = join(taskHome, '.claude');
     mkdirSync(taskClaude, { recursive: true });
-    for (const sub of ['skills', 'agents']) {
-      const src = join(sharedClaude, sub);
-      if (existsSync(src)) { try { symlinkSync(src, join(taskClaude, sub)); } catch { /* ignore */ } }
-    }
+    const skillsSrc = join(sharedClaude, 'skills');
+    if (existsSync(skillsSrc)) { try { symlinkSync(skillsSrc, join(taskClaude, 'skills')); } catch { /* ignore */ } }
     // Seed onboarding flags so headless `claude -p` never blocks on first-run (mirrors
     // post-create.sh, which only seeds the real HOME, not these per-task ones).
     writeFileSync(join(taskHome, '.claude.json'),
@@ -316,40 +402,102 @@ async function runInContainer(filter: string | null, concurrency: number) {
         `durationMs: ${res.durationMs}`, `costUsd: ${res.costUsd}`, `result: ${res.resultSummary}`].join('\n') + '\n');
     copyNewestTranscript(runDir, id, taskHome);
 
-    // Phase 3b — platform post-processing: if the agent left an HTML deliverable but no
-    // PDF, convert it here. HTML→PDF is the harness's job, not a turn the agent spends.
+    // Phase 3b/4 — platform post-processing + verification, wrapped so the audit loop can
+    // re-run it after a repair turn. 3b: if the agent left an HTML deliverable but no PDF,
+    // convert it here (HTML→PDF is the harness's job, not a turn the agent spends). 4: verify
+    // exactly one valid, non-empty PDF. `forceReconvert` drops stale PDFs first so a repaired
+    // HTML re-renders rather than the prior pass's PDF passing again.
     const listBy = (dir: string, ext: string) =>
       existsSync(dir) ? readdirSync(dir).filter((f) => f.toLowerCase().endsWith(ext)) : [];
-    if (listBy(outdir, '.pdf').length === 0) {
-      const htmls = listBy(outdir, '.html').map((f) => join(outdir, f))
-        .concat(listBy(workdir, '.html').map((f) => join(workdir, f)));
-      // Prefer the contracted name, else the most recently written candidate.
-      const pick = htmls.find((p) => basename(p) === `${id}.html`)
-        ?? htmls.sort((a, b) => lstatSync(b).mtimeMs - lstatSync(a).mtimeMs)[0];
-      if (pick) {
-        const conv = spawnSync('html2pdf', [pick, join(outdir, `${id}.pdf`)], { encoding: 'utf8' });
-        rec.autoPdf = { from: basename(pick), ok: conv.status === 0 };
-        log(`  · [${id}] auto-converted ${basename(pick)} → ${id}.pdf${conv.status === 0 ? '' : ` (FAILED: ${lastLine(conv.stderr || conv.stdout)})`}`);
+    const convertAndVerify = (forceReconvert = false): void => {
+      // Snapshot before a forced drop so a repair that re-renders straight to PDF (no HTML to
+      // reconvert from) can never LOSE a valid deliverable — restore it below if we end empty.
+      let snapshot: { name: string; buf: Buffer } | null = null;
+      if (forceReconvert) {
+        const existing = listBy(outdir, '.pdf');
+        if (existing.length) snapshot = { name: existing[0], buf: readFileSync(join(outdir, existing[0])) };
+        for (const f of existing) rmSync(join(outdir, f), { force: true });
       }
-    }
+      if (listBy(outdir, '.pdf').length === 0) {
+        const htmls = listBy(outdir, '.html').map((f) => join(outdir, f))
+          .concat(listBy(workdir, '.html').map((f) => join(workdir, f)));
+        // Prefer the contracted name, else the most recently written candidate.
+        const pick = htmls.find((p) => basename(p) === `${id}.html`)
+          ?? htmls.sort((a, b) => lstatSync(b).mtimeMs - lstatSync(a).mtimeMs)[0];
+        if (pick) {
+          const conv = spawnSync('html2pdf', [pick, join(outdir, `${id}.pdf`)], { encoding: 'utf8' });
+          rec.autoPdf = { from: basename(pick), ok: conv.status === 0 };
+          log(`  · [${id}] auto-converted ${basename(pick)} → ${id}.pdf${conv.status === 0 ? '' : ` (FAILED: ${lastLine(conv.stderr || conv.stdout)})`}`);
+        }
+      }
+      // A forced reconvert that produced nothing → restore the snapshot, so a repair turn that
+      // didn't re-render never downgrades a valid deliverable to "no PDF".
+      if (forceReconvert && snapshot && listBy(outdir, '.pdf').length === 0) {
+        writeFileSync(join(outdir, snapshot.name), snapshot.buf);
+        log(`  · [${id}] repair produced no new PDF — restored prior deliverable`);
+      }
+      const pdfs = listBy(outdir, '.pdf');
+      if (pdfs.length === 1) {
+        const p = join(outdir, pdfs[0]);
+        const buf = readFileSync(p);
+        const valid = buf.length > 0 && buf.subarray(0, 5).toString('latin1') === '%PDF-';
+        rec.pdf = { file: pdfs[0], bytes: buf.length, validHeader: valid };
+        rec.ok = valid;
+        if (valid) {
+          copyFileSync(p, join(pdfsDir, `${id}.pdf`)); // flat review folder
+          copyFileSync(p, join(runDir, `${id}.pdf`));  // archived with the run
+        }
+      } else {
+        rec.pdf = { count: pdfs.length, files: pdfs };
+        rec.ok = false;
+      }
+    };
 
-    // Phase 4 — verify exactly one valid, non-empty PDF.
-    const pdfs = listBy(outdir, '.pdf');
-    if (pdfs.length === 1) {
-      const p = join(outdir, pdfs[0]);
-      const buf = readFileSync(p);
-      const valid = buf.length > 0 && buf.subarray(0, 5).toString('latin1') === '%PDF-';
-      rec.pdf = { file: pdfs[0], bytes: buf.length, validHeader: valid };
-      rec.ok = valid;
-      if (valid) {
-        copyFileSync(p, join(pdfsDir, `${id}.pdf`)); // flat review folder
-        copyFileSync(p, join(runDir, `${id}.pdf`));  // archived with the run
-      }
-    } else {
-      rec.pdf = { count: pdfs.length, files: pdfs };
-    }
     rec.claude = { code: res.code, timedOut: res.timedOut, durationMs: res.durationMs, costUsd: res.costUsd };
+    convertAndVerify();
     log(`  → [${id}] ${rec.ok ? '✓ valid PDF' : '✗ no valid PDF'}${rec.pdf?.bytes ? ` (${rec.pdf.bytes} bytes)` : ''}`);
+
+    // Phase 5 — data-provenance audit + self-repair (ADVISORY: never fails the task; it audits
+    // the DATA handed to reporting — the contract's references + data_sources.md — against the
+    // tool-call ledger, and on a flagged source resumes the agent to fetch it or DROP it).
+    // Runs whenever the agent ran (not gated on a valid PDF); a timed-out run is skipped.
+    if (AUDIT_ENABLED && !res.timedOut) {
+      // The judge runs as its own `claude -p` call; give it a minimal HOME so it doesn't load
+      // the 18 installed skills it has no use for.
+      const auditHome = join(workdir, '.audit-home');
+      mkdirSync(join(auditHome, '.claude'), { recursive: true });
+      writeFileSync(join(auditHome, '.claude.json'),
+        '{"hasCompletedOnboarding": true, "bypassPermissionsModeAccepted": true}\n');
+      const streamPath = join(runDir, `${id}.stream.jsonl`);
+      const doAudit = () => auditTask({ taskHome, streamPath, outdir, workdir, id, model: AUDIT_MODEL, auditHome });
+      const badCount = (a: any) => (a.findings || []).filter((f: any) => f.status !== 'SUPPORTED').length;
+      const label = (a: any) => a.verdict === 'error' ? `inconclusive — ${a.summary}`
+        : a.ok ? '✓ provenance clean' : `✗ ${badCount(a)} unsupported source(s)`;
+
+      let audit = await doAudit();
+      rec.audit = { model: AUDIT_MODEL, ok: audit.ok, verdict: audit.verdict, ledger: audit.ledger,
+        attempts: [{ verdict: audit.verdict, summary: audit.summary, findings: audit.findings }] };
+      log(`Phase 5 · [${id}] audit ${label(audit)}`);
+
+      let attempt = 0;
+      let sid = res.sessionId;
+      while (!audit.ok && audit.verdict !== 'error' && attempt < MAX_AUDIT_RETRIES && sid) {
+        attempt++;
+        log(`Phase 5 · [${id}] self-repair ${attempt}/${MAX_AUDIT_RETRIES} — resuming ${sid.slice(0, 8)} to fix or drop flagged data`);
+        const remediation = buildRemediationPrompt(id, audit.findings);
+        const r2 = await runClaude(remediation, workdir, join(runDir, `${id}.audit-retry${attempt}.stream.jsonl`),
+          timeoutMs, taskHome, `${id}:fix${attempt}`, sid);
+        sid = r2.sessionId ?? sid;
+        rec.claude.repairs = (rec.claude.repairs ?? []).concat([{ attempt, durationMs: r2.durationMs, costUsd: r2.costUsd, timedOut: r2.timedOut }]);
+        convertAndVerify(true); // re-render the repaired report, re-verify the PDF (snapshot-safe)
+        audit = await doAudit();
+        rec.audit.attempts.push({ verdict: audit.verdict, summary: audit.summary, findings: audit.findings });
+        log(`Phase 5 · [${id}] re-audit ${label(audit)}`);
+      }
+      rec.audit.ok = audit.ok;
+      rec.audit.verdict = audit.verdict;
+      // Advisory only — the audit NEVER sets rec.ok. Task pass/fail stays "valid PDF" (Phase 4).
+    }
     return rec;
   };
 
@@ -365,52 +513,21 @@ async function runInContainer(filter: string | null, concurrency: number) {
   process.exit(report.ok ? 0 : 1);
 }
 
-function outputContractFooter(id: string): string {
-  return `\n\n---\nOUTPUT CONTRACT (added by the test harness): Produce the final deliverable as a SINGLE `
-    + `self-contained HTML file at the relative path \`output/${id}.html\` in your current working `
-    + `directory (inline all scripts and data — it is rendered offline). The harness converts it to `
-    + `\`output/${id}.pdf\` automatically after your run; do NOT run html2pdf yourself. Writing `
-    + `\`output/${id}.pdf\` directly is also accepted. Create no other files in output/.`;
-}
-
-// Pre-verified environment brief, written to the task workdir as CLAUDE.md (auto-loaded
-// project memory). Everything here is guaranteed by the image/harness, so the agent must
-// not spend turns re-checking it — and the workflow section routes expensive work to
-// scripts and to the cheap data-extractor agent.
-function envBrief(id: string): string {
-  const present = FORWARD_KEYS.filter((k) => process.env[k]);
-  const absent = FORWARD_KEYS.filter((k) => !process.env[k]);
-  return `# Environment (pre-verified by the harness — do NOT spend turns re-checking any of this)
-
-- On PATH, preinstalled: \`python3\` (with polars, pandas, requests), \`bun\` (runs TypeScript
-  directly — no npm install needed), \`node\`, \`git\`, \`curl\`, \`html2pdf\`.
-- Skills are installed at \`~/.claude/skills/<name>/\` (read each skill's SKILL.md when you use it).
-- API keys set in env: ${present.join(', ') || '(none)'}.${absent.length ? ` NOT set: ${absent.join(', ')}.` : ''}
-- \`output/\` already exists in this directory.
-
-# How to work (cost discipline)
-
-1. **Data gathering → delegate.** Use the Task tool with the \`data-extractor\` agent (it runs
-   on a cheap, fast model) for ALL external data: API calls, web search, IR pages. Ask it for
-   raw JSON records (\`[{"date": "YYYY-MM-DD", "<metric>": <absolute USD value>, …}]\`) and tell
-   it the company, metrics, period range, and granularity. Do not web-search or fetch yourself.
-2. **Derived numbers → compute, never in your head.** YoY growth, margins, rebasing etc. come
-   from the charting skill's Polars pipeline. Write intermediate files under THIS task's dir
-   (\`/tmp/run/${id}/\`), never a shared \`/tmp\` path — tasks may run concurrently. e.g.
-   \`cd ~/.claude/skills/charting && python3 -m pipeline.cli yoy /tmp/run/${id}/data.json --metrics revenue,bookings --lag 4 -o /tmp/run/${id}/contract.json\`
-3. **Charts → render, never hand-write.** \`bun ~/.claude/skills/charting/scripts/render.ts /tmp/run/${id}/contract.json output/${id}.html\`
-   emits a finished, self-contained Highcharts page (works offline; PDF-safe).
-4. **PDF is automatic.** Write the final self-contained HTML to \`output/${id}.html\` and stop —
-   the harness converts it to PDF after your run. Only call \`html2pdf\` if you must inspect the PDF.
-`;
-}
 
 function runClaude(prompt: string, cwd: string, streamPath: string, timeoutMs: number,
-  homeDir?: string, label?: string): Promise<{
-  code: number | null; timedOut: boolean; durationMs: number; costUsd: number | null; resultSummary: string;
+  homeDir?: string, label?: string, resumeSessionId?: string): Promise<{
+  code: number | null; timedOut: boolean; durationMs: number; costUsd: number | null;
+  resultSummary: string; sessionId: string | null;
 }> {
   return new Promise((resolve) => {
     const args = ['-p', prompt, '--verbose', '--output-format', 'stream-json', '--dangerously-skip-permissions'];
+    // --resume continues an existing session as a new turn (used by the audit self-repair
+    // loop): the agent keeps the context of what it already gathered and fixes only what's
+    // broken. Same HOME below, so the session file is found.
+    if (resumeSessionId) args.push('--resume', resumeSessionId);
+    // Append our behavioral rules to Claude Code's default system prompt (keeps the native
+    // skill listing). Inline because this CLI has no --append-system-prompt-file variant.
+    if (SYSTEM_PROMPT) args.push('--append-system-prompt', SYSTEM_PROMPT);
     // Per-task HOME (+ CLAUDE_CONFIG_DIR) isolates Claude's writable state so concurrent
     // runs in the same container never clobber each other's sessions/projects/config.
     const env = homeDir
@@ -425,12 +542,13 @@ function runClaude(prompt: string, cwd: string, streamPath: string, timeoutMs: n
     let lastResult: any = null;
     let timedOut = false;
     let lastActivity = '(no events yet)';
+    let sessionId: string | null = null;
     const timer = setTimeout(() => { timedOut = true; child.kill('SIGKILL'); }, timeoutMs);
     // Heartbeat: a silent `claude -p` and a hung one look identical from outside. Every
     // 30s, say how long we've been running and the last stream event we saw. The tag keeps
     // pulses attributable when several tasks run concurrently.
     const pulse = setInterval(() => {
-      console.error(`  · ${tag}still running (${Math.round((Date.now() - start) / 1000)}s) — last: ${lastActivity}`);
+      console.error(paint(DIM, `  · ${tag}still running (${Math.round((Date.now() - start) / 1000)}s) — last: ${lastActivity}`));
     }, 30_000);
 
     child.stdout.on('data', (d) => {
@@ -443,8 +561,9 @@ function runClaude(prompt: string, cwd: string, streamPath: string, timeoutMs: n
         try {
           const ev = JSON.parse(line);
           if (ev?.type === 'result') lastResult = ev;
+          if (ev?.session_id) sessionId = ev.session_id; // last wins; needed to --resume for repair
           lastActivity = describeEvent(ev) ?? lastActivity;
-          if (VERBOSE) traceEvent(ev, tag);
+          traceEvent(ev, tag, VERBOSE); // always on; --verbose appends full tool-input JSON
         } catch { /* partial/non-JSON */ }
       }
     });
@@ -455,6 +574,7 @@ function runClaude(prompt: string, cwd: string, streamPath: string, timeoutMs: n
         code, timedOut, durationMs: Date.now() - start,
         costUsd: lastResult?.total_cost_usd ?? null,
         resultSummary: summary ?? (lastResult ? (lastResult.subtype || 'result') : '(no result event)'),
+        sessionId: lastResult?.session_id ?? sessionId,
       });
     };
     child.on('close', (code) => done(code));
@@ -475,22 +595,44 @@ function describeEvent(ev: any): string | null {
   return null;
 }
 
-// --verbose: one line per interesting stream event, prefixed so it reads distinctly from
-// phase logs. Tool inputs are truncated — the full record is always in the .stream.jsonl.
-function traceEvent(ev: any, tag = '') {
+// Live trace: one colored line per interesting stream event, prefixed so it reads distinctly
+// from phase logs. Always on (so you see the current skill/tool without --verbose); `verbose`
+// appends the full tool-input JSON. Color is gated by COLOR (see top); the full record is
+// always in the .stream.jsonl.
+function traceEvent(ev: any, tag = '', verbose = false) {
   if (ev?.type === 'system' && ev.subtype === 'init') {
-    console.error(`    ∙ ${tag}init: model=${ev.model} session=${(ev.session_id || '').slice(0, 8)}`);
+    console.error(`    ${paint('38;5;177', '∙')} ${tag}${paint(DIM, `init model=${ev.model}`)}`);
   } else if (ev?.type === 'assistant') {
     for (const c of ev.message?.content ?? []) {
       if (c.type === 'tool_use') {
-        console.error(`    ⚒ ${tag}${c.name} ${JSON.stringify(c.input ?? {}).slice(0, 140)}`);
+        const th = TOOL_COLOR[c.name] ?? DEFAULT_TOOL;
+        const detail = toolDetail(c.name, c.input);
+        const extra = verbose ? ' ' + JSON.stringify(c.input ?? {}).slice(0, 140) : '';
+        console.error(`    ${paint(th.code, `${th.icon} ${tag}${c.name}`)} ${paint(DIM, detail + extra)}`);
       } else if (c.type === 'text' && c.text?.trim()) {
-        console.error(`    ✎ ${tag}${c.text.trim().replace(/\s+/g, ' ').slice(0, 160)}`);
+        console.error(`    ${paint(SAY, `✎ ${tag}${c.text.trim().replace(/\s+/g, ' ').slice(0, 160)}`)}`);
       }
     }
   } else if (ev?.type === 'result') {
-    console.error(`    ∙ ${tag}result: ${ev.subtype} cost=$${typeof ev.total_cost_usd === 'number' ? ev.total_cost_usd.toFixed(4) : '?'} turns=${ev.num_turns ?? '?'}`);
+    const cost = typeof ev.total_cost_usd === 'number' ? `$${ev.total_cost_usd.toFixed(4)}` : '?';
+    console.error(`    ${paint('38;5;177', '∙')} ${tag}${paint(DIM, `result ${ev.subtype} cost=${cost} turns=${ev.num_turns ?? '?'}`)}`);
   }
+}
+
+// A short, human-readable summary of a tool call's input for the live trace — the meaningful
+// field per family (skill name, subagent + model, the command/path/query), not raw JSON.
+function toolDetail(name: string, input: any): string {
+  const s = (v: any) => String(v ?? '').replace(/\s+/g, ' ').trim();
+  if (name === 'Skill') return `→ ${s(input?.skill ?? input?.command) || '?'}`;
+  if (name === 'Task' || name === 'Agent') {
+    return `→ ${s(input?.subagent_type) || '?'}${input?.model ? ` [${s(input.model)}]` : ''}`;
+  }
+  if (name === 'Bash') return s(input?.command).slice(0, 100);
+  if (name === 'Read' || name === 'Write' || name === 'Edit' || name === 'NotebookEdit') return s(input?.file_path).slice(0, 100);
+  if (name === 'WebSearch') return s(input?.query).slice(0, 100);
+  if (name === 'WebFetch') return s(input?.url).slice(0, 100);
+  if (name === 'Grep' || name === 'Glob') return s(input?.pattern).slice(0, 100);
+  return JSON.stringify(input ?? {}).slice(0, 100);
 }
 
 // Best-effort: copy the freshest Claude transcript for post-mortem (stream-json is primary).
@@ -554,7 +696,9 @@ function printSummary(report: any, ts: string) {
     const status = t.ok ? 'PASS' : 'FAIL';
     const detail = `${t.pdf?.bytes ? `${t.pdf.bytes}b` : (t.pdf?.count ?? 0) + ' pdfs'}`
       + `${t.claude?.timedOut ? ' (TIMED OUT)' : ''}`
-      + `${t.claude?.durationMs ? ` ${Math.round(t.claude.durationMs / 1000)}s` : ''}`;
+      + `${t.claude?.durationMs ? ` ${Math.round(t.claude.durationMs / 1000)}s` : ''}`
+      + `${t.audit ? (t.audit.ok ? ' audit✓' : ' audit✗') : ''}`
+      + `${t.claude?.repairs?.length ? ` +${t.claude.repairs.length} repair` : ''}`;
     console.log(`  ${status.padEnd(4)}  ${t.id.padEnd(24)} ${detail}`);
   }
   console.log(line);

@@ -18,6 +18,7 @@ build/
 # e2e harness run artifacts (test/e2e/.env is already covered by the .env rules above)
 test/e2e/logs/
 test/e2e/pdfs/
+test/e2e/*.log
 .gstack/
 
 # manual-test UI run artifacts (prices, charts, PDFs per run)

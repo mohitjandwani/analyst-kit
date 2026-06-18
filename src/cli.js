@@ -109,6 +109,15 @@ function cmdDoctor(flags) {
   console.log(`  install dir: ${adapter.installDir(scope)}`);
   console.log(`  env file:    ${adapter.envFile(scope)}`);
 
+  // The skill runtime is POSIX/bash, so Windows is supported only via WSL2 (which
+  // is also the only place the agents' own sandbox runs). Node reports 'win32' for
+  // native Windows even under Git Bash, but 'linux' inside WSL2 — so this is precise.
+  if (process.platform === 'win32') {
+    console.log('\n  ⚠ Native Windows detected — UNSUPPORTED.');
+    console.log('    HFA skills run a POSIX/bash runtime; on Windows, run Claude Code (or Codex)');
+    console.log('    and this installer inside a WSL2 distribution. See the README "Windows" note.');
+  }
+
   const runtimes = new Set(skills.map((s) => s.runtime).filter((r) => r !== 'none'));
   console.log(`\n  Runtimes used by skills: ${[...runtimes].join(', ') || '(none)'}`);
   for (const rt of runtimes) {

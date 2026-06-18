@@ -263,11 +263,15 @@ const templates: Record<string, (slots: Record<string, any>, ctx: Ctx) => string
     const { columns, rows } = slots.table as { columns: string[]; rows: string[][] };
     if (ctx.deck && rows.length > 10)
       fail(`table-commentary in presentation mode takes ≤10 rows (got ${rows.length}) — split across two slides`);
+    // `commentary` is an array of {heading, body} blocks (same shape price-chart-technicals
+    // uses); tolerate a single block too. Map each through textBlock — passing the array
+    // straight to textBlock() reads `.body` off the array and renders the literal "undefined".
+    const blocks: TextBlock[] = Array.isArray(slots.commentary) ? slots.commentary : [slots.commentary];
     const table = `<table class="data"><thead><tr>${columns.map((c) => `<th>${escapeHtml(c)}</th>`).join('')}</tr></thead>
       <tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${escapeHtml(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
     return `${pageTop(slots, ctx)}<div class="page-body"><div class="tc-split">
       <div class="tc-table">${table}</div>
-      <div class="tc-note">${textBlock(slots.commentary)}</div></div></div>`;
+      <div class="tc-note">${blocks.map(textBlock).join('')}</div></div></div>`;
   },
 };
 

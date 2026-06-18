@@ -3,6 +3,8 @@
 # Never used for secrets (API keys live in ~/.hfa/.env, chmod 600).
 set -uo pipefail
 
+DIR="$(cd "$(dirname "$0")" && pwd)"
+[ -r "$DIR/_hfa-home.sh" ] && . "$DIR/_hfa-home.sh"
 HFA_HOME="${HFA_HOME:-$HOME/.hfa}"
 CFG="$HFA_HOME/config"
 

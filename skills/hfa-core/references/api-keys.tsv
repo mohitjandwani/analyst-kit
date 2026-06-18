@@ -1,0 +1,7 @@
+# API key catalog — shipped with hfa-core so `hfa-setup` can describe each key on the
+# user's machine (the root .env.example does not travel with an installed skill).
+# Format: KEY<TAB>description<TAB>where-to-get-it. Keep in sync with root .env.example.
+FINMIND_TOKEN	FinMind — Taiwan market data	https://finmindtrade.com/
+FMP_API_KEY	Financial Modeling Prep — global fundamentals	https://site.financialmodelingprep.com/developer/docs
+SERPAPI_API_KEY	SerpAPI — Google Trends search interest (free tier 100/mo)	https://serpapi.com/
+SEC_EDGAR_UA	SEC EDGAR fair-access contact string (optional; a default is built in)	https://www.sec.gov/os/webmaster-faq

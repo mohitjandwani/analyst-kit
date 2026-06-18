@@ -25,7 +25,12 @@
     "build:routing": "node scripts/build-routing-table.js",
     "sync:preamble": "node scripts/sync-preamble.js",
     "check:preamble": "node scripts/sync-preamble.js --check",
-    "test:integration": "node --test test/integration/*.test.mjs"
+    "test:integration": "node --test test/integration/*.test.mjs",
+    "test:hfa-core": "bash skills/hfa-core/tests/run.sh",
+    "validate:release": "npm run validate && npm run check:registry && npm run test:hfa-core",
+    "container:terminal": "id=$(docker ps -q --filter label=devcontainer.local_folder=\"$PWD\" | head -1); if [ -z \"$id\" ]; then echo 'No running devcontainer for this folder — run: devcontainer up --workspace-folder .'; exit 1; fi; docker exec -it -w \"/workspaces/$(basename \"$PWD\")\" \"$id\" bash",
+    "e2e:task": "bun test/e2e/run.ts --in-container --task",
+    "container:copy": "bash test/e2e/container-copy.sh"
   },
   "keywords": [
     "claude",

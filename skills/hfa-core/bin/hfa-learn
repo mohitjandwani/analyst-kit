@@ -6,6 +6,8 @@
 #   hfa-learn recent [--skill S] [--topic T] [--limit N]
 set -uo pipefail
 
+DIR="$(cd "$(dirname "$0")" && pwd)"
+[ -r "$DIR/_hfa-home.sh" ] && . "$DIR/_hfa-home.sh"
 HFA_HOME="${HFA_HOME:-$HOME/.hfa}"
 LOG="$HFA_HOME/learnings.jsonl"
 

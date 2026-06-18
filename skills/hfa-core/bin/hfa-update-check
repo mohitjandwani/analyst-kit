@@ -10,6 +10,7 @@ set -uo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 CORE="$(dirname "$DIR")"
+[ -r "$DIR/_hfa-home.sh" ] && . "$DIR/_hfa-home.sh"
 HFA_HOME="${HFA_HOME:-$HOME/.hfa}"
 CACHE="$HFA_HOME/last-update-check"     # "<epoch> <remote-version|fetch-failed>"
 SNOOZE="$HFA_HOME/update-snoozed"       # "<version> <epoch>"

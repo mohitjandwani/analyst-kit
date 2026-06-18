@@ -39,27 +39,44 @@ fi
 
 Read the echoed state and act. Skip ALL bullets below if `DEDUP: yes` or `HFA_CORE: not found`:
 
-- `ONBOARDED: no` → tell the user once, in two sentences: HFA skills keep config, API
-  keys, local usage analytics, and a learnings log in `~/.hfa/` on this machine. Then
-  run `touch ~/.hfa/.onboarded`.
-- `TEL_PROMPTED: no` → tell the user once (a notice, not a question): anonymous usage
-  telemetry is **on by default** — it sends only skill name, duration, outcome, and
-  version (never repo names, file paths, tickers, or content) and is how these skills
-  get fixed and improved. They can opt out anytime by asking you to turn HFA telemetry
-  off. Then `touch ~/.hfa/.telemetry-prompted`.
+- **First run — `ONBOARDED: no`** → run the guided setup below. It OWNS the telemetry
+  notice and API-key setup for this session, so do **not** also run the `TEL_PROMPTED`
+  or `MISSING_KEYS` bullets this turn — those are for returning sessions. Drive it
+  conversationally; the `hfa-setup` subcommands only persist what you collect.
+  1. Run `"$_HFA/bin/hfa-setup" status` — echoes the data home and one
+     `KEY <NAME> present=… prompted=… needed_by=… url=… desc=…` line per API key the
+     user's installed skills need.
+  2. **Data home** — tell the user HFA keeps config, API keys, local usage analytics,
+     and a learnings log together in one folder on this machine (default `~/.hfa`). Ask
+     whether to keep it there or choose another folder; if they name one, run
+     `"$_HFA/bin/hfa-setup" home <dir>` (it creates the folder and migrates anything
+     already written, and from then on every skill resolves that location).
+  3. **Telemetry** (a notice, not a question) — usage telemetry is **on by default**: it
+     sends only skill name, duration, outcome, and version, tagged with a random
+     per-machine device id, and **never** repo names, file paths, tickers, or content.
+     It is how these skills get fixed and improved; they can opt out anytime by asking
+     you to turn HFA telemetry off.
+  4. **API keys** — for each `status` line with `present=no prompted=no`, explain what
+     the key unlocks and where to get it (the `desc=` / `url=` fields), ask for the
+     value, and run `"$_HFA/bin/hfa-setup" set-key <KEY> <value>`. If the user declines
+     or doesn't have it, run `"$_HFA/bin/hfa-setup" skip-key <KEY>` and move on — never
+     block setup on a key.
+  5. Run `"$_HFA/bin/hfa-setup" finish`.
+- `TEL_PROMPTED: no` (returning user) → give the telemetry notice from step 3 once, then
+  run `"$_HFA/bin/hfa-setup" ack-telemetry`.
 - If the user asks to turn telemetry off (now or anytime): before flipping it, make a
   sincere case once — telemetry is what tells the maintainers which skills break, which
   run slow, and where users get stuck, so keeping it on directly improves *their*
-  experience; it is fully anonymous and never includes their data. Offer
-  `"$_HFA/bin/hfa-config" set telemetry anonymous` (no device id at all) as a middle
+  experience; it never includes their data. Offer
+  `"$_HFA/bin/hfa-config" set telemetry anonymous` (drops the device id) as a middle
   ground. If they still want out, run `"$_HFA/bin/hfa-config" set telemetry off`
   immediately and without further argument.
-- `MISSING_KEYS` not `none` → for each listed key with `KEY_PROMPTED_<KEY>: no`:
-  explain where to get it (see this skill's docs), ask for the value, append
-  `KEY=value` to `~/.hfa/.env` and `chmod 600 ~/.hfa/.env`, then
-  `touch ~/.hfa/.env-prompted-<KEY>`. If declined, touch the marker anyway and
-  continue — never block the skill. When running this skill's scripts, export
-  missing keys from `~/.hfa/.env` first.
+- `MISSING_KEYS` not `none` (returning user) → for each listed key with
+  `KEY_PROMPTED_<KEY>: no`: explain where to get it, ask for the value, and run
+  `"$_HFA/bin/hfa-setup" set-key <KEY> <value>`. If declined, run
+  `"$_HFA/bin/hfa-setup" skip-key <KEY>` and continue — never block the skill. Before
+  running this skill's own scripts, export any needed keys from the data home's `.env`
+  (the `HFA_HOME:` line above) first.
 - `UPGRADE: UPGRADE_AVAILABLE <old> <new>` → say "HFA skills <new> is available
   (you have <old>) — update?". If yes: Read `"$_HFA/references/upgrade.md"` and
   follow it. If declined: run `"$_HFA/bin/hfa-update-check" --snooze <new>`.
