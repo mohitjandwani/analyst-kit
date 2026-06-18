@@ -37,43 +37,57 @@ API keys, and required skills.
 
 ## Install
 
-### Option A — Claude Code plugin (recommended)
-
-Install a persona plugin (a bundle of skills) straight from this GitHub repo:
-
-```
-/plugin marketplace add MohitKumar1991/hedge-fund-analyst
-/plugin install us-stock-analyst@hedge-fund-analyst
-```
-
-- The `@hedge-fund-analyst` suffix is the **marketplace name**, not the repo name.
-- Swap `us-stock-analyst` for `international-analyst` or `taiwan-stock-analyst`.
-- Prefer a menu? Run `/plugin` to browse and install interactively.
-- Update later with `/plugin marketplace update hedge-fund-analyst`.
-
-Once installed, the skills activate automatically from their triggers (run
-`/reload-plugins` if they don't appear immediately in a running session).
-
-### Option B — Clone and use the bundled installer
-
-The repo ships a small installer (`bin/hfa.js`) that copies skills — and their
-dependency closure — into a target runtime. It targets **Claude Code** and
-**Codex**, runs on Node ≥ 18, and needs no global install:
+**One command — same on macOS, Linux, and Windows.** It installs *all* the skills into your chosen runtime
+and wires them into the agent's system/common prompt. Needs only **Node ≥ 18** (which detects your OS and
+installs to the right paths):
 
 ```bash
-git clone https://github.com/MohitKumar1991/hedge-fund-analyst
-cd hedge-fund-analyst
-
-node bin/hfa.js list                                              # browse skills + personas
-node bin/hfa.js install single-stock-deep-dive --platform claude-code
-node bin/hfa.js install us-stock-analyst --platform claude-code   # installs the whole persona
-node bin/hfa.js doctor  --platform claude-code                    # check runtimes + keys
+npx github:MohitKumar1991/hedge-fund-analyst claude-code      # or: codex · openclaw · cowork
 ```
 
-Installing a workflow (or a persona) automatically pulls its capability
-dependencies. Use `--scope project` to install into `./.claude/skills` instead of
-`~/.claude/skills`, `--dry-run` to preview, and `--platform codex` to target Codex.
-Other commands: `update`, `uninstall`, `env`.
+Swap `claude-code` for `codex`, `openclaw`, or `cowork`; add `--scope project` to install into the current
+project (`./.claude/skills`, …) instead of your home directory. Already cloned the repo? `node bin/hfa.js
+claude-code` does the same (plus `list`, `doctor`, `uninstall`, or `install <skill|persona>` for just one).
+
+For **Claude Cowork**, the command prints the in-app steps and writes `cowork-global-instructions.md` to paste
+into **Settings → Cowork → Global instructions** — Cowork installs the skills themselves through its plugin
+marketplace (below).
+
+> **On Windows:** skills install fine; their `hfa-core` runtime helpers are bash, so install **Git for
+> Windows** (or use WSL) for the telemetry/onboarding/update niceties — skills work without it
+> ([details](compatibility.md#runtime-layer-on-windows)).
+
+### Marketplace plugin — no clone, no Node (Claude Code & Cowork)
+
+Both **Claude Code** and **[Claude Cowork](https://claude.com/product/cowork)** (Anthropic's desktop app)
+install from the same plugin marketplace:
+
+- **Claude Code:**
+  ```
+  /plugin marketplace add MohitKumar1991/hedge-fund-analyst
+  /plugin install us-stock-analyst@hedge-fund-analyst    # or international-analyst / taiwan-stock-analyst
+  ```
+- **Claude Cowork** (desktop app): **Customize → Plugins → Personal plugins → + → Add marketplace** →
+  `MohitKumar1991/hedge-fund-analyst`, add the **us-stock-analyst** plugin, then enable **Settings →
+  Capabilities → Code execution**.
+
+### Check it worked
+
+After installing, ask a trigger phrase (e.g. "deep dive on NVDA") and the matching skill loads. From a clone
+you can also self-test the installers across every platform:
+
+```bash
+npm run test:integration     # real installs per platform + the path.win32 Windows check
+```
+
+Codex (any OS, no ChatGPT login needed) — confirm a skill is reachable with an API key:
+
+```bash
+CODEX_API_KEY=sk-... codex exec --json "use the sec-filings skill to list NVDA's latest 8-K"
+```
+
+See **[compatibility.md](compatibility.md)** for what each runtime does underneath — where skills land, the
+routing table, and Windows specifics.
 
 ## Personas (plugins)
 
