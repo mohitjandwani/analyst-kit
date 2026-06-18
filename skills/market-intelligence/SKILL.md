@@ -14,6 +14,8 @@ description: >
   <company> sales", "compare search interest to revenue", "use search demand as alternative
   data", "nowcast <company> sales", "build a trends-based revenue model for Z", "market
   intelligence on <ticker>".
+requires:
+  - hfa-core
 env:
   - SERPAPI_API_KEY
 ---
