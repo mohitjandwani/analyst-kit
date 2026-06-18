@@ -79,7 +79,10 @@ section "hfa-setup set-key / skip-key"
 new_home
 "$BIN/hfa-setup" set-key FMP_API_KEY abc123 >/dev/null
 assert_eq   "key written to .env"     "FMP_API_KEY=abc123" "$(grep '^FMP_API_KEY=' "$HOME/.hfa/.env")"
-assert_eq   ".env is chmod 600"       "600" "$(stat -f '%Lp' "$HOME/.hfa/.env" 2>/dev/null || stat -c '%a' "$HOME/.hfa/.env")"
+# Read perms portably: GNU `stat -c` first (it errors cleanly on BSD/macOS, so
+# the fallback fires). Trying BSD `stat -f` first is wrong because GNU's `-f` is
+# a different, exit-0 command (filesystem status) that swallows the result.
+assert_eq   ".env is chmod 600"       "600" "$(stat -c '%a' "$HOME/.hfa/.env" 2>/dev/null || stat -f '%Lp' "$HOME/.hfa/.env" 2>/dev/null)"
 assert_file "prompted marker written" "$HOME/.hfa/.env-prompted-FMP_API_KEY"
 "$BIN/hfa-setup" set-key FMP_API_KEY newval >/dev/null
 assert_eq   "set-key replaces in place (no dup)" "1" "$(grep -c '^FMP_API_KEY=' "$HOME/.hfa/.env")"
