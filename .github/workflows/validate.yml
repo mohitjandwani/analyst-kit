@@ -19,3 +19,5 @@ jobs:
         run: node scripts/build-registry.js --check
       - name: Check preamble blocks & version stamps are in sync
         run: node scripts/sync-preamble.js --check
+      - name: hfa-core runtime test suite
+        run: bash skills/hfa-core/tests/run.sh
