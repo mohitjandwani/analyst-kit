@@ -1,6 +1,7 @@
-// "Windows simulator": assert the REAL adapters emit correct Windows paths from
-// any OS by injecting a Windows homedir/cwd and path.win32. This exercises the
-// actual adapter code (not a copy of its logic) — see src/adapters/*.js.
+// Path-layer portability: assert the REAL adapters build correct paths under
+// path.win32 from any OS (injecting a Windows homedir/cwd). This is what lets
+// WSL2 (Linux) Just Work; Windows itself is supported via WSL2, not natively.
+// Exercises the actual adapter code (not a copy of its logic) — see src/adapters/*.js.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import nodePath from 'node:path';

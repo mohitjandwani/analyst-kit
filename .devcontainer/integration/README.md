@@ -15,11 +15,10 @@ end-to-end on Linux.
 | Node 22, Bun, Python 3 (+ polars/pandas/pytest/requests) | the per-skill runtimes |
 | `git`, `jq`, `curl` | harness plumbing |
 
-The **"Windows simulator"** is not a VM — it's the `test/integration/windows-paths.test.mjs`
-harness, which drives the **real adapters** with an injected Windows `homedir`/`cwd`
-and `path.win32`, asserting the exact `%USERPROFILE%\.claude\skills\…` /
-`…\.codex\…` layout from Linux. (A real Windows runtime is only needed to exercise the
-bash `hfa-core` *runtime layer* — see `compatibility.md`.)
+The **path-layer check** (`test/integration/windows-paths.test.mjs`) drives the **real adapters** with an
+injected Windows `homedir`/`cwd` and `path.win32` from Linux — proving the install paths are OS-portable,
+which is what lets **WSL2 (Linux) Just Work**. Windows itself is supported **via WSL2**, not natively (the
+bash `hfa-core` runtime can't run under PowerShell/cmd — see `compatibility.md`).
 
 ## Open it
 
@@ -31,16 +30,12 @@ bash `hfa-core` *runtime layer* — see `compatibility.md`.)
 ## Use it
 
 ```bash
-# the integration tests (real installs on Linux + the path.win32 Windows simulator)
+# the integration tests (real installs on Linux + the path.win32 path-layer check)
 npm run test:integration
 
-# install all skills into Claude Code (project scope, inside the container workspace)
-for s in $(jq -r '.skills[].name' registry.json); do
-  node bin/hfa.js install "$s" --platform claude-code --scope project -y
-done
-
-# same for Codex (also generates ~/.codex/prompts/<name>.md slash-prompts)
-node bin/hfa.js install single-stock-deep-dive --platform codex --scope project -y
+# install ALL skills into a runtime — one command (--scope project keeps it in the workspace)
+node bin/hfa.js claude-code --scope project       # or: codex · openclaw
+node bin/hfa.js codex --scope project             # Codex also writes ~/.codex/prompts/<name>.md
 
 # confirm the CLIs see them
 claude --version && codex --version

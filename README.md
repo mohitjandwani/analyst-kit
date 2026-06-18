@@ -37,9 +37,9 @@ API keys, and required skills.
 
 ## Install
 
-**One command — same on macOS, Linux, and Windows.** It installs *all* the skills into your chosen runtime
-and wires them into the agent's system/common prompt. Needs only **Node ≥ 18** (which detects your OS and
-installs to the right paths):
+**One command — works on macOS, Linux, and Windows (inside WSL2 — see [below](#windows-use-wsl2)).** It
+installs *all* the skills into your chosen runtime and wires them into the agent's system/common prompt.
+Needs only **Node ≥ 18** (which detects your OS and installs to the right paths):
 
 ```bash
 npx github:MohitKumar1991/hedge-fund-analyst claude-code      # or: codex · openclaw · cowork
@@ -53,9 +53,8 @@ For **Claude Cowork**, the command prints the in-app steps and writes `cowork-gl
 into **Settings → Cowork → Global instructions** — Cowork installs the skills themselves through its plugin
 marketplace (below).
 
-> **On Windows:** skills install fine; their `hfa-core` runtime helpers are bash, so install **Git for
-> Windows** (or use WSL) for the telemetry/onboarding/update niceties — skills work without it
-> ([details](compatibility.md#runtime-layer-on-windows)).
+> **On Windows:** run inside **WSL2** — native Windows (PowerShell/cmd) is unsupported because the skill
+> runtime is POSIX/bash. See [Windows: use WSL2](#windows-use-wsl2) below.
 
 ### Marketplace plugin — no clone, no Node (Claude Code & Cowork)
 
@@ -77,7 +76,7 @@ After installing, ask a trigger phrase (e.g. "deep dive on NVDA") and the matchi
 you can also self-test the installers across every platform:
 
 ```bash
-npm run test:integration     # real installs per platform + the path.win32 Windows check
+npm run test:integration     # real installs per platform + the path.win32 path-layer check
 ```
 
 Codex (any OS, no ChatGPT login needed) — confirm a skill is reachable with an API key:

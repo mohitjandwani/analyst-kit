@@ -3,7 +3,7 @@
 > **Installation instructions live in the [README](README.md).** This document is the *under-the-hood*
 > reference: where files land, how each agent discovers the skills, the routing table that advertises them,
 > the `hfa-core` runtime layer, Windows behavior, and the per-runtime caveats — for **Claude Code**,
-> **Codex**, **OpenClaw**, and **Claude Cowork**, on Linux/macOS and Windows.
+> **Codex**, **OpenClaw**, and **Claude Cowork**, on Linux/macOS, and Windows via WSL2.
 
 Two things happen on every install:
 
@@ -17,14 +17,15 @@ Two things happen on every install:
 
 ## At a glance
 
-| Runtime | Native skills? | Skills land in — Linux/macOS | Skills land in — Windows | Common-prompt file | Auto-injected into system prompt? |
-|---|---|---|---|---|---|
-| **Claude Code** | ✅ yes (`SKILL.md`) | `~/.claude/skills/<name>/` | `%USERPROFILE%\.claude\skills\<name>\` | `~/.claude/CLAUDE.md` (user) / `./CLAUDE.md` (project) | Discovered from name+`description`; loaded on trigger |
-| **Codex** | ❌ no | `~/.codex/skills/<name>/` **+** `~/.codex/prompts/<name>.md` | `%USERPROFILE%\.codex\skills\<name>\` **+** `…\prompts\<name>.md` | `~/.codex/AGENTS.md` (global) / `./AGENTS.md` (project) | No — reachable as `/<name>`; advertised via the AGENTS.md table |
-| **OpenClaw** | ✅ yes (`SKILL.md`) | `~/.openclaw/skills/<name>/` | `%USERPROFILE%\.openclaw\skills\<name>\` | `~/.openclaw/workspace/AGENTS.md` | ✅ yes — compiled into an XML block in the system prompt |
-| **Claude Cowork** | ✅ yes (plugins / `SKILL.md`) | account-managed (desktop app; no local skills dir) | account-managed | **Settings → Cowork → Global instructions** | ✅ yes — installed skills surface in Chat + Cowork |
+| Runtime | Native skills? | Skills land in | Common-prompt file | Auto-injected into system prompt? |
+|---|---|---|---|---|
+| **Claude Code** | ✅ yes (`SKILL.md`) | `~/.claude/skills/<name>/` | `~/.claude/CLAUDE.md` (user) / `./CLAUDE.md` (project) | Discovered from name+`description`; loaded on trigger |
+| **Codex** | ❌ no | `~/.codex/skills/<name>/` **+** `~/.codex/prompts/<name>.md` | `~/.codex/AGENTS.md` (global) / `./AGENTS.md` (project) | No — reachable as `/<name>`; advertised via the AGENTS.md table |
+| **OpenClaw** | ✅ yes (`SKILL.md`) | `~/.openclaw/skills/<name>/` | `~/.openclaw/workspace/AGENTS.md` | ✅ yes — compiled into an XML block in the system prompt |
+| **Claude Cowork** | ✅ yes (plugins / `SKILL.md`) | account-managed (desktop app; no local skills dir) | **Settings → Cowork → Global instructions** | ✅ yes — installed skills surface in Chat + Cowork |
 
-`~` resolves to `%USERPROFILE%` on Windows (e.g. `C:\Users\<you>`).
+On **Windows, run inside WSL2** — it is a Linux environment, so these paths apply as-is inside your distro.
+Native Windows (PowerShell/cmd) is unsupported; see [Windows (WSL2 only)](#windows-wsl2-only).
 
 ---
 
@@ -55,7 +56,7 @@ installed automatically as a dependency of every other skill.
 
 This runtime layer is **bash + Unix coreutils** and is **optional**: if no POSIX shell is reachable it prints
 `HFA_CORE: not found` and the skill proceeds without it. The skill's *instructions* always work; only the
-runtime niceties go dormant. This matters on Windows — see [Runtime layer on Windows](#runtime-layer-on-windows).
+runtime niceties go dormant. This matters on Windows — see [Windows (WSL2 only)](#windows-wsl2-only).
 
 ---
 
@@ -86,7 +87,7 @@ repeated installs accumulate. CLAUDE.md is loaded into context every session, so
 advertised even before lazy discovery kicks in.
 
 ### Caveats
-- The runtime layer needs a POSIX shell (native on Linux/macOS; **Git Bash** on Windows).
+- The runtime layer needs a POSIX shell (native on Linux/macOS; **WSL2** on Windows).
 - `python` / `bun` are per-skill prerequisites the installer does not install for you.
 
 ---
@@ -121,8 +122,8 @@ shows the command.
 - No native skills — the slash-prompt is the only bridge; skills are not auto-injected, so the AGENTS.md
   table is what makes the model *aware* of them.
 - AGENTS.md is size-capped (`project_doc_max_bytes`).
-- Runtime layer needs a POSIX shell; on Windows Codex may default to PowerShell — see
-  [Runtime layer on Windows](#runtime-layer-on-windows).
+- Runtime layer needs a POSIX shell — on Windows, run inside WSL2 (see
+  [Windows (WSL2 only)](#windows-wsl2-only)).
 
 ---
 
@@ -241,52 +242,24 @@ When a request matches a skill's triggers, load that skill's SKILL.md and follow
 
 ---
 
-## Windows specifics
+## Windows (WSL2 only)
 
-### The install layer is genuinely cross-platform
-All adapters build paths only from Node's `os.homedir()` + `path.join()` — no hardcoded `~`, no `%APPDATA%`,
-no POSIX-only assumptions — and `test/integration/windows-paths.test.mjs` asserts the Windows layout by
-driving the real adapters with `path.win32`. On Windows, `os.homedir()` is `%USERPROFILE%` and `path.join`
-uses `\`. The exact Windows paths the installer produces (reproduced with Node's `path.win32`):
+The skill **runtime** is POSIX/bash — `hfa-core`'s preamble/epilogue and `skills/hfa-core/bin/*` use `bash`,
+`find -mmin`, `wc`, `tr`, `grep -E`, `printenv`, etc., which native PowerShell/cmd cannot run. So on Windows
+we support **WSL2 only** — which is also where the agents run their own Linux sandbox (Claude Code and Codex
+treat native Windows as unsupported / degraded).
 
-```
-Claude Code   user skills      C:\Users\me\.claude\skills\single-stock-deep-dive
-              project skills   C:\proj\.claude\skills\single-stock-deep-dive
-              user env         C:\Users\me\.hfa\.env
-Codex         user skills      C:\Users\me\.codex\skills\single-stock-deep-dive
-              user slash-prompt C:\Users\me\.codex\prompts\single-stock-deep-dive.md
-              user env         C:\Users\me\.codex\.env
-OpenClaw      managed skills   C:\Users\me\.openclaw\skills\single-stock-deep-dive
-              config           C:\Users\me\.openclaw\openclaw.json
-```
-
-Relocate config roots with environment variables: `CLAUDE_CONFIG_DIR` (Claude Code), `CODEX_HOME` (Codex),
-`OPENCLAW_PROFILE` (OpenClaw → `~/.openclaw/workspace-<profile>`).
-
-### Runtime layer on Windows
-The **install** works on native Windows. The **`hfa-core` runtime layer** (the bash preamble/epilogue in
-every `SKILL.md`, plus `skills/hfa-core/bin/*`) is a different matter: `hfa-preamble` is
-`#!/usr/bin/env bash` and uses Unix coreutils — `find -mmin`, `wc`, `tr`, `grep -E`, `printenv`, `touch`,
-`mkdir`, `dirname`. PowerShell/cmd cannot run it, and even a bare `bash.exe` is not enough — it needs the
-coreutils too. To make it work:
-
-1. **Git Bash (Git for Windows) — recommended.** It bundles bash **and** the MSYS2 coreutils the scripts
-   call. As of the **2.1.139** release (May 2026) Claude Code on Windows defaults to a **native PowerShell
-   tool** and no longer *requires* Git for Windows — but the `hfa-core` preamble is bash, so you still need
-   **Git for Windows** (it enables Claude Code's Bash tool via Git Bash; without it Claude Code falls back to
-   PowerShell, which can't run the preamble). Ensure `bash` is on `PATH`.
-2. **WSL.** A full Linux userland — everything works — but installs and state land *inside* the WSL
-   filesystem (`~/.claude/skills`, `~/.hfa`). Keep the agent and the install on the same side of the WSL
-   boundary, or paths won't line up.
-3. **Codex / OpenClaw on Windows.** These may default to PowerShell for shell execution. Put **Git Bash** on
-   `PATH` so the bash-fenced preamble runs (or arrange for it to be invoked via `bash -c`).
-4. **If no POSIX shell is reachable** the preamble prints `HFA_CORE: not found` and the skill proceeds —
-   **skill instructions still work; only telemetry, key prompts, learnings, and update checks go dormant.**
-
-> **Durable fix (proposed, not yet built):** reimplement the five `bin/` scripts in **Node** — already a hard
-> dependency of the installer — and have the generated preamble call `node "$_HFA/bin/hfa-core.mjs" preamble …`
-> instead of executing a bash script. That removes the bash + coreutils dependency and makes the runtime
-> layer OS-agnostic. Tracked in [Known gaps](#known-gaps--follow-ups).
+- **Install and run inside WSL2.** Put Claude Code (or Codex) **and** this installer inside your WSL2
+  distribution; everything then behaves exactly like Linux — skills land in `~/.claude/skills`,
+  `~/.codex/skills`, `~/.openclaw/skills` (the Linux paths above), and the bash runtime works.
+- **Native Windows is flagged.** `node bin/hfa.js doctor` and the installer itself warn when run on native
+  Windows — Node reports `win32` there but `linux` inside WSL2, so the check is precise. Native Windows +
+  Git Bash *can* execute the scripts, but without enforced `.env` permissions (`chmod` is a no-op on NTFS)
+  and without the agents' sandbox — so it is unsupported.
+- **The install/path layer is OS-agnostic.** The adapters build paths only from Node's `os.homedir()` +
+  `path.join()`, verified by `test/integration/windows-paths.test.mjs` driving the real adapters through
+  `path.win32`. That portability is what lets WSL2 (Linux) Just Work; it is not a claim of native-Windows
+  support.
 
 ---
 
@@ -297,20 +270,18 @@ coreutils too. To make it work:
 - **Automatic routing-table injection** — `src/routing-table.js` + `scripts/build-routing-table.js` generate
   the table from frontmatter; `install()` injects and merges it into each runtime's `CLAUDE.md` / `AGENTS.md`.
 - **Integration harness + devcontainer** — `test/integration/` (real installs for all three CLI platforms +
-  the `path.win32` Windows simulator) and `.devcontainer/integration/` (Claude Code + Codex baked in; built
+  the `path.win32` path-layer check) and `.devcontainer/integration/` (Claude Code + Codex baked in; built
   and run green inside the Linux container).
 
 ## Known gaps / follow-ups
 
 1. **Preamble discovery list omits `~/.openclaw/...`.** The bash preamble scans `~/.claude/...` and
    `~/.codex/...` but not OpenClaw paths; until added, point `~/.hfa/core-path` at the installed `hfa-core`.
-2. **Runtime layer is bash + coreutils.** Reimplementing the `bin/` scripts in Node is the durable
-   cross-platform fix so the `hfa-core` runtime works in native Windows PowerShell (see
-   [Runtime layer on Windows](#runtime-layer-on-windows)).
-3. **OpenClaw tool-name skew.** Skill bodies say "the Bash/Read/Edit/Agent tool"; the OpenClaw adapter copies
+2. **OpenClaw tool-name skew.** Skill bodies say "the Bash/Read/Edit/Agent tool"; the OpenClaw adapter copies
    them verbatim (no rewrite to `exec`/`read`/`write`/`sessions_spawn`) — a future content transform could map them.
-4. **Live Windows / CI verification deferred.** No `windows-latest` CI leg yet; the install/path layer is
-   proven via the `path.win32` harness + the Linux integration container, not a real Windows runtime.
+3. **Windows is WSL2-only by design.** The skill runtime is POSIX/bash; rather than port it to native
+   Windows, we standardize on WSL2 (where the agents' own sandbox runs). No `windows-latest` CI leg is
+   needed — WSL2 is Linux, covered by the Linux integration container and the `path.win32` path harness.
 
 ---
 
