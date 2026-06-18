@@ -34,6 +34,9 @@ export async function install(target, opts = {}) {
   const isPersona = !!personaByName(target);
 
   const log = (...a) => console.log(...a);
+  if (process.platform === 'win32') {
+    log('\n  ⚠ Native Windows is unsupported — run inside WSL2 (the skill runtime is POSIX/bash).');
+  }
   log(`\n  hfa install ${target} → ${platform} (${scope} scope)`);
   log(`  ${isPersona ? 'persona' : 'skill'}: resolves to ${closure.length} skill(s):`);
   for (const s of closure) {
