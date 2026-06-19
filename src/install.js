@@ -8,12 +8,12 @@ import { fileCount } from './adapters/copy.js';
 import { upsertRoutingTable } from './routing-table.js';
 import { VERSION_FILE } from './paths.js';
 
-// Record what was installed in ~/.hfa/install-manifest.jsonl so the guided
-// upgrade flow (skills/hfa-core/references/upgrade.md) can re-run the same
+// Record what was installed in ~/.analyst-kit/install-manifest.jsonl so the guided
+// upgrade flow (skills/analyst-kit-core/references/upgrade.md) can re-run the same
 // installs against a newer release. Best-effort: never fails an install.
 function recordInstall(target, platform, scope) {
   try {
-    const home = process.env.HFA_HOME || join(homedir(), '.hfa');
+    const home = process.env.AK_HOME || join(homedir(), '.analyst-kit');
     mkdirSync(home, { recursive: true });
     const version = readFileSync(VERSION_FILE, 'utf8').trim();
     const line = JSON.stringify({
@@ -37,7 +37,7 @@ export async function install(target, opts = {}) {
   if (process.platform === 'win32') {
     log('\n  ⚠ Native Windows is unsupported — run inside WSL2 (the skill runtime is POSIX/bash).');
   }
-  log(`\n  hfa install ${target} → ${platform} (${scope} scope)`);
+  log(`\n  analyst-kit install ${target} → ${platform} (${scope} scope)`);
   log(`  ${isPersona ? 'persona' : 'skill'}: resolves to ${closure.length} skill(s):`);
   for (const s of closure) {
     const deps = s.requires.length ? `  ← ${s.requires.join(', ')}` : '';
@@ -83,7 +83,7 @@ export async function install(target, opts = {}) {
   log(`\n  installed ${written.length} skill(s) to ${adapter.installDir(scope)}`);
   for (const w of written) log(`    ✓ ${w.name} (${w.files} files)`);
   if (runtimes.size) log(`  runtimes required: ${[...runtimes].join(', ')} (skills bootstrap deps on first use)`);
-  if (missing.length) log(`  ⚠ still missing keys: ${missing.join(', ')} — run \`hfa env --platform ${platform}\``);
+  if (missing.length) log(`  ⚠ still missing keys: ${missing.join(', ')} — run \`analyst-kit env --platform ${platform}\``);
   log('');
 
   return { closure, written, missing };

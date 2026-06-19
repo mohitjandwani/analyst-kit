@@ -1,4 +1,4 @@
-# API key catalog — shipped with hfa-core so `hfa-setup` can describe each key on the
+# API key catalog — shipped with analyst-kit-core so `analyst-kit-setup` can describe each key on the
 # user's machine (the root .env.example does not travel with an installed skill).
 # Format: KEY<TAB>description<TAB>where-to-get-it. Keep in sync with root .env.example.
 FINMIND_TOKEN	FinMind — Taiwan market data	https://finmindtrade.com/

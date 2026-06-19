@@ -1,7 +1,7 @@
 # Data units & number formatting
 
 How every number is formatted on axes, data labels, and tooltips. Implemented by
-`HFA.fmt` (`src/format.ts`), driven by each axis's `currency` / `unit` / `percent` / `decimals`.
+`AK.fmt` (`src/format.ts`), driven by each axis's `currency` / `unit` / `percent` / `decimals`.
 The Polars layer ships numbers **already scaled**; the TS layer only formats.
 
 ## Conventions table
@@ -22,7 +22,7 @@ Rules in this table:
   uses a leading minus (finance convention for growth/margin/surprise). To make percent use
   parentheses too, change the percent branch in `src/format.ts`.
 - **Compact only** — labels never show a raw `12312135`; always the scaled value + unit.
-- Add a new data type by adding a row here and setting the matching axis hints; `HFA.fmt`
+- Add a new data type by adding a row here and setting the matching axis hints; `AK.fmt`
   needs no change unless a new negative/suffix rule is required.
 
 ## One unit per axis

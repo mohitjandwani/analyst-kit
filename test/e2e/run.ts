@@ -5,7 +5,7 @@
 //     environment into the container, then re-invokes itself INSIDE the container.
 //
 //   IN-CONTAINER mode (--in-container):
-//     Installs every skill via bin/hfa.js, verifies they landed, runs each task through
+//     Installs every skill via bin/analyst-kit.js, verifies they landed, runs each task through
 //     `claude -p`, checks that each produced exactly one valid PDF, writes a report.
 //
 // Keys are passed inline on the host command (or via an optional test/e2e/.env) and never
@@ -319,10 +319,10 @@ async function runInContainer(filter: string | null, concurrency: number) {
   const skillsHome = join(homedir(), '.claude', 'skills');
 
   // Phase 1 — install every skill (so any task can autonomously pick what it needs).
-  log(`Phase 1 · install — ${skills.length} skills via bin/hfa.js → ${skillsHome}`);
+  log(`Phase 1 · install — ${skills.length} skills via bin/analyst-kit.js → ${skillsHome}`);
   const installResults = skills.map((s) => {
     const r = spawnSync('node', [
-      join(REPO_ROOT, 'bin', 'hfa.js'), 'install', s.name,
+      join(REPO_ROOT, 'bin', 'analyst-kit.js'), 'install', s.name,
       '--platform', 'claude-code', '--scope', 'user', '-y',
     ], { cwd: REPO_ROOT, encoding: 'utf8' });
     if (r.status !== 0) log(`  ✗ ${s.name}: ${lastLine(r.stderr || r.stdout)}`);

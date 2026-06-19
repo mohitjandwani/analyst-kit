@@ -2,7 +2,7 @@
 
 > **Installation instructions live in the [README](README.md).** This document is the *under-the-hood*
 > reference: where files land, how each agent discovers the skills, the routing table that advertises them,
-> the `hfa-core` runtime layer, Windows behavior, and the per-runtime caveats — for **Claude Code**,
+> the `analyst-kit-core` runtime layer, Windows behavior, and the per-runtime caveats — for **Claude Code**,
 > **Codex**, **OpenClaw**, and **Claude Cowork**, on Linux/macOS, and Windows via WSL2.
 
 Two things happen on every install:
@@ -43,19 +43,19 @@ is invoked. There are two kinds:
 
 ### Dependency closure
 Each skill declares `requires:`. The bundled installer (`src/resolve.js`) walks that graph depth-first and
-installs the full closure automatically (e.g. installing `reporting` also pulls `charting` and `hfa-core`).
+installs the full closure automatically (e.g. installing `reporting` also pulls `charting` and `analyst-kit-core`).
 **OpenClaw and Cowork don't resolve `requires:`** — there you install the whole set (the README's
 `--platform openclaw` command and the Cowork plugin each bring everything along).
 
-### The `hfa-core` runtime layer
+### The `analyst-kit-core` runtime layer
 Every shipped `SKILL.md` carries a generated **preamble** and **epilogue** block (between
-`<!-- hfa:preamble -->` / `<!-- hfa:epilogue -->` markers). On skill invocation the preamble runs a small
-**bash** program (`skills/hfa-core/bin/hfa-preamble`) that manages onboarding, anonymous telemetry, missing
-API-key prompts, daily update checks, and a per-user learnings log — all under `~/.hfa/`. `hfa-core` is
+`<!-- analyst-kit:preamble -->` / `<!-- analyst-kit:epilogue -->` markers). On skill invocation the preamble runs a small
+**bash** program (`skills/analyst-kit-core/bin/analyst-kit-preamble`) that manages onboarding, anonymous telemetry, missing
+API-key prompts, daily update checks, and a per-user learnings log — all under `~/.analyst-kit/`. `analyst-kit-core` is
 installed automatically as a dependency of every other skill.
 
 This runtime layer is **bash + Unix coreutils** and is **optional**: if no POSIX shell is reachable it prints
-`HFA_CORE: not found` and the skill proceeds without it. The skill's *instructions* always work; only the
+`AK_CORE: not found` and the skill proceeds without it. The skill's *instructions* always work; only the
 runtime niceties go dormant. This matters on Windows — see [Windows (WSL2 only)](#windows-wsl2-only).
 
 ---
@@ -73,12 +73,12 @@ Driven by `src/adapters/claude-code.js` + `src/install.js`:
    `./.claude/skills/<name>/` (project), **skipping** `node_modules`, `.venv`, `__pycache__`, `.git`,
    `tests` (vendored first-party assets like `charting/vendor/highcharts/` are kept).
 3. **Env** — the union of `env:` keys across the closure is resolved from `process.env` → env file →
-   interactive prompt, then written to `~/.hfa/.env` (user) or `./.env` (project), `chmod 600`.
-4. **Manifest** — an install record is appended to `~/.hfa/install-manifest.jsonl` (powers guided upgrades).
+   interactive prompt, then written to `~/.analyst-kit/.env` (user) or `./.env` (project), `chmod 600`.
+4. **Manifest** — an install record is appended to `~/.analyst-kit/install-manifest.jsonl` (powers guided upgrades).
 5. **Runtime warning** — if any skill needs `python` or `bun`, you're told to have it installed.
 
 **Discovery:** Claude Code reads each `SKILL.md`'s frontmatter; the model matches your request against the
-`Triggers:` in the description and loads the body on demand. The `hfa-core` preamble runs first on invocation.
+`Triggers:` in the description and loads the body on demand. The `analyst-kit-core` preamble runs first on invocation.
 
 ### Surfacing skills in the common prompt
 After copying, the installer injects the [routing table](#the-routing-table) into Claude Code's memory file
@@ -149,8 +149,8 @@ alone already advertises every skill in the system prompt** — the routing tabl
 - **Tool-name skew** — skill bodies reference Claude Code tools ("the Bash tool", "the Read/Edit tool",
   "the Agent tool"); OpenClaw's surface is `exec` / `read` / `write` / `edit` / `sessions_spawn`. The
   instructions still read sensibly, but the literal tool names differ.
-- **`~/.hfa/.env` is not read natively** — set API keys (`FMP_API_KEY`, `FINMIND_TOKEN`, `SERPAPI_API_KEY`)
-  in OpenClaw's environment; the `hfa-core` runtime path reads `~/.hfa/.env` only when its bash preamble runs.
+- **`~/.analyst-kit/.env` is not read natively** — set API keys (`FMP_API_KEY`, `FINMIND_TOKEN`, `SERPAPI_API_KEY`)
+  in OpenClaw's environment; the `analyst-kit-core` runtime path reads `~/.analyst-kit/.env` only when its bash preamble runs.
 - **Frontmatter** — OpenClaw expects any `metadata` to be a single-line JSON object; it ignores fields it
   doesn't use (`requires:`, `env:` are inert there).
 
@@ -186,8 +186,8 @@ generates a Cowork-flavoured table with no filesystem **Load** column.
   table).
 - **`SKILL.md` casing** — the skill spec is `SKILL.md`; if a ZIP upload insists on lowercase `skill.md`,
   rename it inside the ZIP.
-- **hfa-core runtime layer** runs in Cowork's VM sandbox; if it can't locate `hfa-core` it prints
-  `HFA_CORE: not found` and the skill proceeds (instructions work; telemetry/keys/learnings dormant).
+- **analyst-kit-core runtime layer** runs in Cowork's VM sandbox; if it can't locate `analyst-kit-core` it prints
+  `AK_CORE: not found` and the skill proceeds (instructions work; telemetry/keys/learnings dormant).
 
 > Source: Anthropic / Claude docs — [claude.com/product/cowork](https://claude.com/product/cowork) and
 > [support.claude.com](https://support.claude.com) ("Get started with Cowork", "Use plugins in Claude",
@@ -214,7 +214,7 @@ It is built from each skill's `Triggers:` (in `registry.json`), one row per skil
 `<skills-dir>` stands in for the runtime's skills path):
 
 ```markdown
-## Hedge Fund Analyst skills (routing table)
+## Analyst Kit skills (routing table)
 
 When a request matches a skill's triggers, load that skill's SKILL.md and follow it.
 
@@ -237,14 +237,14 @@ When a request matches a skill's triggers, load that skill's SKILL.md and follow
 | reporting | "generate a PDF report", "turn this into a deck", "client-ready report", "investment memo PDF" | `<skills-dir>/reporting/SKILL.md` |
 | wiki-builder | "serve wiki", "render markdown as a website", "open my notes in the browser" | `<skills-dir>/wiki-builder/SKILL.md` |
 | data-analysis | "analyze this CSV", "explore this dataset", "build a dashboard", "EDA on X", "data quality of X" | `<skills-dir>/data-analysis/SKILL.md` |
-| hfa-core | runtime (auto-installed): "hfa setup/config", "check for hfa updates", "show my hfa learnings" | `<skills-dir>/hfa-core/SKILL.md` |
+| analyst-kit-core | runtime (auto-installed): "analyst-kit setup/config", "check for analyst-kit updates", "show my analyst-kit learnings" | `<skills-dir>/analyst-kit-core/SKILL.md` |
 ```
 
 ---
 
 ## Windows (WSL2 only)
 
-The skill **runtime** is POSIX/bash — `hfa-core`'s preamble/epilogue and `skills/hfa-core/bin/*` use `bash`,
+The skill **runtime** is POSIX/bash — `analyst-kit-core`'s preamble/epilogue and `skills/analyst-kit-core/bin/*` use `bash`,
 `find -mmin`, `wc`, `tr`, `grep -E`, `printenv`, etc., which native PowerShell/cmd cannot run. So on Windows
 we support **WSL2 only** — which is also where the agents run their own Linux sandbox (Claude Code and Codex
 treat native Windows as unsupported / degraded).
@@ -252,7 +252,7 @@ treat native Windows as unsupported / degraded).
 - **Install and run inside WSL2.** Put Claude Code (or Codex) **and** this installer inside your WSL2
   distribution; everything then behaves exactly like Linux — skills land in `~/.claude/skills`,
   `~/.codex/skills`, `~/.openclaw/skills` (the Linux paths above), and the bash runtime works.
-- **Native Windows is flagged.** `node bin/hfa.js doctor` and the installer itself warn when run on native
+- **Native Windows is flagged.** `node bin/analyst-kit.js doctor` and the installer itself warn when run on native
   Windows — Node reports `win32` there but `linux` inside WSL2, so the check is precise. Native Windows +
   Git Bash *can* execute the scripts, but without enforced `.env` permissions (`chmod` is a no-op on NTFS)
   and without the agents' sandbox — so it is unsupported.
@@ -276,7 +276,7 @@ treat native Windows as unsupported / degraded).
 ## Known gaps / follow-ups
 
 1. **Preamble discovery list omits `~/.openclaw/...`.** The bash preamble scans `~/.claude/...` and
-   `~/.codex/...` but not OpenClaw paths; until added, point `~/.hfa/core-path` at the installed `hfa-core`.
+   `~/.codex/...` but not OpenClaw paths; until added, point `~/.analyst-kit/core-path` at the installed `analyst-kit-core`.
 2. **OpenClaw tool-name skew.** Skill bodies say "the Bash/Read/Edit/Agent tool"; the OpenClaw adapter copies
    them verbatim (no rewrite to `exec`/`read`/`write`/`sessions_spawn`) — a future content transform could map them.
 3. **Windows is WSL2-only by design.** The skill runtime is POSIX/bash; rather than port it to native
@@ -301,4 +301,4 @@ treat native Windows as unsupported / degraded).
 "How to create custom skills").
 **This repo** — `src/adapters/claude-code.js`, `src/adapters/codex.js`, `src/adapters/openclaw.js`,
 `src/adapters/copy.js`, `src/install.js`, `src/resolve.js`, `src/routing-table.js`,
-`skills/hfa-core/bin/hfa-preamble`, `skills/hfa-core/templates/{preamble,epilogue}.md.tmpl`, `registry.json`.
+`skills/analyst-kit-core/bin/analyst-kit-preamble`, `skills/analyst-kit-core/templates/{preamble,epilogue}.md.tmpl`, `registry.json`.

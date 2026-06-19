@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// Inject the hfa-core preamble/epilogue blocks into every shipped SKILL.md and
-// stamp the root VERSION into everything that carries it (hfa-core/VERSION,
+// Inject the analyst-kit-core preamble/epilogue blocks into every shipped SKILL.md and
+// stamp the root VERSION into everything that carries it (analyst-kit-core/VERSION,
 // plugin manifests, package.json). With --check, verify instead of writing (CI).
 //
-// The blocks live between <!-- hfa:preamble:start/end --> and
-// <!-- hfa:epilogue:start/end --> markers; the source of truth is
-// skills/hfa-core/templates/*.md.tmpl — never edit between markers by hand.
+// The blocks live between <!-- analyst-kit:preamble:start/end --> and
+// <!-- analyst-kit:epilogue:start/end --> markers; the source of truth is
+// skills/analyst-kit-core/templates/*.md.tmpl — never edit between markers by hand.
 
 import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -18,12 +18,12 @@ const stale = [];
 let touched = 0;
 
 const version = readFileSync(VERSION_FILE, 'utf8').trim();
-const CORE = join(SKILLS_DIR, 'hfa-core');
+const CORE = join(SKILLS_DIR, 'analyst-kit-core');
 const preTpl = readFileSync(join(CORE, 'templates', 'preamble.md.tmpl'), 'utf8').trim();
 const epiTpl = readFileSync(join(CORE, 'templates', 'epilogue.md.tmpl'), 'utf8').trim();
 
-const PRE = /<!-- hfa:preamble:start[\s\S]*?hfa:preamble:end -->/;
-const EPI = /<!-- hfa:epilogue:start[\s\S]*?hfa:epilogue:end -->/;
+const PRE = /<!-- analyst-kit:preamble:start[\s\S]*?analyst-kit:preamble:end -->/;
+const EPI = /<!-- analyst-kit:epilogue:start[\s\S]*?analyst-kit:epilogue:end -->/;
 const FM_CLOSE = /^---\n[\s\S]*?\n---[ \t]*\n/; // frontmatter open through closing ---
 
 function emit(path, next, raw) {
@@ -35,7 +35,7 @@ function emit(path, next, raw) {
 // --- SKILL.md blocks -------------------------------------------------------
 const { skills } = scanSkills(); // shipped skills only (EXCLUDED_SKILLS skipped)
 for (const s of skills) {
-  if (s.name === 'hfa-core') continue; // the runtime doesn't instrument itself
+  if (s.name === 'analyst-kit-core') continue; // the runtime doesn't instrument itself
   // Union of env keys across the skill's full closure, so the preamble can
   // flag missing API keys even when the key belongs to a dependency.
   const envUnion = [...new Set(resolveClosure([s.name], skills).flatMap((d) => d.env))].sort();

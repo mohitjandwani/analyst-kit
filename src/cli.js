@@ -7,23 +7,23 @@ import { install } from './install.js';
 import { buildRoutingTable } from './routing-table.js';
 import { requiredEnv, resolveEnv, parseEnvFile } from './env.js';
 
-// `hfa <target>` / `hfa setup <target>` installs ALL skills for a runtime. Cowork
+// `analyst-kit <target>` / `analyst-kit setup <target>` installs ALL skills for a runtime. Cowork
 // is marketplace/GUI-based, so it prints the in-app steps + writes its global-
 // instructions table instead of copying files.
 const SETUP_TARGETS = [...PLATFORMS, 'cowork'];
 
 const HELP = `
-hfa — Hedge Fund Analyst skills installer
+analyst-kit — Analyst Kit skills installer
 
 Usage:
-  hfa <claude-code|codex|openclaw|cowork> [--scope user|project]    # install ALL skills (cowork: print steps)
-  hfa setup <claude-code|codex|openclaw|cowork> [--scope user|project]
-  hfa list [--type capability|composite] [--persona <name>]
-  hfa install <skill|persona> --platform <${PLATFORMS.join('|')}> [--scope user|project] [--dry-run] [-y]
-  hfa update <skill|persona> --platform <p> [--scope user|project]
-  hfa uninstall <skill|persona> --platform <p> [--scope user|project]
-  hfa env --platform <p> [--scope user|project]
-  hfa doctor --platform <p> [--scope user|project]
+  analyst-kit <claude-code|codex|openclaw|cowork> [--scope user|project]    # install ALL skills (cowork: print steps)
+  analyst-kit setup <claude-code|codex|openclaw|cowork> [--scope user|project]
+  analyst-kit list [--type capability|composite] [--persona <name>]
+  analyst-kit install <skill|persona> --platform <${PLATFORMS.join('|')}> [--scope user|project] [--dry-run] [-y]
+  analyst-kit update <skill|persona> --platform <p> [--scope user|project]
+  analyst-kit uninstall <skill|persona> --platform <p> [--scope user|project]
+  analyst-kit env --platform <p> [--scope user|project]
+  analyst-kit doctor --platform <p> [--scope user|project]
 
 Options:
   --platform   target agent runtime (${PLATFORMS.join(', ')})
@@ -105,7 +105,7 @@ function cmdDoctor(flags) {
   const adapter = getAdapter(flags.platform);
   const scope = flags.scope || 'user';
   const skills = getSkills();
-  console.log(`\n  hfa doctor — platform ${flags.platform} (${scope})`);
+  console.log(`\n  analyst-kit doctor — platform ${flags.platform} (${scope})`);
   console.log(`  install dir: ${adapter.installDir(scope)}`);
   console.log(`  env file:    ${adapter.envFile(scope)}`);
 
@@ -114,14 +114,14 @@ function cmdDoctor(flags) {
   // native Windows even under Git Bash, but 'linux' inside WSL2 — so this is precise.
   if (process.platform === 'win32') {
     console.log('\n  ⚠ Native Windows detected — UNSUPPORTED.');
-    console.log('    HFA skills run a POSIX/bash runtime; on Windows, run Claude Code (or Codex)');
+    console.log('    Analyst Kit skills run a POSIX/bash runtime; on Windows, run Claude Code (or Codex)');
     console.log('    and this installer inside a WSL2 distribution. See the README "Windows" note.');
   }
 
   const runtimes = new Set(skills.map((s) => s.runtime).filter((r) => r !== 'none'));
   console.log(`\n  Runtimes used by skills: ${[...runtimes].join(', ') || '(none)'}`);
   for (const rt of runtimes) {
-    console.log(`    ${rt}: documented as a per-skill prerequisite (hfa does not install runtimes)`);
+    console.log(`    ${rt}: documented as a per-skill prerequisite (analyst-kit does not install runtimes)`);
   }
 
   const vars = requiredEnv(skills);
@@ -148,7 +148,7 @@ function cmdSetupCowork() {
   writeFileSync(out, buildRoutingTable(getSkills(), { includeLoad: false }) + '\n');
   console.log(`
   Claude Cowork installs inside the Claude desktop app (no terminal). One-time setup:
-    1. Customize → Plugins → Personal plugins → +  → Add marketplace:  MohitKumar1991/hedge-fund-analyst
+    1. Customize → Plugins → Personal plugins → +  → Add marketplace:  MohitKumar1991/analyst-kit
     2. Add a plugin:  us-stock-analyst   (or international-analyst / taiwan-stock-analyst)
     3. Settings → Capabilities → enable Code execution
     4. Settings → Cowork → Global instructions → paste the contents of:
@@ -162,7 +162,7 @@ export async function main(argv) {
   if (!cmd || flags.help) { console.log(HELP); return; }
 
   try {
-    // Simple cross-platform entrypoint: `hfa <platform>` or `hfa setup <platform>`.
+    // Simple cross-platform entrypoint: `analyst-kit <platform>` or `analyst-kit setup <platform>`.
     if (cmd === 'setup' || SETUP_TARGETS.includes(cmd)) {
       await cmdSetup(cmd === 'setup' ? _[1] : cmd, flags);
       return;

@@ -3,7 +3,7 @@
  *
  * `optionsToJs` serializes the options object to a JS source string, hydrating the
  * `{__fn__:'fmt'}` formatter descriptors into real `function(){…}` that call the
- * embedded `HFA.fmt`. By default the page inlines the vendored Highcharts scripts so
+ * embedded `AK.fmt`. By default the page inlines the vendored Highcharts scripts so
  * it renders in any headless/sandboxed environment with no outbound network access.
  * Pass `opts.cdnScripts = true` to emit lightweight `<script src>` tags instead
  * (good for browser preview; uses jsDelivr, never code.highcharts.com).
@@ -35,7 +35,7 @@ export function optionsToJs(node: unknown): string {
   if (typeof node === 'object') {
     const obj = node as Record<string, unknown>;
     if (obj.__fn__ === 'fmt') {
-      return `function(){var v=(this.value!=null?this.value:this.y);return HFA.fmt(v,${JSON.stringify(obj.opts)});}`;
+      return `function(){var v=(this.value!=null?this.value:this.y);return AK.fmt(v,${JSON.stringify(obj.opts)});}`;
     }
     const parts = Object.entries(obj)
       .filter(([, v]) => v !== undefined)

@@ -33,8 +33,8 @@ test('openclaw · project skills → <cwd>\\.openclaw\\skills', () => {
 });
 
 // --- env files ----------------------------------------------------------------
-test('claude-code · user env → %USERPROFILE%\\.hfa\\.env', () => {
-  assert.equal(claudeCode.envFile('user', win), 'C:\\Users\\analyst\\.hfa\\.env');
+test('claude-code · user env → %USERPROFILE%\\.analyst-kit\\.env', () => {
+  assert.equal(claudeCode.envFile('user', win), 'C:\\Users\\analyst\\.analyst-kit\\.env');
 });
 test('codex · user env → %USERPROFILE%\\.codex\\.env', () => {
   assert.equal(codex.envFile('user', win), 'C:\\Users\\analyst\\.codex\\.env');

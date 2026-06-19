@@ -1,7 +1,7 @@
 /**
  * Public API for the charting layer.
  *
- *   import { renderChartPage, buildOptions } from "@hfa/charting";
+ *   import { renderChartPage, buildOptions } from "@analyst-kit/charting";
  *   const html = renderChartPage(finalData);     // self-contained HTML page
  *   const opts = buildOptions(finalData);         // Highcharts options object
  *

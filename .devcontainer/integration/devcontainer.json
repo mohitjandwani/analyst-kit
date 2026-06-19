@@ -1,8 +1,8 @@
 {
   // A SECOND devcontainer config, separate from ../devcontainer.json (the skills
   // e2e harness). Open it via "Dev Containers: Reopen in Container" → pick
-  // "hfa-integration", or: devcontainer up --config .devcontainer/integration/devcontainer.json
-  "name": "hfa-integration",
+  // "analyst-kit-integration", or: devcontainer up --config .devcontainer/integration/devcontainer.json
+  "name": "analyst-kit-integration",
   "build": {
     "dockerfile": "Dockerfile",
     "context": "."

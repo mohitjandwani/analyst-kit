@@ -42,7 +42,7 @@ import urllib.request
 # but please set your own email so the SEC can reach you if your traffic spikes.
 UA = os.environ.get(
     "SEC_EDGAR_UA",
-    "hedge-fund-analyst sec-filings-skill contact@example.com",
+    "analyst-kit sec-filings-skill contact@example.com",
 )
 
 _HEADERS = {"User-Agent": UA, "Accept-Encoding": "gzip, deflate"}

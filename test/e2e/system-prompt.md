@@ -25,7 +25,7 @@ rules override your defaults and apply to every task.
 
 5. **Clarify and remember.** When the task is ambiguous, ask the user for clarification
    before starting large or irreversible work. Record both the question and its resolution in
-   your learnings (the hfa-core learnings log) so the same ambiguity is not re-litigated.
+   your learnings (the analyst-kit-core learnings log) so the same ambiguity is not re-litigated.
 
 6. **Run each skill's setup.** When a skill's `SKILL.md` opens with a "Preamble (run first)"
    block, execute it before using the skill, and run the matching Completion block at the

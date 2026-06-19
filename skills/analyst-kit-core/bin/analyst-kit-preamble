@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# hfa-preamble — run at the start of every HFA skill. Echoes state lines the
+# analyst-kit-preamble — run at the start of every Analyst Kit skill. Echoes state lines the
 # agent reads (DEDUP, TELEMETRY, ONBOARDED, MISSING_KEYS, UPGRADE, LEARNINGS)
 # and logs the start event. Contract: never fails, target <100ms (the only
-# network call is hfa-update-check, which is cached to once per day).
+# network call is analyst-kit-update-check, which is cached to once per day).
 set -uo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 CORE="$(dirname "$DIR")"
-[ -r "$DIR/_hfa-home.sh" ] && . "$DIR/_hfa-home.sh"
-HFA_HOME="${HFA_HOME:-$HOME/.hfa}"
-export HFA_HOME
+[ -r "$DIR/_analyst-kit-home.sh" ] && . "$DIR/_analyst-kit-home.sh"
+AK_HOME="${AK_HOME:-$HOME/.analyst-kit}"
+export AK_HOME
 
 SKILL=unknown; ENVKEYS=""
 while [ $# -gt 0 ]; do
@@ -20,62 +20,62 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-mkdir -p "$HFA_HOME/analytics" "$HFA_HOME/sessions" 2>/dev/null || true
+mkdir -p "$AK_HOME/analytics" "$AK_HOME/sessions" 2>/dev/null || true
 
 # Session dedupe: one round of prompts per agent session (~4h window).
 # Composed skills (workflow -> capabilities) re-run the preamble; DEDUP: yes
 # tells the agent to skip all one-time prompts on those repeats.
 SESSION="${PPID:-$$}"
-SESS_FILE="$HFA_HOME/sessions/$SESSION"
+SESS_FILE="$AK_HOME/sessions/$SESSION"
 if [ -n "$(find "$SESS_FILE" -mmin -240 2>/dev/null)" ]; then
   echo "DEDUP: yes"
 else
   echo "DEDUP: no"
 fi
 touch "$SESS_FILE" 2>/dev/null || true
-find "$HFA_HOME/sessions" -type f -mmin +240 -delete 2>/dev/null || true
+find "$AK_HOME/sessions" -type f -mmin +240 -delete 2>/dev/null || true
 
 VER="$(tr -d '[:space:]' < "$CORE/VERSION" 2>/dev/null)"
-echo "HFA_VERSION: ${VER:-unknown}"
-echo "HFA_HOME: $HFA_HOME"
+echo "AK_VERSION: ${VER:-unknown}"
+echo "AK_HOME: $AK_HOME"
 
-TIER="$("$DIR/hfa-config" get telemetry 2>/dev/null || echo community)"
+TIER="$("$DIR/analyst-kit-config" get telemetry 2>/dev/null || echo community)"
 case "$TIER" in off|anonymous|community) ;; *) TIER=community ;; esac
 echo "TELEMETRY: $TIER"
-[ -f "$HFA_HOME/.telemetry-prompted" ] && echo "TEL_PROMPTED: yes" || echo "TEL_PROMPTED: no"
-[ -f "$HFA_HOME/.onboarded" ] && echo "ONBOARDED: yes" || echo "ONBOARDED: no"
+[ -f "$AK_HOME/.telemetry-prompted" ] && echo "TEL_PROMPTED: yes" || echo "TEL_PROMPTED: no"
+[ -f "$AK_HOME/.onboarded" ] && echo "ONBOARDED: yes" || echo "ONBOARDED: no"
 
 # Soft-disable: a skill is turned off when a required key is missing/declined
-# (set by hfa-setup). The agent must refuse to run a DISABLED skill.
-{ [ -f "$HFA_HOME/disabled" ] && grep -qx "$SKILL" "$HFA_HOME/disabled"; } \
+# (set by analyst-kit-setup). The agent must refuse to run a DISABLED skill.
+{ [ -f "$AK_HOME/disabled" ] && grep -qx "$SKILL" "$AK_HOME/disabled"; } \
   && echo "DISABLED: yes" || echo "DISABLED: no"
 
-# Missing API keys: process env, then ~/.hfa/.env, then ./.env.
+# Missing API keys: process env, then ~/.analyst-kit/.env, then ./.env.
 MISSING=""
 for K in $(printf '%s' "$ENVKEYS" | tr ',' ' '); do
   [ -n "$K" ] || continue
   if [ -n "$(printenv "$K" 2>/dev/null)" ] \
-    || grep -qE "^${K}=." "$HFA_HOME/.env" 2>/dev/null \
+    || grep -qE "^${K}=." "$AK_HOME/.env" 2>/dev/null \
     || grep -qE "^${K}=." ./.env 2>/dev/null; then
     continue
   fi
   MISSING="${MISSING:+$MISSING,}$K"
-  [ -f "$HFA_HOME/.env-prompted-$K" ] && echo "KEY_PROMPTED_$K: yes" || echo "KEY_PROMPTED_$K: no"
+  [ -f "$AK_HOME/.env-prompted-$K" ] && echo "KEY_PROMPTED_$K: yes" || echo "KEY_PROMPTED_$K: no"
 done
 echo "MISSING_KEYS: ${MISSING:-none}"
 
-UPD="$("$DIR/hfa-update-check" 2>/dev/null || true)"
+UPD="$("$DIR/analyst-kit-update-check" 2>/dev/null || true)"
 echo "UPGRADE: ${UPD:-none}"
 
-LEARN_FILE="$HFA_HOME/learnings.jsonl"
+LEARN_FILE="$AK_HOME/learnings.jsonl"
 if [ -f "$LEARN_FILE" ]; then
   COUNT=$(wc -l < "$LEARN_FILE" 2>/dev/null | tr -d ' ')
   echo "LEARNINGS: ${COUNT:-0}"
-  "$DIR/hfa-learn" recent --skill "$SKILL" --limit 3 2>/dev/null || true
+  "$DIR/analyst-kit-learn" recent --skill "$SKILL" --limit 3 2>/dev/null || true
 else
   echo "LEARNINGS: 0"
 fi
 
-"$DIR/hfa-log" start --skill "$SKILL" --session "$SESSION" 2>/dev/null || true
+"$DIR/analyst-kit-log" start --skill "$SKILL" --session "$SESSION" 2>/dev/null || true
 
 exit 0

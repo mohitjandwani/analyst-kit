@@ -25,7 +25,7 @@ from collections import defaultdict
 # but please set your own email so the SEC can reach you if your traffic spikes.
 UA = os.environ.get(
     "SEC_EDGAR_UA",
-    "hedge-fund-analyst 13f-analysis-skill contact@example.com",
+    "analyst-kit 13f-analysis-skill contact@example.com",
 )
 
 

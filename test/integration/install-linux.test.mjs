@@ -1,8 +1,8 @@
 // Real end-to-end installs on the host OS (Linux in the devcontainer): run the
-// actual `bin/hfa.js install` into throwaway project dirs and assert (a) the skill
+// actual `bin/analyst-kit.js install` into throwaway project dirs and assert (a) the skill
 // + its closure land where the adapter says, (b) the codex slash-prompt bridge is
 // generated, and (c) the routing table is injected into the common-prompt file.
-// HFA_HOME is redirected to the temp dir so the manifest never touches ~/.hfa.
+// AK_HOME is redirected to the temp dir so the manifest never touches ~/.analyst-kit.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -12,14 +12,14 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const HFA = join(ROOT, 'bin', 'hfa.js');
+const AK = join(ROOT, 'bin', 'analyst-kit.js');
 
 function run(cwd, ...args) {
-  execFileSync('node', [HFA, ...args], {
-    cwd, env: { ...process.env, HFA_HOME: join(cwd, '.hfa') }, stdio: 'pipe',
+  execFileSync('node', [AK, ...args], {
+    cwd, env: { ...process.env, AK_HOME: join(cwd, '.analyst-kit') }, stdio: 'pipe',
   });
 }
-const tmp = (p) => mkdtempSync(join(tmpdir(), `hfa-${p}-`));
+const tmp = (p) => mkdtempSync(join(tmpdir(), `analyst-kit-${p}-`));
 
 // Per-platform project-scope layout: skills dir, common-prompt file, codex slash dir.
 const LAYOUT = {
@@ -34,14 +34,14 @@ for (const [platform, l] of Object.entries(LAYOUT)) {
     try {
       run(dir, 'install', 'single-stock-deep-dive', '--platform', platform, '--scope', 'project', '-y');
       assert.ok(existsSync(join(dir, l.dir, 'single-stock-deep-dive', 'SKILL.md')), 'skill copied');
-      assert.ok(existsSync(join(dir, l.dir, 'hfa-core', 'SKILL.md')), 'closure dep hfa-core copied');
+      assert.ok(existsSync(join(dir, l.dir, 'analyst-kit-core', 'SKILL.md')), 'closure dep analyst-kit-core copied');
       if (l.slash) {
         assert.ok(existsSync(join(dir, l.slash, 'single-stock-deep-dive.md')), 'codex slash-prompt generated');
       }
       const prompt = readFileSync(join(dir, l.prompt), 'utf8');
-      assert.match(prompt, /hfa:skills:start/, 'routing markers present');
+      assert.match(prompt, /analyst-kit:skills:start/, 'routing markers present');
       assert.match(prompt, /\| single-stock-deep-dive \|/, 'skill row present');
-      assert.match(prompt, /\| hfa-core \|/, 'dep row present');
+      assert.match(prompt, /\| analyst-kit-core \|/, 'dep row present');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -56,7 +56,7 @@ test('routing table accumulates across installs (merge, not overwrite)', () => {
     const prompt = readFileSync(join(dir, 'CLAUDE.md'), 'utf8');
     assert.match(prompt, /\| sec-filings \|/, 'first install still listed');
     assert.match(prompt, /\| charting \|/, 'second install added');
-    assert.equal(prompt.match(/hfa:skills:start/g).length, 1, 'exactly one routing block');
+    assert.equal(prompt.match(/analyst-kit:skills:start/g).length, 1, 'exactly one routing block');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -77,11 +77,11 @@ test('install all · installs every skill and lists them all in one routing tabl
   const dir = tmp('all');
   try {
     run(dir, 'install', 'all', '--platform', 'claude-code', '--scope', 'project', '-y');
-    for (const s of ['single-stock-deep-dive', 'charting', 'sec-filings', 'hfa-core']) {
+    for (const s of ['single-stock-deep-dive', 'charting', 'sec-filings', 'analyst-kit-core']) {
       assert.ok(existsSync(join(dir, '.claude', 'skills', s, 'SKILL.md')), `${s} installed`);
     }
     const prompt = readFileSync(join(dir, 'CLAUDE.md'), 'utf8');
-    assert.equal(prompt.match(/hfa:skills:start/g).length, 1, 'exactly one routing block');
+    assert.equal(prompt.match(/analyst-kit:skills:start/g).length, 1, 'exactly one routing block');
     const rows = (prompt.match(/^\| [a-z0-9-]+ \|/gm) || []).length;
     assert.ok(rows >= 17, `routing table lists all skills (got ${rows})`);
   } finally {
@@ -89,25 +89,25 @@ test('install all · installs every skill and lists them all in one routing tabl
   }
 });
 
-test('entrypoint · bare `hfa claude-code` installs all + injects routing', () => {
+test('entrypoint · bare `analyst-kit claude-code` installs all + injects routing', () => {
   const dir = tmp('setup');
   try {
-    run(dir, 'claude-code', '--scope', 'project'); // == `hfa setup claude-code`
+    run(dir, 'claude-code', '--scope', 'project'); // == `analyst-kit setup claude-code`
     assert.ok(existsSync(join(dir, '.claude', 'skills', 'single-stock-deep-dive', 'SKILL.md')), 'skill installed');
-    assert.match(readFileSync(join(dir, 'CLAUDE.md'), 'utf8'), /hfa:skills:start/, 'routing table injected');
+    assert.match(readFileSync(join(dir, 'CLAUDE.md'), 'utf8'), /analyst-kit:skills:start/, 'routing table injected');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test('entrypoint · `hfa cowork` writes the global-instructions table (no Load column)', () => {
+test('entrypoint · `analyst-kit cowork` writes the global-instructions table (no Load column)', () => {
   const dir = tmp('cowork');
   try {
     run(dir, 'cowork');
     const f = join(dir, 'cowork-global-instructions.md');
     assert.ok(existsSync(f), 'global-instructions file written');
     const md = readFileSync(f, 'utf8');
-    assert.match(md, /hfa:skills:start/, 'routing markers present');
+    assert.match(md, /analyst-kit:skills:start/, 'routing markers present');
     assert.doesNotMatch(md, /SKILL\.md/, 'no Load column (app-managed skills)');
   } finally {
     rmSync(dir, { recursive: true, force: true });

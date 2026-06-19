@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Generate the skills routing table from frontmatter, then print it, write it
 // to a file, or inject it idempotently into a common-prompt file (CLAUDE.md /
-// AGENTS.md) between <!-- hfa:skills:start/end --> markers.
+// AGENTS.md) between <!-- analyst-kit:skills:start/end --> markers.
 //
 //   node scripts/build-routing-table.js                                   # print (token <skills-dir>)
 //   node scripts/build-routing-table.js --skills-dir ~/.claude/skills     # print with real load paths

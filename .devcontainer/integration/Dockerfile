@@ -1,4 +1,4 @@
-# Integration-test image for the hfa skill installers across agent runtimes.
+# Integration-test image for the analyst-kit skill installers across agent runtimes.
 # Separate from ../Dockerfile (the skills e2e image) — this one installs the two
 # CLIs we install INTO (Claude Code + Codex) so the installers and the integration
 # tests (incl. the path.win32 "Windows simulator") run end-to-end on Linux.

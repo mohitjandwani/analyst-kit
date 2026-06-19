@@ -36,7 +36,7 @@ In finance, color is semantic — decorative or wrong color actively misleads.
 ## Labels & chrome
 - **Title** = subject + metric; **subtitle** = period/currency qualifier.
 - **Legend** when >1 series; suppressed for single-series and waterfall (x-labels name each bar).
-- **Data labels**: compact (`HFA.fmt`), small (9px), **per-need** — on for ≤3-series category
+- **Data labels**: compact (`AK.fmt`), small (9px), **per-need** — on for ≤3-series category
   charts (margins, surprise, dividends, waterfall, estimate-vs-reported); off for dense
   segment stacks, datetime/price, and 100%-stacked. Override with `buildOptions(d,{dataLabels})`.
 - **Event flags** (`flags`) annotate *why* a line moved — labelled dashed plotLines.

@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# hfa-learn — append/recall the per-user learnings log (~/.hfa/learnings.jsonl)
+# analyst-kit-learn — append/recall the per-user learnings log (~/.analyst-kit/learnings.jsonl)
 # so skills stop repeating mistakes already made for this user.
 #
-#   hfa-learn add '{"skill":"finmind","type":"pitfall","ticker":"2330","insight":"...","confidence":8,"ts":"..."}'
-#   hfa-learn recent [--skill S] [--topic T] [--limit N]
+#   analyst-kit-learn add '{"skill":"finmind","type":"pitfall","ticker":"2330","insight":"...","confidence":8,"ts":"..."}'
+#   analyst-kit-learn recent [--skill S] [--topic T] [--limit N]
 set -uo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
-[ -r "$DIR/_hfa-home.sh" ] && . "$DIR/_hfa-home.sh"
-HFA_HOME="${HFA_HOME:-$HOME/.hfa}"
-LOG="$HFA_HOME/learnings.jsonl"
+[ -r "$DIR/_analyst-kit-home.sh" ] && . "$DIR/_analyst-kit-home.sh"
+AK_HOME="${AK_HOME:-$HOME/.analyst-kit}"
+LOG="$AK_HOME/learnings.jsonl"
 
 case "${1:-}" in
   add)
@@ -28,7 +28,7 @@ case "${1:-}" in
     if printf '%s' "$LINE" | grep -qiE 'ignore (all |any )?previous instructions|you are now|system:|do not (report|flag|mention)'; then
       echo "rejected: suspicious content" >&2; exit 1
     fi
-    mkdir -p "$HFA_HOME" 2>/dev/null || true
+    mkdir -p "$AK_HOME" 2>/dev/null || true
     printf '%s\n' "$LINE" >> "$LOG"
     echo "logged"
     ;;
@@ -52,7 +52,7 @@ case "${1:-}" in
     printf '%s\n' "$MATCHED" | grep -v '^$' | tail -"$LIMIT"
     ;;
   *)
-    echo "usage: hfa-learn add '<one-line-json>' | recent [--skill S] [--topic T] [--limit N]" >&2
+    echo "usage: analyst-kit-learn add '<one-line-json>' | recent [--skill S] [--topic T] [--limit N]" >&2
     exit 1
     ;;
 esac

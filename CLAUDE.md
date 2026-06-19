@@ -9,7 +9,7 @@ coding agents (Claude Code, Codex). A "skill" is a self-contained folder under
 `skills/<name>/` whose `SKILL.md` holds agent instructions, optionally alongside
 runnable `scripts/`, `references/`, `templates/`, and `assets/`. The repo ships two
 ways to consume them: as **Claude Code plugins** (`plugins/`, advertised by
-`.claude-plugin/marketplace.json`) and via a **Node installer** (`bin/hfa.js` → `src/`)
+`.claude-plugin/marketplace.json`) and via a **Node installer** (`bin/analyst-kit.js` → `src/`)
 that copies skills into a target runtime.
 
 The skills themselves are the product; `src/` is just plumbing that catalogs, resolves,
@@ -23,10 +23,10 @@ npm run validate         # lint skills + plugin manifests against the contract (
 npm run build:registry   # regenerate registry.json from skill frontmatter
 npm run check:registry   # CI check: fail if registry.json is stale (does not write)
 
-node bin/hfa.js list                                              # browse skills + personas
-node bin/hfa.js install <skill|persona> --platform claude-code   # copy a skill + its deps into a runtime
-node bin/hfa.js install <skill> --platform codex --scope project --dry-run
-node bin/hfa.js doctor --platform claude-code                    # check runtimes + API keys
+node bin/analyst-kit.js list                                              # browse skills + personas
+node bin/analyst-kit.js install <skill|persona> --platform claude-code   # copy a skill + its deps into a runtime
+node bin/analyst-kit.js install <skill> --platform codex --scope project --dry-run
+node bin/analyst-kit.js doctor --platform claude-code                    # check runtimes + API keys
 ```
 
 `npm run validate` + `npm run check:registry` are exactly what CI runs
@@ -34,8 +34,9 @@ node bin/hfa.js doctor --platform claude-code                    # check runtime
 JS test suite — individual skills may ship their own tests (e.g. `skills/finmind/tests/`
 runs under `pytest`), run inside the skill folder.
 
-Note: the npm name `hfa` is taken, so the binary is **not** publishable as `npx hfa` —
-always invoke it as `node bin/hfa.js`.
+Note: the package isn't published to npm yet (the name `analyst-kit` is *available* —
+`npm view analyst-kit` 404s as of 2026-06-19), so invoke the binary as `node bin/analyst-kit.js`
+from a clone. Public installs use `npx github:MohitKumar1991/analyst-kit` or the plugin path.
 
 ## Architecture
 
@@ -105,12 +106,12 @@ resolution, and the validator. Never hand-edit `registry.json`; edit frontmatter
 - **Adding a platform** → add an adapter in `src/adapters/` and register it in
   `adapters/index.js`; the adapter interface is `installDir(scope)`, `envFile(scope)`,
   `write(skill, scope)`.
-- **The hfa-core runtime blocks** → every shipped SKILL.md carries generated
-  `<!-- hfa:preamble -->` / `<!-- hfa:epilogue -->` blocks (analytics, onboarding,
-  update check, learnings — state lives in `~/.hfa/`). Never edit between the markers
-  by hand: edit `skills/hfa-core/templates/*.md.tmpl` and run `npm run sync:preamble`
-  (CI runs `--check`). New skills must `require: [hfa-core]`; the same script stamps
-  the root `VERSION` into `skills/hfa-core/VERSION`, plugin manifests, and
+- **The analyst-kit-core runtime blocks** → every shipped SKILL.md carries generated
+  `<!-- analyst-kit:preamble -->` / `<!-- analyst-kit:epilogue -->` blocks (analytics, onboarding,
+  update check, learnings — state lives in `~/.analyst-kit/`). Never edit between the markers
+  by hand: edit `skills/analyst-kit-core/templates/*.md.tmpl` and run `npm run sync:preamble`
+  (CI runs `--check`). New skills must `require: [analyst-kit-core]`; the same script stamps
+  the root `VERSION` into `skills/analyst-kit-core/VERSION`, plugin manifests, and
   `package.json` — bump only the root `VERSION` file.
 
 

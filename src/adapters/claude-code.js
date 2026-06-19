@@ -20,7 +20,7 @@ export const claudeCode = {
   envFile(scope, { home = homedir(), cwd = process.cwd(), path = nodePath } = {}) {
     return scope === 'project'
       ? path.join(cwd, '.env')
-      : path.join(home, '.hfa', '.env');
+      : path.join(home, '.analyst-kit', '.env');
   },
 
   commonPromptFile(scope, { home = homedir(), cwd = process.cwd(), path = nodePath } = {}) {

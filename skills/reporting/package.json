@@ -1,5 +1,5 @@
 {
-  "name": "@hfa/reporting",
+  "name": "@analyst-kit/reporting",
   "version": "0.1.0",
   "private": true,
   "type": "module",

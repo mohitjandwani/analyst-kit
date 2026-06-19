@@ -1,9 +1,9 @@
 # Integration test devcontainer
 
-A **separate** devcontainer from [`../`](../) (the `hfa-skills-e2e` image). This one
+A **separate** devcontainer from [`../`](../) (the `analyst-kit-skills-e2e` image). This one
 exists to test the **installers** — it bakes in the two runtimes we install *into*,
 **Claude Code** and **Codex**, plus the runtimes skills need, so the full
-`node bin/hfa.js install … --platform <p>` flow and the integration tests run
+`node bin/analyst-kit.js install … --platform <p>` flow and the integration tests run
 end-to-end on Linux.
 
 ## What's inside
@@ -18,11 +18,11 @@ end-to-end on Linux.
 The **path-layer check** (`test/integration/windows-paths.test.mjs`) drives the **real adapters** with an
 injected Windows `homedir`/`cwd` and `path.win32` from Linux — proving the install paths are OS-portable,
 which is what lets **WSL2 (Linux) Just Work**. Windows itself is supported **via WSL2**, not natively (the
-bash `hfa-core` runtime can't run under PowerShell/cmd — see `compatibility.md`).
+bash `analyst-kit-core` runtime can't run under PowerShell/cmd — see `compatibility.md`).
 
 ## Open it
 
-- **VS Code / Cursor:** “Dev Containers: Reopen in Container” → pick **hfa-integration**.
+- **VS Code / Cursor:** “Dev Containers: Reopen in Container” → pick **analyst-kit-integration**.
 - **CLI:** `devcontainer up --config .devcontainer/integration/devcontainer.json`
 
 `postCreateCommand` prints the CLI versions and runs the integration tests once.
@@ -34,8 +34,8 @@ bash `hfa-core` runtime can't run under PowerShell/cmd — see `compatibility.md
 npm run test:integration
 
 # install ALL skills into a runtime — one command (--scope project keeps it in the workspace)
-node bin/hfa.js claude-code --scope project       # or: codex · openclaw
-node bin/hfa.js codex --scope project             # Codex also writes ~/.codex/prompts/<name>.md
+node bin/analyst-kit.js claude-code --scope project       # or: codex · openclaw
+node bin/analyst-kit.js codex --scope project             # Codex also writes ~/.codex/prompts/<name>.md
 
 # confirm the CLIs see them
 claude --version && codex --version

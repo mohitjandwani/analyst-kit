@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# hfa-config — get/set/list over the ~/.hfa/config key=value store.
-# Never used for secrets (API keys live in ~/.hfa/.env, chmod 600).
+# analyst-kit-config — get/set/list over the ~/.analyst-kit/config key=value store.
+# Never used for secrets (API keys live in ~/.analyst-kit/.env, chmod 600).
 set -uo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
-[ -r "$DIR/_hfa-home.sh" ] && . "$DIR/_hfa-home.sh"
-HFA_HOME="${HFA_HOME:-$HOME/.hfa}"
-CFG="$HFA_HOME/config"
+[ -r "$DIR/_analyst-kit-home.sh" ] && . "$DIR/_analyst-kit-home.sh"
+AK_HOME="${AK_HOME:-$HOME/.analyst-kit}"
+CFG="$AK_HOME/config"
 
 default() {
   case "$1" in
@@ -18,13 +18,13 @@ default() {
 
 case "${1:-}" in
   get)
-    [ -n "${2:-}" ] || { echo "usage: hfa-config get <key>" >&2; exit 1; }
+    [ -n "${2:-}" ] || { echo "usage: analyst-kit-config get <key>" >&2; exit 1; }
     v=$(grep -E "^${2}=" "$CFG" 2>/dev/null | tail -1 | cut -d= -f2-)
     if [ -n "$v" ]; then echo "$v"; else default "$2"; fi
     ;;
   set)
-    [ -n "${2:-}" ] && [ -n "${3:-}" ] || { echo "usage: hfa-config set <key> <value>" >&2; exit 1; }
-    mkdir -p "$HFA_HOME" 2>/dev/null || true
+    [ -n "${2:-}" ] && [ -n "${3:-}" ] || { echo "usage: analyst-kit-config set <key> <value>" >&2; exit 1; }
+    mkdir -p "$AK_HOME" 2>/dev/null || true
     grep -vE "^${2}=" "$CFG" 2>/dev/null > "$CFG.tmp" || true
     echo "${2}=${3}" >> "$CFG.tmp"
     mv "$CFG.tmp" "$CFG"
@@ -33,7 +33,7 @@ case "${1:-}" in
     cat "$CFG" 2>/dev/null || true
     ;;
   *)
-    echo "usage: hfa-config get <key> | set <key> <value> | list" >&2
+    echo "usage: analyst-kit-config get <key> | set <key> <value> | list" >&2
     exit 1
     ;;
 esac

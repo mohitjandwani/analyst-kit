@@ -5,7 +5,7 @@
  * ships as a source string (`HELPERS_JS`) rather than an imported function — this
  * keeps it the single source of truth, testable via `new Function(HELPERS_JS)`.
  * `fmtRef` produces a serializable descriptor that `optionsToJs` (render.ts) turns
- * into a real `function(){…}` referencing `HFA.fmt`.
+ * into a real `function(){…}` referencing `AK.fmt`.
  *
  * Rules baked in: data arrives already scaled, so a label only appends the unit +
  * currency; negatives use accounting parentheses `($2.5M)`; never a raw 12312135.
@@ -20,7 +20,7 @@ export interface FmtOpts {
 
 /** Browser-side helper, embedded verbatim into every rendered page. */
 export const HELPERS_JS = `
-var HFA = {
+var AK = {
   fmt: function (value, opts) {
     opts = opts || {};
     if (value === null || value === undefined || (typeof value === 'number' && isNaN(value))) return '—';

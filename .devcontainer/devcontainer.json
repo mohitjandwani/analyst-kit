@@ -1,5 +1,5 @@
 {
-  "name": "hfa-skills-e2e",
+  "name": "analyst-kit-skills-e2e",
   "build": {
     "dockerfile": "Dockerfile",
     "context": "."

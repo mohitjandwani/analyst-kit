@@ -1,24 +1,24 @@
 #!/usr/bin/env bash
-# hfa-log start|end — local JSONL usage analytics + opt-in PostHog remote leg.
+# analyst-kit-log start|end — local JSONL usage analytics + opt-in PostHog remote leg.
 # Contract: NEVER exits non-zero, NEVER blocks the caller (remote leg is
 # backgrounded with --max-time 3). Deliberately no `set -e`.
 #
-# Local events always append to ~/.hfa/analytics/skill-usage.jsonl (the user's
+# Local events always append to ~/.analyst-kit/analytics/skill-usage.jsonl (the user's
 # own machine; powers crash detection and the learnings loop). Only the REMOTE
-# leg is consent-gated on `hfa-config get telemetry` (off|anonymous|community).
+# leg is consent-gated on `analyst-kit-config get telemetry` (off|anonymous|community).
 # Remote events never include repo names, paths, tickers, or content.
 set -uo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 CORE="$(dirname "$DIR")"
-[ -r "$DIR/_hfa-home.sh" ] && . "$DIR/_hfa-home.sh"
-HFA_HOME="${HFA_HOME:-$HOME/.hfa}"
-AN="$HFA_HOME/analytics"
+[ -r "$DIR/_analyst-kit-home.sh" ] && . "$DIR/_analyst-kit-home.sh"
+AK_HOME="${AK_HOME:-$HOME/.analyst-kit}"
+AN="$AK_HOME/analytics"
 mkdir -p "$AN" 2>/dev/null || true
 
 VER="$(tr -d '[:space:]' < "$CORE/VERSION" 2>/dev/null)"
 VER="${VER:-unknown}"
-TIER="$("$DIR/hfa-config" get telemetry 2>/dev/null || echo community)"
+TIER="$("$DIR/analyst-kit-config" get telemetry 2>/dev/null || echo community)"
 case "$TIER" in off|anonymous|community) ;; *) TIER=community ;; esac
 
 CMD="${1:-}"; [ $# -gt 0 ] && shift
@@ -35,7 +35,7 @@ TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 NOW=$(date +%s)
 PEND="$AN/.pending-${SESSION}-${SKILL}"
 
-# Platform inferred from where hfa-core lives on disk.
+# Platform inferred from where analyst-kit-core lives on disk.
 case "$CORE" in
   *".codex/"*)   PLATFORM=codex ;;
   *"/plugins/"*) PLATFORM=claude-plugin ;;
@@ -48,17 +48,17 @@ SLUG="${SLUG:-none}"
 
 posthog() { # $1=outcome $2=duration_s — fire-and-forget, consent-gated
   [ "$TIER" = "off" ] && return 0
-  KEY="${HFA_POSTHOG_KEY:-$("$DIR/hfa-config" get posthog_key 2>/dev/null)}"
+  KEY="${AK_POSTHOG_KEY:-$("$DIR/analyst-kit-config" get posthog_key 2>/dev/null)}"
   # PostHog project API keys are public write-only ingest keys — safe to embed.
   KEY="${KEY:-phc_SjGbGkatye7YiBgXi54qbs9iwerxm7xP1rKu387S8VD}"
-  HOST="${HFA_POSTHOG_HOST:-$("$DIR/hfa-config" get posthog_host 2>/dev/null)}"
+  HOST="${AK_POSTHOG_HOST:-$("$DIR/analyst-kit-config" get posthog_host 2>/dev/null)}"
   HOST="${HOST:-https://us.i.posthog.com}"
   DID="anon"
   if [ "$TIER" = "community" ]; then
-    if [ ! -f "$HFA_HOME/device-id" ]; then
-      (uuidgen 2>/dev/null || od -An -N16 -tx1 /dev/urandom | tr -d ' \n') > "$HFA_HOME/device-id" 2>/dev/null || true
+    if [ ! -f "$AK_HOME/device-id" ]; then
+      (uuidgen 2>/dev/null || od -An -N16 -tx1 /dev/urandom | tr -d ' \n') > "$AK_HOME/device-id" 2>/dev/null || true
     fi
-    DID="$(cat "$HFA_HOME/device-id" 2>/dev/null || echo anon)"
+    DID="$(cat "$AK_HOME/device-id" 2>/dev/null || echo anon)"
   fi
   curl -sf --max-time 3 -X POST "$HOST/capture/" -H 'Content-Type: application/json' \
     -d "{\"api_key\":\"$KEY\",\"event\":\"skill_run\",\"distinct_id\":\"$DID\",\"timestamp\":\"$TS\",\"properties\":{\"skill\":\"$SKILL\",\"version\":\"$VER\",\"outcome\":\"$1\",\"duration_s\":${2:-0},\"platform\":\"$PLATFORM\",\"tier\":\"$TIER\"}}" \
@@ -91,7 +91,7 @@ case "$CMD" in
     posthog "$OUTCOME" "$DUR"
     ;;
   *)
-    echo "usage: hfa-log start|end --skill <name> [--outcome <O>] [--session <id>]" >&2
+    echo "usage: analyst-kit-log start|end --skill <name> [--outcome <O>] [--session <id>]" >&2
     ;;
 esac
 exit 0

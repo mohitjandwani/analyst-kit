@@ -13,7 +13,7 @@ the real SEC APIs (June 2026). Three hosts do everything:
 **Mandatory on every request:** `User-Agent: <app> <contact-email>`. Missing → **403**.
 
 ```bash
-UA="hedge-fund-ai research you@example.com"
+UA="analyst-kit research you@example.com"
 curl -s -H "User-Agent: $UA" "https://data.sec.gov/submissions/CIK0000320193.json"
 ```
 
@@ -34,7 +34,7 @@ GET https://www.sec.gov/files/company_tickers.json
 import json, urllib.request
 req = urllib.request.Request(
     "https://www.sec.gov/files/company_tickers.json",
-    headers={"User-Agent": "hedge-fund-ai you@example.com"})
+    headers={"User-Agent": "analyst-kit you@example.com"})
 m = json.load(urllib.request.urlopen(req))
 by_ticker = {v["ticker"]: v["cik_str"] for v in m.values()}
 cik10 = f"CIK{by_ticker['AAPL']:010d}"   # -> "CIK0000320193"

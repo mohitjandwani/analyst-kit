@@ -21,7 +21,7 @@ export const openclaw = {
   },
 
   envFile(scope, { home = homedir(), cwd = process.cwd(), path = nodePath } = {}) {
-    // OpenClaw doesn't read ~/.hfa/.env natively; this is just where hfa records keys.
+    // OpenClaw doesn't read ~/.analyst-kit/.env natively; this is just where analyst-kit records keys.
     return scope === 'project'
       ? path.join(cwd, '.env')
       : path.join(home, '.openclaw', '.env');

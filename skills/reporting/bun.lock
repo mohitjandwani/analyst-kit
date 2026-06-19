@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "@hfa/reporting",
+      "name": "@analyst-kit/reporting",
       "dependencies": {
         "playwright": "^1.49.0",
       },

@@ -1,7 +1,7 @@
 # e2e test harness
 
 End-to-end smoke test for the skills in this repo: spin up a container with Claude Code
-installed, install the skills with `bin/hfa.js`, run agent **tasks**, and assert that each
+installed, install the skills with `bin/analyst-kit.js`, run agent **tasks**, and assert that each
 task produces a valid PDF (file exists, non-empty, starts with the `%PDF-` header). The
 PDF's content, layout, and styling are reviewed **manually** — the harness does not inspect
 them.

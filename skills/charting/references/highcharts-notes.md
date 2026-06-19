@@ -39,8 +39,8 @@ formatter functions can't survive a naive serialize. The skill instead:
 1. builders attach a serializable **descriptor** `{__fn__:'fmt', opts:{…}}` (`src/format.ts`
    `fmtRef`) wherever a label formatter is needed;
 2. `render.ts optionsToJs` walks the options and emits a JS source string, turning each
-   descriptor into `function(){ return HFA.fmt(this.value ?? this.y, opts) }`;
-3. the page embeds `HELPERS_JS` (defines `HFA.fmt`) before the chart call.
+   descriptor into `function(){ return AK.fmt(this.value ?? this.y, opts) }`;
+3. the page embeds `HELPERS_JS` (defines `AK.fmt`) before the chart call.
 
 This keeps builders **pure and JSON-testable** (Vitest asserts the descriptor) while the page
 gets real functions for compact/accounting labels. Tooltips avoid functions entirely via

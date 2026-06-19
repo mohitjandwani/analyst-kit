@@ -1,4 +1,4 @@
-# Hedge Fund Analyst
+# Analyst Kit
 
 Installable, hedge-fund-grade **equity-research skills** for AI coding agents.
 Each skill is a self-contained folder of instructions (and, where useful, runnable
@@ -42,11 +42,11 @@ installs *all* the skills into your chosen runtime and wires them into the agent
 Needs only **Node ≥ 18** (which detects your OS and installs to the right paths):
 
 ```bash
-npx github:MohitKumar1991/hedge-fund-analyst claude-code      # or: codex · openclaw · cowork
+npx github:MohitKumar1991/analyst-kit claude-code      # or: codex · openclaw · cowork
 ```
 
 Swap `claude-code` for `codex`, `openclaw`, or `cowork`; add `--scope project` to install into the current
-project (`./.claude/skills`, …) instead of your home directory. Already cloned the repo? `node bin/hfa.js
+project (`./.claude/skills`, …) instead of your home directory. Already cloned the repo? `node bin/analyst-kit.js
 claude-code` does the same (plus `list`, `doctor`, `uninstall`, or `install <skill|persona>` for just one).
 
 For **Claude Cowork**, the command prints the in-app steps and writes `cowork-global-instructions.md` to paste
@@ -63,11 +63,11 @@ install from the same plugin marketplace:
 
 - **Claude Code:**
   ```
-  /plugin marketplace add MohitKumar1991/hedge-fund-analyst
-  /plugin install us-stock-analyst@hedge-fund-analyst    # or international-analyst / taiwan-stock-analyst
+  /plugin marketplace add MohitKumar1991/analyst-kit
+  /plugin install us-stock-analyst@analyst-kit    # or international-analyst / taiwan-stock-analyst
   ```
 - **Claude Cowork** (desktop app): **Customize → Plugins → Personal plugins → + → Add marketplace** →
-  `MohitKumar1991/hedge-fund-analyst`, add the **us-stock-analyst** plugin, then enable **Settings →
+  `MohitKumar1991/analyst-kit`, add the **us-stock-analyst** plugin, then enable **Settings →
   Capabilities → Code execution**.
 
 ### Check it worked
@@ -90,7 +90,7 @@ routing table, and Windows specifics.
 
 ### Windows: use WSL2
 
-HFA's skills run a POSIX/bash runtime (`hfa-core`), so on Windows they are
+Analyst Kit's skills run a POSIX/bash runtime (`analyst-kit-core`), so on Windows they are
 supported **only inside WSL2**. This matches what the agents themselves require:
 Claude Code's sandbox runs on macOS, Linux, and WSL2 (native Windows is
 unsupported), and Codex's Linux mode is WSL2 as well.
@@ -102,7 +102,7 @@ unsupported), and Codex's Linux mode is WSL2 as well.
   Windows + Git Bash will run the scripts but without enforced `.env` file
   permissions (`chmod` is a no-op on NTFS) and without sandboxing — unsupported.
 
-`node bin/hfa.js doctor --platform claude-code` warns when run on native Windows.
+`node bin/analyst-kit.js doctor --platform claude-code` warns when run on native Windows.
 
 ## Personas (plugins)
 
@@ -119,12 +119,12 @@ market difference is whether FinMind (Taiwan data) and SEC filings are included.
 | `international-analyst` | the above **+ FinMind** (Taiwan/TWSE market data) | 16 |
 | `taiwan-stock-analyst` | Taiwan-focused: workflows + capabilities **+ FinMind**, minus `sec-filings` | 14 |
 
-Run `node bin/hfa.js list --persona <name>` to see a plugin's exact contents.
+Run `node bin/analyst-kit.js list --persona <name>` to see a plugin's exact contents.
 
 ## API keys
 
 Keys are read from the environment or a git-ignored `.env`. The installer
-(`hfa env` / `hfa install`) prompts for anything missing when run interactively.
+(`analyst-kit env` / `analyst-kit install`) prompts for anything missing when run interactively.
 See [`.env.example`](.env.example).
 
 | Variable | Used by | Get it |
@@ -141,13 +141,13 @@ per-skill prerequisite the installer does not install for you: **Python** (finmi
 company-universe-manager; 13f-analysis is standard-library only) and **Bun**
 (wiki-builder).
 
-## The `~/.hfa` data home, analytics & updates
+## The `~/.analyst-kit` data home, analytics & updates
 
-Every skill runs on a shared runtime (`hfa-core`, installed automatically as a
-dependency) that keeps all per-user state in one fixed place, `~/.hfa/`:
+Every skill runs on a shared runtime (`analyst-kit-core`, installed automatically as a
+dependency) that keeps all per-user state in one fixed place, `~/.analyst-kit/`:
 
 - `.env` — your API keys (chmod 600, shared across projects)
-- `config` — settings (`hfa-core/bin/hfa-config get|set|list`)
+- `config` — settings (`analyst-kit-core/bin/analyst-kit-config get|set|list`)
 - `analytics/skill-usage.jsonl` — **local** usage log: which skill ran, when,
   outcome, duration
 - `learnings.jsonl` — things the skills learned about your setup and preferences,
@@ -160,12 +160,12 @@ improves your experience. You're told about it once on first run. Tiers: `commun
 (default, stable anonymous id), `anonymous` (no id), `off`. Opt out any time:
 
 ```bash
-~/.claude/skills/hfa-core/bin/hfa-config set telemetry off
+~/.claude/skills/analyst-kit-core/bin/analyst-kit-config set telemetry off
 ```
 
 **Updates:** skills check the published version at most once a day and offer a
 guided upgrade when a new release is out (declining snoozes it for a week; disable
-with `hfa-config set update_check false`).
+with `analyst-kit-config set update_check false`).
 
 ## Skill format
 
@@ -191,12 +191,12 @@ description. `type`, `requires`, and `env` drive the installer and validator.
 npm run validate         # lint skills + plugin manifests (+ preamble sync check)
 npm run build:registry   # regenerate registry.json from frontmatter
 npm run check:registry   # verify registry.json is in sync
-npm run sync:preamble    # regenerate the hfa-core blocks in every SKILL.md
+npm run sync:preamble    # regenerate the analyst-kit-core blocks in every SKILL.md
 ```
 
 `registry.json` is generated — edit skill frontmatter, then rebuild it. The
-`<!-- hfa:preamble/epilogue -->` blocks in each SKILL.md are also generated — edit
-`skills/hfa-core/templates/` and re-sync; never edit between the markers. The same
+`<!-- analyst-kit:preamble/epilogue -->` blocks in each SKILL.md are also generated — edit
+`skills/analyst-kit-core/templates/` and re-sync; never edit between the markers. The same
 checks run in CI (`.github/workflows/validate.yml`) on every push and pull request.
 
 ## Roadmap
