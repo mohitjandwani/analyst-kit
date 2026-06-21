@@ -36,7 +36,7 @@ runs under `pytest`), run inside the skill folder.
 
 Note: the package isn't published to npm yet (the name `analyst-kit` is *available* —
 `npm view analyst-kit` 404s as of 2026-06-19), so invoke the binary as `node bin/analyst-kit.js`
-from a clone. Public installs use `npx github:MohitKumar1991/analyst-kit` or the plugin path.
+from a clone. Public installs use `npx github:mohitjandwani/analyst-kit` or the plugin path.
 
 ## Architecture
 

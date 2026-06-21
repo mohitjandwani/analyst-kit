@@ -28,7 +28,7 @@ installed (recorded in `~/.analyst-kit/install-manifest.jsonl`):
 
 ```bash
 T=$(mktemp -d)
-curl -sfL --max-time 60 https://github.com/MohitKumar1991/analyst-kit/archive/refs/heads/main.tar.gz \
+curl -sfL --max-time 60 https://github.com/mohitjandwani/analyst-kit/archive/refs/heads/main.tar.gz \
   | tar xz -C "$T" --strip-components=1
 ```
 

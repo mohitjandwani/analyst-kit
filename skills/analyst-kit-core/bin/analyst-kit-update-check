@@ -14,7 +14,7 @@ CORE="$(dirname "$DIR")"
 AK_HOME="${AK_HOME:-$HOME/.analyst-kit}"
 CACHE="$AK_HOME/last-update-check"     # "<epoch> <remote-version|fetch-failed>"
 SNOOZE="$AK_HOME/update-snoozed"       # "<version> <epoch>"
-URL="${AK_REMOTE_VERSION_URL:-https://raw.githubusercontent.com/MohitKumar1991/analyst-kit/main/VERSION}"
+URL="${AK_REMOTE_VERSION_URL:-https://raw.githubusercontent.com/mohitjandwani/analyst-kit/main/VERSION}"
 
 FORCE=no
 case "${1:-}" in

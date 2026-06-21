@@ -148,7 +148,7 @@ function cmdSetupCowork() {
   writeFileSync(out, buildRoutingTable(getSkills(), { includeLoad: false }) + '\n');
   console.log(`
   Claude Cowork installs inside the Claude desktop app (no terminal). One-time setup:
-    1. Customize → Plugins → Personal plugins → +  → Add marketplace:  MohitKumar1991/analyst-kit
+    1. Customize → Plugins → Personal plugins → +  → Add marketplace:  mohitjandwani/analyst-kit
     2. Add a plugin:  us-stock-analyst   (or international-analyst / taiwan-stock-analyst)
     3. Settings → Capabilities → enable Code execution
     4. Settings → Cowork → Global instructions → paste the contents of:

@@ -27,12 +27,12 @@ onward. See also [`README.md`](README.md) (end-user docs), [`CLAUDE.md`](CLAUDE.
 Claude Code and Claude Cowork install from the same plugin marketplace:
 
 ```
-/plugin marketplace add MohitKumar1991/analyst-kit
+/plugin marketplace add mohitjandwani/analyst-kit
 /plugin install us-stock-analyst@analyst-kit     # or international-analyst / taiwan-stock-analyst
 ```
 
 In **Cowork** (desktop app): **Customize → Plugins → Personal plugins → + → Add
-marketplace** → `MohitKumar1991/analyst-kit`, add a plugin, then enable
+marketplace** → `mohitjandwani/analyst-kit`, add a plugin, then enable
 **Settings → Capabilities → Code execution**.
 
 ### Option B · Node installer (any runtime)
@@ -41,7 +41,7 @@ One command installs *all* skills into a runtime and wires them into the agent's
 system/common prompt. Needs only **Node ≥ 18**:
 
 ```bash
-npx github:MohitKumar1991/analyst-kit claude-code     # or: codex · openclaw · cowork
+npx github:mohitjandwani/analyst-kit claude-code     # or: codex · openclaw · cowork
 ```
 
 From a clone, the same flows run through the bundled CLI (the package isn't published to npm

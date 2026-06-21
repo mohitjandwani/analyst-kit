@@ -42,7 +42,7 @@ installs *all* the skills into your chosen runtime and wires them into the agent
 Needs only **Node ≥ 18** (which detects your OS and installs to the right paths):
 
 ```bash
-npx github:MohitKumar1991/analyst-kit claude-code      # or: codex · openclaw · cowork
+npx github:mohitjandwani/analyst-kit claude-code      # or: codex · openclaw · cowork
 ```
 
 Swap `claude-code` for `codex`, `openclaw`, or `cowork`; add `--scope project` to install into the current
@@ -63,11 +63,11 @@ install from the same plugin marketplace:
 
 - **Claude Code:**
   ```
-  /plugin marketplace add MohitKumar1991/analyst-kit
+  /plugin marketplace add mohitjandwani/analyst-kit
   /plugin install us-stock-analyst@analyst-kit    # or international-analyst / taiwan-stock-analyst
   ```
 - **Claude Cowork** (desktop app): **Customize → Plugins → Personal plugins → + → Add marketplace** →
-  `MohitKumar1991/analyst-kit`, add the **us-stock-analyst** plugin, then enable **Settings →
+  `mohitjandwani/analyst-kit`, add the **us-stock-analyst** plugin, then enable **Settings →
   Capabilities → Code execution**.
 
 ### Check it worked

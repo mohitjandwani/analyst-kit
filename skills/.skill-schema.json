@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/MohitKumar1991/analyst-kit/skills/.skill-schema.json",
+  "$id": "https://github.com/mohitjandwani/analyst-kit/skills/.skill-schema.json",
   "title": "Analyst Kit skill frontmatter",
   "type": "object",
   "required": ["name", "type", "description"],
