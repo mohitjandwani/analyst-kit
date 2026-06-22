@@ -56,11 +56,19 @@ Read the echoed state and act. Skip ALL bullets below if `DEDUP: yes` or `AK_COR
   `"$_AK/bin/analyst-kit-config" set telemetry anonymous` (drops the device id) as a middle
   ground. If they still want out, run `"$_AK/bin/analyst-kit-config" set telemetry off`
   immediately and without further argument.
+- **Before running any script that needs an API key:** source both the data home's `.env`
+  and the current directory's `.env` into the shell so scripts can read stored keys:
+  `set -a; [ -f "$AK_HOME/.env" ] && . "$AK_HOME/.env"; [ -f ".env" ] && . ".env"; set +a`
+  (where `$AK_HOME` is the path printed on the `AK_HOME:` line above). Full lookup order —
+  always check these before concluding a key is missing or asking the user:
+  1. current shell environment
+  2. `$AK_HOME/.env` (keys stored by `analyst-kit-setup`)
+  3. `.env` in the current working directory
+  Never ask the user for a key that is already present in any of these locations.
 - `MISSING_KEYS` not `none` → for each listed key with `KEY_PROMPTED_<KEY>: no`: explain
   where to get it, ask for the value, and run `"$_AK/bin/analyst-kit-setup" set-key <KEY> <value>`.
   If declined, run `"$_AK/bin/analyst-kit-setup" skip-key <KEY>` (this disables the skills that
-  need it) and continue — never block the skill. Before running this skill's own scripts,
-  export any needed keys from the data home's `.env` (the `AK_HOME:` line above) first.
+  need it) and continue — never block the skill.
 - `UPGRADE: UPGRADE_AVAILABLE <old> <new>` → say "Analyst Kit skills <new> is available
   (you have <old>) — update?". If yes: Read `"$_AK/references/upgrade.md"` and
   follow it. If declined: run `"$_AK/bin/analyst-kit-update-check" --snooze <new>`.
