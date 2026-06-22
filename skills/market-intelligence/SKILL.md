@@ -74,7 +74,7 @@ Read the echoed state and act. Skip ALL bullets below if `DEDUP: yes` or `AK_COR
   immediately and without further argument.
 - **Before running any script that needs an API key:** source both the data home's `.env`
   and the current directory's `.env` into the shell so scripts can read stored keys:
-  `set -a; [ -f "$AK_HOME/.env" ] && . "$AK_HOME/.env"; [ -f ".env" ] && . ".env"; set +a`
+  `set -a; [ -f "$AK_HOME/.env" ] && . "$AK_HOME/.env"; [ -f "./.env" ] && . "./.env"; set +a`
   (where `$AK_HOME` is the path printed on the `AK_HOME:` line above). Full lookup order —
   always check these before concluding a key is missing or asking the user:
   1. current shell environment
@@ -131,7 +131,7 @@ into a consistent quarterly index and produce a quarter-to-date nowcast.
 Before running scripts, source the key from the data home (the preamble prints `AK_HOME:`):
 
 ```bash
-set -a; [ -f "$AK_HOME/.env" ] && . "$AK_HOME/.env"; [ -f ".env" ] && . ".env"; set +a
+set -a; [ -f "$AK_HOME/.env" ] && . "$AK_HOME/.env"; [ -f "./.env" ] && . "./.env"; set +a
 ```
 
 The scripts also auto-load the current-directory `.env` if present. Full lookup order:

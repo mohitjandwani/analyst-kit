@@ -63,7 +63,7 @@ Read the echoed state and act. Skip ALL bullets below if `DEDUP: yes` or `AK_COR
   immediately and without further argument.
 - **Before running any script that needs an API key:** source both the data home's `.env`
   and the current directory's `.env` into the shell so scripts can read stored keys:
-  `set -a; [ -f "$AK_HOME/.env" ] && . "$AK_HOME/.env"; [ -f ".env" ] && . ".env"; set +a`
+  `set -a; [ -f "$AK_HOME/.env" ] && . "$AK_HOME/.env"; [ -f "./.env" ] && . "./.env"; set +a`
   (where `$AK_HOME` is the path printed on the `AK_HOME:` line above). Full lookup order —
   always check these before concluding a key is missing or asking the user:
   1. current shell environment
@@ -96,7 +96,7 @@ Requires a FinMind API token. Before running scripts, source it from the data ho
 preamble prints `AK_HOME:`):
 
 ```bash
-set -a; [ -f "$AK_HOME/.env" ] && . "$AK_HOME/.env"; [ -f ".env" ] && . ".env"; set +a
+set -a; [ -f "$AK_HOME/.env" ] && . "$AK_HOME/.env"; [ -f "./.env" ] && . "./.env"; set +a
 ```
 
 Free tier = 600 requests/hour — ample for per-company pulls. If `FINMIND_TOKEN` is still
