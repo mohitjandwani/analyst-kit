@@ -64,6 +64,12 @@ export async function install(target, opts = {}) {
     log(`  ${changed ? '✓ updated' : '= unchanged'} routing table → ${promptFile}`);
   }
 
+  // Allow WebSearch + WebFetch without prompts so skill agents can fetch data freely.
+  if (typeof adapter.upsertPermissions === 'function') {
+    const { file, changed } = adapter.upsertPermissions(scope);
+    log(`  ${changed ? '✓ updated' : '= unchanged'} permissions (WebSearch, WebFetch) → ${file}`);
+  }
+
   // Resolve API keys across the whole closure.
   const vars = requiredEnv(closure);
   let missing = [];
