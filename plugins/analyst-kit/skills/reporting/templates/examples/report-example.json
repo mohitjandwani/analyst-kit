@@ -1,0 +1,236 @@
+{
+  "meta": {
+    "mode": "report",
+    "title": "Apple Inc. (AAPL) — Quarterly Review",
+    "subtitle": "Price action and revenue snapshot",
+    "date": "June 2026",
+    "footer": "For internal use only"
+  },
+  "pages": [
+    {
+      "template": "cover",
+      "slots": {
+        "kicker": "Equity Research",
+        "title": "Apple Inc. (AAPL)",
+        "subtitle": "Quarterly review — price action and revenue snapshot"
+      }
+    },
+    {
+      "template": "price-chart-technicals",
+      "slots": {
+        "title": "AAPL — price action",
+        "subtitle": "Daily candles, 2023–2026",
+        "chart": "../../../charting/tests/contracts/price_candlestick.json",
+        "commentary": [
+          {
+            "heading": "Trend",
+            "body": "Primary uptrend intact above the 200-day average. Higher lows since the October trough; momentum **constructive** but extended."
+          },
+          {
+            "heading": "Levels",
+            "body": "- Support: $215 (prior breakout), $198 (200-dma)\n- Resistance: $242 all-time high\n- Risk/reward favors waiting for a pullback toward support"
+          }
+        ],
+        "stats": [
+          {
+            "label": "52-wk range",
+            "value": "$169 – $242"
+          },
+          {
+            "label": "vs 200-dma",
+            "value": "+9.4%"
+          }
+        ],
+        "story": "**The point:** Uptrend intact, but extended — wait for a pullback toward $215 before adding.",
+        "sources": [
+          2
+        ],
+        "levels": [
+          {
+            "value": 242,
+            "label": "Resistance $242",
+            "kind": "resistance"
+          },
+          {
+            "value": 215,
+            "label": "Support $215",
+            "kind": "support"
+          },
+          {
+            "value": 198,
+            "label": "200-dma $198"
+          }
+        ]
+      }
+    },
+    {
+      "template": "comparison",
+      "slots": {
+        "title": "Ecosystem comparison",
+        "subtitle": "How AAPL stacks up against platform peers",
+        "companies": [
+          {
+            "name": "Apple",
+            "ticker": "AAPL",
+            "mechanism": "Hardware install base monetized via Services attach",
+            "ratings": {
+              "narrative": "medium",
+              "revenue": "medium",
+              "profit": "high",
+              "purity": "high"
+            }
+          },
+          {
+            "name": "Alphabet",
+            "ticker": "GOOGL",
+            "mechanism": "Search/ads margin engine funding platform bets",
+            "ratings": {
+              "narrative": "high",
+              "revenue": "high",
+              "profit": "medium",
+              "purity": "medium"
+            }
+          },
+          {
+            "name": "Microsoft",
+            "ticker": "MSFT",
+            "mechanism": "Enterprise seat growth + cloud consumption",
+            "ratings": {
+              "narrative": "high",
+              "revenue": "medium",
+              "profit": "medium",
+              "purity": "medium"
+            }
+          }
+        ],
+        "takeaway": {
+          "heading": "Takeaway",
+          "body": "Apple's **profit sensitivity** to its own ecosystem is the cleanest of the three — the others carry more narrative than earnings torque."
+        },
+        "story": "**The point:** Apple converts ecosystem strength into profit more reliably than either peer.",
+        "sources": [
+          1,
+          3
+        ]
+      }
+    },
+    {
+      "template": "industry-breakdown",
+      "slots": {
+        "title": "Smartphone value chain",
+        "subtitle": "Where Apple sits, upstream to downstream",
+        "layers": [
+          {
+            "name": "Leading-edge foundry",
+            "role": "N3/N2 capacity gates silicon roadmaps",
+            "scarcity": "scarce",
+            "tickers": [
+              "TSM"
+            ]
+          },
+          {
+            "name": "Components & assembly",
+            "role": "Displays, camera modules, final assembly",
+            "scarcity": "commoditized",
+            "tickers": [
+              "LPL",
+              "HNHPF"
+            ]
+          },
+          {
+            "name": "Device platform",
+            "role": "Brand, silicon design, OS — captures most chain profit",
+            "scarcity": "scarce",
+            "tickers": [
+              "AAPL"
+            ]
+          },
+          {
+            "name": "Distribution & telcos",
+            "role": "Subsidized channel; thin margins",
+            "scarcity": "commoditized",
+            "tickers": [
+              "VZ",
+              "T"
+            ]
+          },
+          {
+            "name": "Services & apps",
+            "role": "App Store rake, subscriptions on the install base",
+            "scarcity": "contested",
+            "tickers": [
+              "AAPL",
+              "SPOT"
+            ]
+          }
+        ],
+        "takeaway": {
+          "heading": "Takeaway",
+          "body": "Profit pools concentrate at the **platform layer** — the chain exists to feed it."
+        },
+        "story": "**The point:** Profit pools concentrate at the platform layer — AAPL and TSM are the only scarce nodes.",
+        "sources": [
+          3
+        ]
+      }
+    },
+    {
+      "template": "table-commentary",
+      "slots": {
+        "title": "Revenue snapshot",
+        "table": {
+          "columns": [
+            "Quarter",
+            "Revenue",
+            "YoY"
+          ],
+          "rows": [
+            [
+              "Q3 FY25",
+              "$85.8B",
+              "+4.9%"
+            ],
+            [
+              "Q4 FY25",
+              "$94.9B",
+              "+6.1%"
+            ],
+            [
+              "Q1 FY26",
+              "$124.3B",
+              "+3.9%"
+            ],
+            [
+              "Q2 FY26",
+              "$90.8B",
+              "+5.1%"
+            ]
+          ]
+        },
+        "commentary": {
+          "heading": "Analyst view",
+          "body": "Growth re-accelerated on Services strength while Products stayed flat. Watch:\n- Services mix now above one quarter of revenue\n- Gross margin tailwind from mix shift\n- FX drag fading into H2"
+        },
+        "story": "**The point:** Growth re-accelerated to +5.1% YoY on Services mix — the quality of revenue is improving.",
+        "sources": [
+          1
+        ]
+      }
+    }
+  ],
+  "references": [
+    {
+      "label": "Apple Form 10-Q, Q2 FY2026",
+      "detail": "Revenue, YoY growth",
+      "url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0000320193&type=10-Q"
+    },
+    {
+      "label": "Daily OHLC price data, AAPL 2023–2026",
+      "detail": "Exchange consolidated tape via data vendor"
+    },
+    {
+      "label": "Internal value-chain & ecosystem framework",
+      "detail": "thematic-investing skill output, June 2026"
+    }
+  ]
+}

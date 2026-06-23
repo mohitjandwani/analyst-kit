@@ -1,0 +1,17 @@
+{
+  "name": "analyst-kit",
+  "version": "0.2.0",
+  "description": "Hedge-fund-grade equity research for Claude. Forensic single-stock deep dives, thematic value-chain mapping, technical analysis with entry/exit levels, multi-page company-research wikis, and financial models — backed by US (SEC/FMP), global, and Taiwan (FinMind/TWSE) data, with charting and reporting. Ships a research-auditor subagent that fact-checks every deliverable for hallucinations and data errors before it reaches you, and a SessionStart hook that runs the runtime (onboarding, update check, telemetry).",
+  "author": {
+    "name": "Mohit Kumar"
+  },
+  "homepage": "https://github.com/mohitjandwani/analyst-kit",
+  "license": "MIT",
+  "keywords": [
+    "finance",
+    "equity-research",
+    "hedge-fund",
+    "stocks",
+    "investing"
+  ]
+}

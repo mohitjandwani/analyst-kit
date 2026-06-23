@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# analyst-kit-log start|end — local JSONL usage analytics + opt-in PostHog remote leg.
+# Contract: NEVER exits non-zero, NEVER blocks the caller (remote leg is
+# backgrounded with --max-time 3). Deliberately no `set -e`.
+#
+# Local events always append to ~/.analyst-kit/analytics/skill-usage.jsonl (the user's
+# own machine; powers crash detection and the learnings loop). Only the REMOTE
+# leg is consent-gated on `analyst-kit-config get telemetry` (off|anonymous|community).
+# Remote events never include repo names, paths, tickers, or content.
+set -uo pipefail
+
+DIR="$(cd "$(dirname "$0")" && pwd)"
+CORE="$(dirname "$DIR")"
+[ -r "$DIR/_analyst-kit-home.sh" ] && . "$DIR/_analyst-kit-home.sh"
+AK_HOME="${AK_HOME:-$HOME/.analyst-kit}"
+AN="$AK_HOME/analytics"
+mkdir -p "$AN" 2>/dev/null || true
+
+VER="$(tr -d '[:space:]' < "$CORE/VERSION" 2>/dev/null)"
+VER="${VER:-unknown}"
+TIER="$("$DIR/analyst-kit-config" get telemetry 2>/dev/null || echo community)"
+case "$TIER" in off|anonymous|community) ;; *) TIER=community ;; esac
+
+CMD="${1:-}"; [ $# -gt 0 ] && shift
+SKILL=unknown; OUTCOME=unknown; SESSION="${PPID:-$$}"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --skill)   SKILL="${2:-unknown}";   shift 2 ;;
+    --outcome) OUTCOME="${2:-unknown}"; shift 2 ;;
+    --session) SESSION="${2:-$SESSION}"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+NOW=$(date +%s)
+PEND="$AN/.pending-${SESSION}-${SKILL}"
+
+# Platform inferred from where analyst-kit-core lives on disk.
+case "$CORE" in
+  *".codex/"*)   PLATFORM=codex ;;
+  *"/plugins/"*) PLATFORM=claude-plugin ;;
+  *)             PLATFORM=claude-code ;;
+esac
+
+# Sanitized repo slug — recorded LOCALLY only, never sent remotely.
+SLUG=$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null | tr -cd 'a-zA-Z0-9._-')
+SLUG="${SLUG:-none}"
+
+posthog() { # $1=outcome $2=duration_s — fire-and-forget, consent-gated
+  [ "$TIER" = "off" ] && return 0
+  KEY="${AK_POSTHOG_KEY:-$("$DIR/analyst-kit-config" get posthog_key 2>/dev/null)}"
+  # PostHog project API keys are public write-only ingest keys — safe to embed.
+  KEY="${KEY:-phc_SjGbGkatye7YiBgXi54qbs9iwerxm7xP1rKu387S8VD}"
+  HOST="${AK_POSTHOG_HOST:-$("$DIR/analyst-kit-config" get posthog_host 2>/dev/null)}"
+  HOST="${HOST:-https://us.i.posthog.com}"
+  DID="anon"
+  if [ "$TIER" = "community" ]; then
+    if [ ! -f "$AK_HOME/device-id" ]; then
+      (uuidgen 2>/dev/null || od -An -N16 -tx1 /dev/urandom | tr -d ' \n') > "$AK_HOME/device-id" 2>/dev/null || true
+    fi
+    DID="$(cat "$AK_HOME/device-id" 2>/dev/null || echo anon)"
+  fi
+  curl -sf --max-time 3 -X POST "$HOST/capture/" -H 'Content-Type: application/json' \
+    -d "{\"api_key\":\"$KEY\",\"event\":\"skill_run\",\"distinct_id\":\"$DID\",\"timestamp\":\"$TS\",\"properties\":{\"skill\":\"$SKILL\",\"version\":\"$VER\",\"outcome\":\"$1\",\"duration_s\":${2:-0},\"platform\":\"$PLATFORM\",\"tier\":\"$TIER\"}}" \
+    >/dev/null 2>&1 &
+}
+
+case "$CMD" in
+  start)
+    printf '{"event":"start","skill":"%s","ts":"%s","version":"%s","repo":"%s","session":"%s"}\n' \
+      "$SKILL" "$TS" "$VER" "$SLUG" "$SESSION" >> "$AN/skill-usage.jsonl" 2>/dev/null || true
+    printf '%s %s\n' "$SKILL" "$NOW" > "$PEND" 2>/dev/null || true
+    # Crash detection: finalize stale .pending-* left by OTHER sessions.
+    for f in "$AN"/.pending-*; do
+      [ -f "$f" ] || continue
+      case "$f" in *"-${SESSION}-"*) continue ;; esac
+      PSKILL=$(awk '{print $1}' "$f" 2>/dev/null)
+      rm -f "$f" 2>/dev/null || true
+      printf '{"event":"end","skill":"%s","ts":"%s","version":"%s","outcome":"CRASH","duration_s":0,"session":"stale"}\n' \
+        "${PSKILL:-unknown}" "$TS" "$VER" >> "$AN/skill-usage.jsonl" 2>/dev/null || true
+      posthog CRASH 0
+    done
+    ;;
+  end)
+    START=$(awk '{print $2}' "$PEND" 2>/dev/null)
+    rm -f "$PEND" 2>/dev/null || true
+    DUR=0
+    [ -n "${START:-}" ] && DUR=$(( NOW - START ))
+    printf '{"event":"end","skill":"%s","ts":"%s","version":"%s","outcome":"%s","duration_s":%s,"session":"%s"}\n' \
+      "$SKILL" "$TS" "$VER" "$OUTCOME" "$DUR" "$SESSION" >> "$AN/skill-usage.jsonl" 2>/dev/null || true
+    posthog "$OUTCOME" "$DUR"
+    ;;
+  *)
+    echo "usage: analyst-kit-log start|end --skill <name> [--outcome <O>] [--session <id>]" >&2
+    ;;
+esac
+exit 0

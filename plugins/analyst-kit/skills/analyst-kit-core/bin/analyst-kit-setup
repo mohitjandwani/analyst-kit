@@ -1,0 +1,239 @@
+#!/usr/bin/env bash
+# analyst-kit-setup — first-run onboarding backend. The AGENT drives the conversation;
+# these subcommands only report state and persist the user's choices. They are
+# deliberately NON-INTERACTIVE (no `read`) because in an agent runtime there is
+# no human at the bash prompt — the model collects answers and calls these.
+#
+#   analyst-kit-setup status            machine-readable onboarding state for the agent
+#   analyst-kit-setup home <dir>        relocate the data home + migrate existing data
+#   analyst-kit-setup set-key K VALUE   write an API key into <home>/.env (chmod 600)
+#   analyst-kit-setup skip-key K        mark a key declined (so it is not re-prompted)
+#   analyst-kit-setup ack-telemetry     record that the telemetry notice was shown
+#   analyst-kit-setup disable SKILL     turn a skill off (a required API key is missing)
+#   analyst-kit-setup enable SKILL      turn a skill back on
+#   analyst-kit-setup reconcile         enable skills with all keys, disable those missing any
+#   analyst-kit-setup finish            mark onboarding complete (+ telemetry notice)
+#
+# Contract (shared by all analyst-kit-* scripts): defensive, never blocks, never
+# hard-fails the calling skill. Secrets ONLY ever go to <home>/.env (chmod 600),
+# never to the plaintext `config` store.
+set -uo pipefail
+
+DIR="$(cd "$(dirname "$0")" && pwd)"
+CORE="$(dirname "$DIR")"
+SKILLS_DIR="$(dirname "$CORE")"   # where sibling skills are installed on disk
+BOOT="$HOME/.analyst-kit"                 # fixed bootstrap (holds the pointer files)
+[ -r "$DIR/_analyst-kit-home.sh" ] && . "$DIR/_analyst-kit-home.sh"
+AK_HOME="${AK_HOME:-$BOOT}"
+KEYS_TSV="$CORE/references/api-keys.tsv"
+DISABLED_FILE="$AK_HOME/disabled"   # one disabled skill name per line
+
+# --- helpers ---------------------------------------------------------------
+
+# Extract the env: keys from a SKILL.md frontmatter (block or inline form),
+# bounded to the frontmatter so the body can't leak false positives.
+skill_env_keys() { # $1 = path to SKILL.md
+  awk '
+    NR==1 && /^---[[:space:]]*$/ { fm=1; next }
+    fm && /^---[[:space:]]*$/ { exit }
+    fm && /^env:[[:space:]]*\[/ {
+      s=$0; sub(/^env:[[:space:]]*\[/,"",s); sub(/\].*/,"",s);
+      n=split(s, a, /[, ]+/); for (i=1;i<=n;i++) if (a[i]!="") print a[i]; next
+    }
+    fm && /^env:[[:space:]]*$/ { b=1; next }
+    fm && b && /^[[:space:]]*-[[:space:]]*/ {
+      k=$0; sub(/^[[:space:]]*-[[:space:]]*/,"",k); sub(/[[:space:]].*/,"",k); print k; next
+    }
+    fm && b && /^[^[:space:]]/ { b=0 }
+  ' "$1" 2>/dev/null | grep -E '^[A-Z][A-Z0-9_]*$'
+}
+
+key_desc() { awk -F'\t' -v k="$1" '$1==k{print $2; exit}' "$KEYS_TSV" 2>/dev/null; }
+key_url()  { awk -F'\t' -v k="$1" '$1==k{print $3; exit}' "$KEYS_TSV" 2>/dev/null; }
+
+key_present() { # process env, then <home>/.env, then ./.env
+  [ -n "$(printenv "$1" 2>/dev/null)" ] && return 0
+  grep -qE "^$1=." "$AK_HOME/.env" 2>/dev/null && return 0
+  grep -qE "^$1=." ./.env 2>/dev/null && return 0
+  return 1
+}
+
+# --- disable state ---------------------------------------------------------
+# A skill is "disabled" when a required API key is missing/declined. Soft model:
+# the name is recorded here and each skill's preamble self-reports DISABLED so the
+# agent refuses to run it — channel-agnostic and reversible (no file surgery).
+
+is_disabled() { [ -f "$DISABLED_FILE" ] && grep -qx "$1" "$DISABLED_FILE"; }
+
+do_disable() {
+  mkdir -p "$AK_HOME" 2>/dev/null || true
+  is_disabled "$1" && return 0
+  printf '%s\n' "$1" >> "$DISABLED_FILE" 2>/dev/null || true
+}
+
+do_enable() {
+  [ -f "$DISABLED_FILE" ] || return 0
+  grep -vx "$1" "$DISABLED_FILE" > "$DISABLED_FILE.tmp" 2>/dev/null || true
+  mv "$DISABLED_FILE.tmp" "$DISABLED_FILE" 2>/dev/null || true
+}
+
+# Missing keys (space-separated) for an installed skill; empty if all present.
+skill_missing_keys() { # $1 = skill name
+  smk_out=""
+  for smk_k in $(skill_env_keys "$SKILLS_DIR/$1/SKILL.md"); do
+    key_present "$smk_k" || smk_out="${smk_out:+$smk_out }$smk_k"
+  done
+  printf '%s' "$smk_out"
+}
+
+# Enable any skill whose keys are now ALL present. Never disables — safe for the
+# lazy set-key path, where an untouched key must not silently disable other skills.
+enable_complete() {
+  for ec_sk in "$SKILLS_DIR"/*/SKILL.md; do
+    [ -f "$ec_sk" ] || continue
+    ec_name="$(basename "$(dirname "$ec_sk")")"
+    [ "$ec_name" = "analyst-kit-core" ] && continue
+    [ -n "$(skill_env_keys "$ec_sk")" ] || continue
+    [ -z "$(skill_missing_keys "$ec_name")" ] && do_enable "$ec_name"
+  done
+}
+
+# Full sweep: each key-needing skill enabled iff all its keys are present, else
+# disabled. Used at the END of full setup, once every key has been offered.
+reconcile() {
+  for rc_sk in "$SKILLS_DIR"/*/SKILL.md; do
+    [ -f "$rc_sk" ] || continue
+    rc_name="$(basename "$(dirname "$rc_sk")")"
+    [ "$rc_name" = "analyst-kit-core" ] && continue
+    [ -n "$(skill_env_keys "$rc_sk")" ] || continue
+    if [ -z "$(skill_missing_keys "$rc_name")" ]; then do_enable "$rc_name"; else do_disable "$rc_name"; fi
+  done
+  echo "reconciled"
+}
+
+# --- subcommands -----------------------------------------------------------
+
+status() {
+  echo "HOME: $AK_HOME"
+  [ -f "$BOOT/home-path" ] && echo "HOME_RELOCATED: yes" || echo "HOME_RELOCATED: no"
+  [ -f "$AK_HOME/.onboarded" ] && echo "ONBOARDED: yes" || echo "ONBOARDED: no"
+  echo "TELEMETRY: $("$DIR/analyst-kit-config" get telemetry 2>/dev/null || echo community)"
+
+  pairs=""; skills=""
+  for sk in "$SKILLS_DIR"/*/SKILL.md; do
+    [ -f "$sk" ] || continue
+    name="$(basename "$(dirname "$sk")")"
+    [ "$name" = "analyst-kit-core" ] && continue
+    skills="${skills:+$skills,}$name"
+    for k in $(skill_env_keys "$sk"); do
+      pairs="${pairs}${k} ${name}
+"
+    done
+  done
+  echo "SKILLS: ${skills:-none}"
+
+  keys="$(printf '%s' "$pairs" | awk '{print $1}' | sort -u | grep -v '^$')"
+  for k in $keys; do
+    nb="$(printf '%s' "$pairs" | awk -v k="$k" '$1==k{print $2}' | paste -sd, - 2>/dev/null)"
+    pres=no; key_present "$k" && pres=yes
+    prom=no; [ -f "$AK_HOME/.env-prompted-$k" ] && prom=yes
+    echo "KEY $k present=$pres prompted=$prom needed_by=${nb:-?} url=$(key_url "$k") desc=$(key_desc "$k")"
+  done
+
+  # Per-skill enable/disable state, so the agent can summarize after setup.
+  for sk2 in "$SKILLS_DIR"/*/SKILL.md; do
+    [ -f "$sk2" ] || continue
+    name2="$(basename "$(dirname "$sk2")")"
+    [ "$name2" = "analyst-kit-core" ] && continue
+    keys2="$(skill_env_keys "$sk2" | paste -sd, - 2>/dev/null)"
+    [ -n "$keys2" ] || continue
+    miss2="$(printf '%s' "$(skill_missing_keys "$name2")" | tr ' ' ',')"
+    dis2=no; is_disabled "$name2" && dis2=yes
+    echo "SKILL $name2 disabled=$dis2 keys=$keys2 missing=${miss2:-none}"
+  done
+}
+
+set_home() {
+  NEW="${1:-}"
+  [ -n "$NEW" ] || { echo "usage: analyst-kit-setup home <dir>" >&2; return 1; }
+  case "$NEW" in
+    "~")   NEW="$HOME" ;;
+    "~/"*) NEW="$HOME/${NEW#~/}" ;;
+  esac
+  mkdir -p "$NEW" 2>/dev/null || { echo "cannot create $NEW" >&2; return 1; }
+  NEW="$(cd "$NEW" 2>/dev/null && pwd)" || { echo "cannot access $NEW" >&2; return 1; }
+
+  OLD="$AK_HOME"
+  if [ "$OLD" != "$NEW" ] && [ -d "$OLD" ]; then
+    # Migrate everything EXCEPT the bootstrap pointers, then remove the originals.
+    find "$OLD" -mindepth 1 -maxdepth 1 ! -name core-path ! -name home-path \
+      -exec cp -R {} "$NEW/" \; 2>/dev/null || true
+    find "$OLD" -mindepth 1 -maxdepth 1 ! -name core-path ! -name home-path \
+      -exec rm -rf {} \; 2>/dev/null || true
+  fi
+
+  mkdir -p "$BOOT" 2>/dev/null || true
+  if [ "$NEW" = "$BOOT" ]; then
+    rm -f "$BOOT/home-path" 2>/dev/null || true   # back to default: no pointer needed
+  else
+    printf '%s' "$NEW" > "$BOOT/home-path" 2>/dev/null || true
+  fi
+  echo "HOME: $NEW"
+}
+
+set_key() {
+  K="${1:-}"; V="${2:-}"
+  [ -n "$K" ] && [ -n "$V" ] || { echo "usage: analyst-kit-setup set-key <KEY> <VALUE>" >&2; return 1; }
+  mkdir -p "$AK_HOME" 2>/dev/null || true
+  ENV="$AK_HOME/.env"
+  touch "$ENV" 2>/dev/null || true
+  grep -vE "^${K}=" "$ENV" 2>/dev/null > "$ENV.tmp" || true
+  printf '%s=%s\n' "$K" "$V" >> "$ENV.tmp"
+  mv "$ENV.tmp" "$ENV" 2>/dev/null || true
+  chmod 600 "$ENV" 2>/dev/null || true
+  touch "$AK_HOME/.env-prompted-$K" 2>/dev/null || true
+  enable_complete   # re-enable any skill whose keys are now all present
+  echo "set $K"
+}
+
+skip_key() {
+  K="${1:-}"; [ -n "$K" ] || { echo "usage: analyst-kit-setup skip-key <KEY>" >&2; return 1; }
+  mkdir -p "$AK_HOME" 2>/dev/null || true
+  touch "$AK_HOME/.env-prompted-$K" 2>/dev/null || true
+  # The user declined this key -> disable every installed skill that needs it.
+  for skp_sk in "$SKILLS_DIR"/*/SKILL.md; do
+    [ -f "$skp_sk" ] || continue
+    skp_name="$(basename "$(dirname "$skp_sk")")"
+    [ "$skp_name" = "analyst-kit-core" ] && continue
+    skill_env_keys "$skp_sk" | grep -qx "$K" && do_disable "$skp_name"
+  done
+  echo "skipped $K"
+}
+
+ack_telemetry() {
+  mkdir -p "$AK_HOME" 2>/dev/null || true
+  touch "$AK_HOME/.telemetry-prompted" 2>/dev/null || true
+  echo "telemetry notice acknowledged"
+}
+
+finish() {
+  mkdir -p "$AK_HOME" 2>/dev/null || true
+  touch "$AK_HOME/.onboarded" "$AK_HOME/.telemetry-prompted" 2>/dev/null || true
+  echo "onboarding complete"
+}
+
+# --- dispatch --------------------------------------------------------------
+cmd="${1:-}"; [ $# -gt 0 ] && shift
+case "$cmd" in
+  status)        status ;;
+  home)          set_home "$@" ;;
+  set-key)       set_key "$@" ;;
+  skip-key)      skip_key "$@" ;;
+  ack-telemetry) ack_telemetry ;;
+  disable)       [ -n "${1:-}" ] && { do_disable "$1"; echo "disabled $1"; } || echo "usage: analyst-kit-setup disable <skill>" >&2 ;;
+  enable)        [ -n "${1:-}" ] && { do_enable "$1"; echo "enabled $1"; } || echo "usage: analyst-kit-setup enable <skill>" >&2 ;;
+  reconcile)     reconcile ;;
+  finish)        finish ;;
+  *) echo "usage: analyst-kit-setup status | home <dir> | set-key <K> <V> | skip-key <K> | disable <skill> | enable <skill> | reconcile | ack-telemetry | finish" >&2 ;;
+esac
+exit 0

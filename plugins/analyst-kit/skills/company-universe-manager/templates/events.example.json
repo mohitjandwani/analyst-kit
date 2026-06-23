@@ -1,0 +1,29 @@
+{
+  "ticker": "AAPL",
+  "events": [
+    {
+      "type": "earnings",
+      "date": "2026-07-31",
+      "status": "confirmed",
+      "source": "FMP",
+      "ref": "2026-06-30",
+      "fetched_at": "2026-06-12",
+      "note": "AMC"
+    },
+    {
+      "type": "ex_dividend",
+      "date": "2026-08-10",
+      "status": "estimated",
+      "source": "FMP",
+      "fetched_at": "2026-06-12"
+    },
+    {
+      "type": "investor_day",
+      "date": "2026-09-15",
+      "status": "tentative",
+      "source": "IR-page",
+      "source_url": "https://investor.apple.com/",
+      "fetched_at": "2026-06-12"
+    }
+  ]
+}

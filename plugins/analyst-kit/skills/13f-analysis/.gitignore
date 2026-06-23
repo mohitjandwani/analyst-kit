@@ -1,0 +1,6 @@
+# Holdings CSVs written by fetch_13f.py (regenerated on demand)
+13f-output/
+
+# Python
+__pycache__/
+*.pyc

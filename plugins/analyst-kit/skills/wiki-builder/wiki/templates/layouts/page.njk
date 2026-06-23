@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }} — {{ siteName }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400;1,9..144,600&family=Outfit:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ page.url | assetPath('theme.css') }}">
+</head>
+<body>
+  <div class="wiki-shell">
+
+    {# ── Top bar ─────────────────────────────────────────────────────────── #}
+    <header class="topbar">
+      <div class="topbar-inner">
+
+        <div class="topbar-brand-wrap">
+          <a href="/wiki/" class="topbar-brand">{{ siteName }}</a>
+        </div>
+
+        <div class="topbar-center">
+          <nav class="topbar-breadcrumb" aria-label="Breadcrumb">
+            {% if companyName %}
+              <span class="topbar-crumb">{{ companyName }}</span>
+              <span class="topbar-sep" aria-hidden="true">/</span>
+            {% endif %}
+            <span class="topbar-crumb topbar-crumb--page">{{ title }}</span>
+          </nav>
+        </div>
+
+        <div class="topbar-search" role="search" aria-label="Search">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="11" cy="11" r="7"/>
+            <path d="m20 20-3.5-3.5"/>
+          </svg>
+          <span class="search-placeholder">Search…</span>
+          <kbd aria-label="Command K">⌘K</kbd>
+        </div>
+
+      </div>
+    </header>
+
+    {# ── Body ────────────────────────────────────────────────────────────── #}
+    <div class="wiki-body">
+
+      {# ── Left sidebar ──────────────────────────────────────────────────── #}
+      <aside class="sidebar" aria-label="Navigation">
+        {% set nsKey = page.url | getCompanyKey %}
+        {% set sectionNav = collections.navTree[nsKey] %}
+        {% if sectionNav %}
+          {% for section in sectionNav %}
+          <div class="nav-group">
+            <div class="nav-group-header">{{ section.label }}</div>
+            {% for navPage in section.pages %}
+            <a href="{{ navPage.url }}"
+               class="nav-item{% if navPage.url == page.url %} active{% endif %}"
+               {% if navPage.url == page.url %}aria-current="page"{% endif %}>
+              {{ navPage.title }}
+            </a>
+            {% endfor %}
+          </div>
+          {% endfor %}
+        {% endif %}
+      </aside>
+
+      {# ── Main content ──────────────────────────────────────────────────── #}
+      <main class="content-area">
+        <article class="content">
+
+          {% if ticker or sector or mktcap or author or updated %}
+          <div class="page-meta" role="region" aria-label="Page metadata">
+            {% if ticker  %}<span class="meta-chip"><span class="meta-key">ticker</span><span class="meta-val">{{ ticker }}</span></span>{% endif %}
+            {% if sector  %}<span class="meta-chip"><span class="meta-key">sector</span><span class="meta-val">{{ sector }}</span></span>{% endif %}
+            {% if mktcap  %}<span class="meta-chip"><span class="meta-key">mkt-cap</span><span class="meta-val">{{ mktcap }}</span></span>{% endif %}
+            {% if author  %}<span class="meta-chip"><span class="meta-key">author</span><span class="meta-val">{{ author }}</span></span>{% endif %}
+            {% if updated %}<span class="meta-chip"><span class="meta-key">updated</span><span class="meta-val">{{ updated }}</span></span>{% endif %}
+          </div>
+          {% endif %}
+
+          {{ content | safe }}
+
+        </article>
+      </main>
+
+      {# ── Right TOC sidebar ─────────────────────────────────────────────── #}
+      <aside class="toc-sidebar" aria-label="On this page">
+        <div class="toc-sidebar-header">On this page</div>
+        <nav id="page-toc"></nav>
+      </aside>
+
+    </div>
+  </div>
+
+  {# wiki.js must load before echarts so window.__wikiInitCharts is defined #}
+  <script src="{{ page.url | assetPath('wiki.js') }}"></script>
+  {% if chartsEnabled %}
+  <script async src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js" onload="window.__wikiInitCharts && window.__wikiInitCharts()"></script>
+  {% endif %}
+</body>
+</html>
