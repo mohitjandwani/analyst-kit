@@ -8,9 +8,11 @@ This is **not an application** — it's a packager and distributor of *skills* f
 coding agents (Claude Code, Codex). A "skill" is a self-contained folder under
 `skills/<name>/` whose `SKILL.md` holds agent instructions, optionally alongside
 runnable `scripts/`, `references/`, `templates/`, and `assets/`. The repo ships two
-ways to consume them: as **Claude Code plugins** (`plugins/`, advertised by
-`.claude-plugin/marketplace.json`) and via a **Node installer** (`bin/analyst-kit.js` → `src/`)
-that copies skills into a target runtime.
+ways to consume them: the **primary** path is a single **Claude Code / Cowork plugin**
+(`plugins/analyst-kit/`, advertised by `.claude-plugin/marketplace.json`) that bundles
+every skill plus a `research-auditor` subagent (`agents/`) and a SessionStart runtime
+hook (`hooks/`); the secondary path is a **Node installer** (`bin/analyst-kit.js` → `src/`)
+that copies skills into a target runtime (Claude Code, Codex, OpenClaw, Cowork).
 
 The skills themselves are the product; `src/` is just plumbing that catalogs, resolves,
 and installs them. End-user docs (install paths, skill list, API keys) live in
@@ -57,9 +59,11 @@ resolution, and the validator. Never hand-edit `registry.json`; edit frontmatter
   tree is unavailable, so the CLI always reflects reality even when the committed
   registry lags.
 - `resolve.js` — `resolveClosure()` walks the `requires` graph depth-first
-  (dependencies-first, cycle-detecting). Personas are read from the **plugin manifests**
-  (`plugins/*/.claude-plugin/plugin.json`), not from a separate config — those manifests
-  are the source of truth for what a persona bundles.
+  (dependencies-first, cycle-detecting). Personas are read from the plugins under
+  `plugins/` — `listPersonas()` takes each plugin's skills from its manifest `skills`
+  array if present, else from the folders bundled under `<plugin>/skills/` (the
+  self-contained layout). Today that's the single `analyst-kit` plugin, so
+  `install analyst-kit` ≈ `install all`.
 - `install.js` + `adapters/` — `install()` resolves the closure, then each platform
   adapter (`claude-code.js`, `codex.js`) decides install dir, env-file location, and
   `write()` behavior. `copy.js#copyTree` does the recursive copy, skipping
@@ -70,8 +74,25 @@ resolution, and the validator. Never hand-edit `registry.json`; edit frontmatter
   `chmod 600`. Any `env:` key a skill declares **must** also appear in `.env.example`
   (the validator enforces this).
 - `paths.js` — repo-root-relative paths and `EXCLUDED_SKILLS` (skills present on disk but
-  withheld from the shippable registry/plugins, e.g. an in-progress skill with an empty
+  withheld from the shippable registry/plugin, e.g. an in-progress skill with an empty
   body — reported as "skipped", not a failure).
+
+### The plugin bundle (`plugins/analyst-kit/`)
+
+The marketplace plugin is the **primary** install and must be **self-contained** —
+Claude Code / Cowork copy a plugin into an isolated per-plugin cache, so anything it
+references via `../..` (e.g. the top-level `skills/`) **breaks after install**. Layout:
+
+- `skills/` — a **generated, committed artifact** (like `registry.json`). `scripts/build-plugin.js`
+  copies every shipped skill from the top-level `skills/` source of truth into it; `--check`
+  fails CI if it drifts. **Never hand-edit `plugins/analyst-kit/skills/`** — edit the source
+  skill and run `npm run build:plugin`.
+- `agents/research-auditor.md` — hand-authored subagent, invoked after every research
+  deliverable (wired via the epilogue template) to fact-check it for hallucinations/data errors.
+- `hooks/hooks.json` — a `SessionStart` hook running `skills/analyst-kit-core/bin/analyst-kit-session-hook`
+  (the runtime: onboarding, daily update check, telemetry). The markdown preamble still runs
+  the same bins for non-plugin runtimes; the two coordinate through state files in `~/.analyst-kit/`.
+- `.claude-plugin/plugin.json` — hand-authored manifest (version stamped by `sync-preamble.js`).
 
 ### Skill contract (enforced by `scripts/validate.js`)
 
@@ -89,18 +110,20 @@ resolution, and the validator. Never hand-edit `registry.json`; edit frontmatter
   must ship to function (e.g. `skills/charting/vendor/highcharts/`, inlined for offline
   PDF-safe rendering) are allowed and **should** be committed — they are not "vendored
   dirs" in the dependency sense and `copyTree` ships them on install.
-- Plugin manifests must reference existing skills **and include each referenced skill's
-  full dependency closure** (a workflow without its capabilities fails validation).
+- A plugin must be self-contained: its skills live under `<plugin>/skills/` (no `../..`
+  paths — they break after install), the bundle must be **closure-complete** (every
+  required capability present), and it must not bundle an `EXCLUDED_SKILLS` entry. Shipped
+  `agents/*.md` need `name` + `description` frontmatter; `hooks/hooks.json` must be valid
+  JSON. All enforced by `validate.js`.
 
 ## Making changes
 
 - **Editing a skill's frontmatter or adding/removing a skill** → run
-  `npm run build:registry`, then `npm run validate`. Add the skill to the relevant
-  `plugins/*/.claude-plugin/plugin.json` (with its dependencies) if it should ship in a
-  persona.
+  `npm run build:registry` **and `npm run build:plugin`**, then `npm run validate`. The
+  single `analyst-kit` plugin bundles every shipped skill automatically, so there's no
+  plugin manifest to hand-edit — just rebuild the bundle.
 - **Promoting a work-in-progress skill** → remove it from `EXCLUDED_SKILLS` in
-  `src/paths.js` and rebuild the registry (this is what the current uncommitted diff does
-  for `charting`).
+  `src/paths.js`, then rebuild the registry **and the plugin bundle**.
 - **Adding a new API key** → declare it in `.env.example` *and* in the consuming skill's
   `env:` list, or validation fails.
 - **Adding a platform** → add an adapter in `src/adapters/` and register it in

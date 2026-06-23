@@ -22,18 +22,28 @@ onward. See also [`README.md`](README.md) (end-user docs), [`CLAUDE.md`](CLAUDE.
 
 ## Quick start — install the skills
 
-### Option A · Marketplace plugin (no clone, no Node)
+### Option A · Marketplace plugin (primary — no clone, no Node)
 
-Claude Code and Claude Cowork install from the same plugin marketplace:
+Claude Code and Claude Cowork install the **single `analyst-kit` plugin** from the
+same marketplace. It bundles every skill, the `research-auditor` subagent, and a
+SessionStart runtime hook.
 
 ```
 /plugin marketplace add mohitjandwani/analyst-kit
-/plugin install us-stock-analyst@analyst-kit     # or international-analyst / taiwan-stock-analyst
+/plugin install analyst-kit@analyst-kit
 ```
 
-In **Cowork** (desktop app): **Customize → Plugins → Personal plugins → + → Add
-marketplace** → `mohitjandwani/analyst-kit`, add a plugin, then enable
-**Settings → Capabilities → Code execution**.
+In **Cowork** (desktop app), no terminal:
+
+1. **Customize → Plugins → Add ▾ (top right) → Add marketplace.**
+
+   ![Cowork — Plugins panel: Add ▾ → Add marketplace](docs/images/cowork-1-add-marketplace.png)
+
+2. In **Add marketplace**, enter and select your repo: `mohitjandwani/analyst-kit`.
+
+   ![Cowork — Add marketplace: enter mohitjandwani/analyst-kit](docs/images/cowork-2-enter-repo.png)
+
+3. Add the **analyst-kit** plugin, then enable **Settings → Capabilities → Code execution**.
 
 ### Option B · Node installer (any runtime)
 
@@ -121,17 +131,14 @@ runtimes, API keys, and skill dependencies.
 
 ---
 
-## Personas (plugins)
+## The plugin (`plugins/analyst-kit/`)
 
-Three persona plugins (under `plugins/`, advertised by `.claude-plugin/marketplace.json`)
-bundle the research workflows plus their supporting capabilities for different markets.
-Run `node bin/analyst-kit.js list --persona <name>` to see a plugin's exact contents.
-
-| Plugin | Market | Skills |
-|--------|--------|:-----:|
-| `us-stock-analyst` | US — workflows + capabilities **incl. `sec-filings`** | 15 |
-| `international-analyst` | Global — the above **+ `finmind`** (Taiwan data) | 16 |
-| `taiwan-stock-analyst` | Taiwan-focused — workflows + capabilities **+ `finmind`**, minus `sec-filings` | 14 |
+One self-contained plugin (under `plugins/`, advertised by `.claude-plugin/marketplace.json`)
+bundles **all 18 skills**, the `research-auditor` subagent (`agents/`), and a SessionStart
+runtime hook (`hooks/`). Its `skills/` are a generated, committed copy of the top-level
+`skills/` source of truth (`npm run build:plugin`; CI fails on drift) — required because a
+marketplace plugin is installed into an isolated cache and can't reach files outside its own
+folder. Run `node bin/analyst-kit.js install analyst-kit --dry-run` to see the full closure.
 
 ---
 
