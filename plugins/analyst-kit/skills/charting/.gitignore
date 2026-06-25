@@ -1,0 +1,13 @@
+# TypeScript / Node
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Misc tooling
+.deepeval/
+
+# Generated artifacts are intentionally committed (examples/, fixtures/processed/)
+# so the skill ships runnable examples and the TS tests run without the Python step.

@@ -31,22 +31,31 @@ export function resolveClosure(rootNames, skills = getSkills()) {
   return ordered;
 }
 
-// Personas are defined by the persona plugin manifests (single source of truth).
+// Personas are defined by the plugin manifests under plugins/ (single source of
+// truth). A self-contained plugin (the marketplace layout) carries its skills as
+// folders under <plugin>/skills/ rather than a manifest `skills` array, so read
+// the bundle directory when no explicit list is present.
 export function listPersonas() {
   if (!existsSync(PLUGINS_DIR)) return [];
   const out = [];
   for (const entry of readdirSync(PLUGINS_DIR, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
-    const manifest = join(PLUGINS_DIR, entry.name, '.claude-plugin', 'plugin.json');
+    const dir = join(PLUGINS_DIR, entry.name);
+    const manifest = join(dir, '.claude-plugin', 'plugin.json');
     if (!existsSync(manifest)) continue;
-    try {
-      const data = JSON.parse(readFileSync(manifest, 'utf8'));
-      out.push({
-        name: data.name || entry.name,
-        description: data.description || '',
-        skills: (data.skills || []).map((p) => basename(p)),
-      });
-    } catch { /* skip malformed manifest */ }
+    let data;
+    try { data = JSON.parse(readFileSync(manifest, 'utf8')); } catch { continue; }
+
+    let skills = (data.skills || []).map((p) => basename(p));
+    if (!skills.length) {
+      const bundle = join(dir, 'skills');
+      if (existsSync(bundle)) {
+        skills = readdirSync(bundle, { withFileTypes: true })
+          .filter((e) => e.isDirectory())
+          .map((e) => e.name);
+      }
+    }
+    out.push({ name: data.name || entry.name, description: data.description || '', skills });
   }
   return out;
 }

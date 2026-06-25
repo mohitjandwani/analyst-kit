@@ -1,0 +1,4 @@
+# Charting — Python (Polars) data layer.
+# The TS charting layer has its own deps in package.json.
+polars>=1.0
+pytest>=7.0

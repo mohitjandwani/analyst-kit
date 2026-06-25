@@ -92,27 +92,69 @@ try {
   }
 } catch { warn('git not available — skipped vendored-path check'); }
 
-// Plugin manifests reference existing, valid skills
+// Plugin manifests reference existing, valid skills + ship valid components.
+// A marketplace plugin is installed into an ISOLATED per-plugin cache, so every
+// component (skills, agents, hooks) must live UNDER the plugin dir — `../..`
+// paths break after install. Self-contained plugins carry skills as folders under
+// <plugin>/skills/ (built by scripts/build-plugin.js); legacy plugins may still
+// list them in a manifest `skills` array.
 for (const entry of (existsSync(PLUGINS_DIR) ? readdirSync(PLUGINS_DIR, { withFileTypes: true }) : [])) {
   if (!entry.isDirectory()) continue;
-  const manifest = join(PLUGINS_DIR, entry.name, '.claude-plugin', 'plugin.json');
+  const dir = join(PLUGINS_DIR, entry.name);
+  const manifest = join(dir, '.claude-plugin', 'plugin.json');
   if (!existsSync(manifest)) { err(`[plugin ${entry.name}] missing .claude-plugin/plugin.json`); continue; }
   let data;
   try { data = JSON.parse(readFileSync(manifest, 'utf8')); }
   catch (e) { err(`[plugin ${entry.name}] invalid JSON: ${e.message}`); continue; }
+
   for (const p of data.skills || []) {
-    const name = basename(p);
-    if (EXCLUDED_SKILLS.has(name)) err(`[plugin ${entry.name}] references excluded skill "${name}"`);
+    if (String(p).includes('..')) {
+      err(`[plugin ${entry.name}] skills path "${p}" escapes the plugin dir — bundle skills under ${entry.name}/skills/ (external paths break after marketplace install)`);
+    }
+  }
+
+  const bundleDir = join(dir, 'skills');
+  const present = new Set([
+    ...(data.skills || []).map((p) => basename(p)),
+    ...(existsSync(bundleDir)
+      ? readdirSync(bundleDir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name)
+      : []),
+  ]);
+  if (!present.size) warn(`[plugin ${entry.name}] declares no skills`);
+  for (const name of present) {
+    if (EXCLUDED_SKILLS.has(name)) err(`[plugin ${entry.name}] bundles excluded skill "${name}"`);
     else if (!byName.has(name)) err(`[plugin ${entry.name}] references unknown skill "${name}"`);
   }
   // closure completeness: every required capability must be present in the plugin
-  const present = new Set((data.skills || []).map((p) => basename(p)));
   for (const sn of present) {
     const s = byName.get(sn);
     if (!s) continue;
     for (const dep of s.requires) {
       if (!present.has(dep)) err(`[plugin ${entry.name}] includes "${sn}" but is missing its dependency "${dep}"`);
     }
+  }
+
+  // Subagents: agents/*.md must carry name + description frontmatter.
+  const agentsDir = join(dir, 'agents');
+  if (existsSync(agentsDir)) {
+    for (const f of readdirSync(agentsDir).filter((n) => n.endsWith('.md'))) {
+      const raw = readFileSync(join(agentsDir, f), 'utf8');
+      const fm = raw.match(/^---\n([\s\S]*?)\n---/);
+      if (!fm) err(`[plugin ${entry.name}] agent ${f} has no YAML frontmatter`);
+      else {
+        if (!/^name:\s*\S/m.test(fm[1])) err(`[plugin ${entry.name}] agent ${f} missing "name:"`);
+        if (!/^description:\s*\S/m.test(fm[1])) err(`[plugin ${entry.name}] agent ${f} missing "description:"`);
+      }
+    }
+  }
+
+  // Hooks: hooks/hooks.json must be valid JSON with a "hooks" object.
+  const hooksFile = join(dir, 'hooks', 'hooks.json');
+  if (existsSync(hooksFile)) {
+    try {
+      const h = JSON.parse(readFileSync(hooksFile, 'utf8'));
+      if (!h.hooks || typeof h.hooks !== 'object') err(`[plugin ${entry.name}] hooks/hooks.json needs a "hooks" object`);
+    } catch (e) { err(`[plugin ${entry.name}] hooks/hooks.json invalid JSON: ${e.message}`); }
   }
 }
 

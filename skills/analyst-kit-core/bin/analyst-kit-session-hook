@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# analyst-kit-session-hook — SessionStart hook for the analyst-kit plugin.
+#
+# The markdown Preamble asks the *agent* to bootstrap the runtime when a skill is
+# invoked; in a plugin install this hook makes the session-level half of that
+# deterministic: it runs every session start, regardless of which (or whether a)
+# skill is used. It records the core path, checks for updates (cached daily), and
+# surfaces onboarding / telemetry / upgrade state into the session so the agent
+# acts on it once, up front.
+#
+# It deliberately does NOT touch per-skill state (disabled skills, missing API
+# keys, learnings) — those depend on which skill runs and stay in the skill's
+# markdown Preamble. The two paths coordinate through the same state files in the
+# data home (acting on a prompt writes a flag the Preamble then sees), so nothing
+# double-prompts.
+#
+# Contract: never fails, never blocks the session, target <100ms on the cached
+# path (the only network call is analyst-kit-update-check: curl --max-time 3, once
+# per day). stdout is added to the session context by the SessionStart hook.
+set -uo pipefail
+
+# Drain the SessionStart JSON on stdin so the writer never blocks; we don't need it.
+cat >/dev/null 2>&1 || true
+
+DIR="$(cd "$(dirname "$0")" && pwd)"
+CORE="$(dirname "$DIR")"
+[ -r "$DIR/_analyst-kit-home.sh" ] && . "$DIR/_analyst-kit-home.sh"
+AK_HOME="${AK_HOME:-$HOME/.analyst-kit}"
+export AK_HOME
+mkdir -p "$AK_HOME" 2>/dev/null || true
+
+# Record where the runtime lives so each skill's markdown Preamble resolves it
+# instantly (shared with non-plugin runtimes through the same pointer file).
+printf '%s' "$CORE" > "$AK_HOME/core-path" 2>/dev/null || true
+
+# Bridge the plugin-config API keys into <home>/.env. Claude Code prompts for these
+# at enable time (FMP_API_KEY required; FINMIND_TOKEN / SERPAPI_API_KEY optional),
+# stores them in the keychain, and exports each to this plugin subprocess as
+# CLAUDE_PLUGIN_OPTION_<KEY> — but NOT to the agent's Bash tool runs, so the skill
+# scripts can't read them. Mirror each NON-EMPTY one into <home>/.env (which the
+# per-skill Preamble sources). Skipping empties means an optional field left blank
+# never clobbers a key the user set another way (config UI later, or onboarding on
+# Codex). Add any new userConfig key to this list too.
+for _ak_key in FMP_API_KEY FINMIND_TOKEN SERPAPI_API_KEY; do
+  _ak_opt="CLAUDE_PLUGIN_OPTION_$_ak_key"
+  _ak_val="${!_ak_opt:-}"
+  [ -n "$_ak_val" ] && "$DIR/analyst-kit-setup" set-key "$_ak_key" "$_ak_val" >/dev/null 2>&1 || true
+done
+# Generate the one-time user id + SEC EDGAR User-Agent so the keyless SEC skills
+# (sec-filings, 13f-analysis) have a stable per-install contact string.
+"$DIR/analyst-kit-setup" ensure-identity >/dev/null 2>&1 || true
+
+VER="$(tr -d '[:space:]' < "$CORE/VERSION" 2>/dev/null)"
+TIER="$("$DIR/analyst-kit-config" get telemetry 2>/dev/null || echo community)"
+case "$TIER" in off|anonymous|community) ;; *) TIER=community ;; esac
+ONB=no; [ -f "$AK_HOME/.onboarded" ] && ONB=yes
+TELP=no; [ -f "$AK_HOME/.telemetry-prompted" ] && TELP=yes
+UPD="$("$DIR/analyst-kit-update-check" 2>/dev/null || true)"
+
+echo "Analyst Kit runtime active — v${VER:-unknown}, data home: $AK_HOME."
+echo "AK_STATE: ONBOARDED=$ONB TELEMETRY=$TIER TEL_PROMPTED=$TELP UPGRADE=${UPD:-none}"
+echo ""
+echo "Act on this once, early in the conversation — skip any item whose condition is already met:"
+
+if [ "$ONB" = no ]; then
+  cat <<EOF
+- First run (ONBOARDED=no): briefly orient the user — Analyst Kit keeps config, API keys, local usage
+  analytics, and a learnings log together in $AK_HOME. Usage telemetry is ON by default and records only
+  skill name, duration, outcome, and version with a random per-machine id — never repo names, paths,
+  tickers, or content; they can turn it off anytime by asking. Offer to set up API keys now (read
+  "$CORE/references/intro.md" and follow it) or defer until a skill needs one, then run:
+      "$CORE/bin/analyst-kit-setup" finish
+EOF
+elif [ "$TELP" = no ]; then
+  cat <<EOF
+- Telemetry notice (returning user, not yet acknowledged): mention telemetry is on (anonymous skill name /
+  duration / outcome / version only; never your data) and can be turned off anytime, then run:
+      "$CORE/bin/analyst-kit-setup" ack-telemetry
+EOF
+fi
+
+case "$UPD" in
+  UPGRADE_AVAILABLE*)
+    # shellcheck disable=SC2086
+    set -- $UPD
+    cat <<EOF
+- Update available: Analyst Kit skills $3 is out (you have $2). Offer to update — read
+  "$CORE/references/upgrade.md" and follow it. If declined, run:
+      "$DIR/analyst-kit-update-check" --snooze $3
+EOF
+    ;;
+esac
+
+echo ""
+echo "Per-skill API-key and disabled-skill checks run when you invoke a skill (see that skill's Preamble)."
+exit 0

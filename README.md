@@ -6,7 +6,7 @@ scripts) that an agent loads on demand. Install them into Claude Code as a plugi
 or copy them into any agent runtime with the bundled installer.
 
 The skill frontmatter is the single source of truth — the registry, the plugin
-manifests, and the installer all derive from it.
+bundle, and the installer all derive from it.
 
 ## What's inside
 
@@ -37,9 +37,43 @@ API keys, and required skills.
 
 ## Install
 
-**One command — works on macOS, Linux, and Windows (inside WSL2 — see [below](#windows-use-wsl2)).** It
-installs *all* the skills into your chosen runtime and wires them into the agent's system/common prompt.
-Needs only **Node ≥ 18** (which detects your OS and installs to the right paths):
+The **plugin** is the primary way to install Analyst Kit — one marketplace, one
+plugin, the same in **Claude Code** and **[Claude Cowork](https://claude.com/product/cowork)**
+(Anthropic's desktop app). It bundles everything: all the skills, the
+**research-auditor** subagent that fact-checks every deliverable, and a SessionStart
+hook that runs the runtime (onboarding, update checks, telemetry). No clone, no Node.
+
+**Claude Code** — paste these two commands:
+
+```
+/plugin marketplace add mohitjandwani/analyst-kit
+/plugin install analyst-kit@analyst-kit
+```
+
+> Enabling the plugin prompts for your keys (all stored in the OS keychain): **`FMP_API_KEY` is required**;
+> `FINMIND_TOKEN` (Taiwan) and `SERPAPI_API_KEY` (Google Trends) are optional — fill them now, later via
+> `/plugin` → configure, or when a skill first asks. SEC filings need no key.
+
+**Claude Cowork** (desktop app) — same marketplace, no terminal:
+
+1. Open **Customize → Plugins**, click **Add ▾** (top right), and choose **Add marketplace**.
+
+   ![Cowork — Plugins panel: Add ▾ → Add marketplace](docs/images/cowork-1-add-marketplace.png)
+
+2. In the **Add marketplace** dialog, enter your repo and select it: `mohitjandwani/analyst-kit`.
+
+   ![Cowork — Add marketplace: enter mohitjandwani/analyst-kit](docs/images/cowork-2-enter-repo.png)
+
+3. Add the **analyst-kit** plugin, then enable **Settings → Capabilities → Code execution** (the skills run scripts).
+
+> **On Windows:** run inside **WSL2** — native Windows (PowerShell/cmd) is unsupported because the skill
+> runtime is POSIX/bash. See [Windows: use WSL2](#windows-use-wsl2) below.
+
+### Alternative: the Node installer (Codex, OpenClaw, or no marketplace)
+
+Prefer copying skills straight into a runtime, or installing for **Codex** / **OpenClaw**?
+One command installs *all* the skills and wires them into the agent's system/common
+prompt. Needs only **Node ≥ 18** (it detects your OS and installs to the right paths):
 
 ```bash
 npx github:mohitjandwani/analyst-kit claude-code      # or: codex · openclaw · cowork
@@ -49,26 +83,9 @@ Swap `claude-code` for `codex`, `openclaw`, or `cowork`; add `--scope project` t
 project (`./.claude/skills`, …) instead of your home directory. Already cloned the repo? `node bin/analyst-kit.js
 claude-code` does the same (plus `list`, `doctor`, `uninstall`, or `install <skill|persona>` for just one).
 
-For **Claude Cowork**, the command prints the in-app steps and writes `cowork-global-instructions.md` to paste
-into **Settings → Cowork → Global instructions** — Cowork installs the skills themselves through its plugin
-marketplace (below).
-
-> **On Windows:** run inside **WSL2** — native Windows (PowerShell/cmd) is unsupported because the skill
-> runtime is POSIX/bash. See [Windows: use WSL2](#windows-use-wsl2) below.
-
-### Marketplace plugin — no clone, no Node (Claude Code & Cowork)
-
-Both **Claude Code** and **[Claude Cowork](https://claude.com/product/cowork)** (Anthropic's desktop app)
-install from the same plugin marketplace:
-
-- **Claude Code:**
-  ```
-  /plugin marketplace add mohitjandwani/analyst-kit
-  /plugin install us-stock-analyst@analyst-kit    # or international-analyst / taiwan-stock-analyst
-  ```
-- **Claude Cowork** (desktop app): **Customize → Plugins → Personal plugins → + → Add marketplace** →
-  `mohitjandwani/analyst-kit`, add the **us-stock-analyst** plugin, then enable **Settings →
-  Capabilities → Code execution**.
+For **Claude Cowork** via this installer, the command prints the in-app steps and writes
+`cowork-global-instructions.md` to paste into **Settings → Cowork → Global instructions** — but the
+plugin path above is simpler and recommended.
 
 ### Check it worked
 
@@ -104,37 +121,44 @@ unsupported), and Codex's Linux mode is WSL2 as well.
 
 `node bin/analyst-kit.js doctor --platform claude-code` warns when run on native Windows.
 
-## Personas (plugins)
+## What the plugin bundles
 
-Three persona plugins bundle the research workflows for different markets. All
-three include the research workflows (deep dive, thematic, technical analysis,
-company wiki) plus their supporting capabilities (charting, reporting,
-wiki-builder, company-universe-manager, financialmodellingprep, market-intelligence,
-analyzing-financial-statements, creating-financial-models, data-analysis); the
-market difference is whether FinMind (Taiwan data) and SEC filings are included.
+The **analyst-kit** plugin is the whole kit in one install — no market-specific
+variants to pick between. It ships:
 
-| Plugin | Includes | Skills |
-|--------|----------|:-----:|
-| `us-stock-analyst` | the research workflows + supporting capabilities, **incl. `sec-filings`** (US filings) | 15 |
-| `international-analyst` | the above **+ FinMind** (Taiwan/TWSE market data) | 16 |
-| `taiwan-stock-analyst` | Taiwan-focused: workflows + capabilities **+ FinMind**, minus `sec-filings` | 14 |
+- **All 18 skills** — every research workflow (deep dive, thematic, technical
+  analysis, company wiki) plus their supporting capabilities and all data sources
+  (US SEC/FMP, global, and Taiwan FinMind/TWSE).
+- **The `research-auditor` subagent** — invoked after each research deliverable to
+  re-check every figure and claim against its sources, flagging hallucinations,
+  stale or mis-scaled data, math errors, and unsupported assertions before the work
+  reaches you.
+- **A SessionStart hook** — runs the `analyst-kit-core` runtime automatically:
+  onboarding on first use, a once-a-day update check, and the telemetry notice.
 
-Run `node bin/analyst-kit.js list --persona <name>` to see a plugin's exact contents.
+The plugin is a **self-contained, generated bundle** under `plugins/analyst-kit/`:
+its `skills/` are copied from the top-level `skills/` source of truth by
+`npm run build:plugin` (CI fails if the two drift), because a marketplace plugin is
+installed into an isolated cache and can't reference files outside its own folder.
+Run `node bin/analyst-kit.js list` to see every skill, or
+`node bin/analyst-kit.js install analyst-kit --dry-run` for the full resolved closure.
 
 ## API keys
 
-Keys are read from the environment or a git-ignored `.env`. The installer
-(`analyst-kit env` / `analyst-kit install`) prompts for anything missing when run interactively.
-See [`.env.example`](.env.example).
+When you enable the plugin on Claude Code/Cowork it prompts for your keys (stored in
+the OS keychain; the SessionStart hook bridges them to the scripts): **`FMP_API_KEY`
+is required**, while `FINMIND_TOKEN` and `SERPAPI_API_KEY` are optional fields you can
+fill now, later via `/plugin` → configure, or when a skill first needs one. SEC EDGAR
+works with **no key** (a per-install `SEC_EDGAR_UA` is generated automatically). The
+Node installer / Codex prompt for any missing key interactively and store it in a
+git-ignored `.env` (see [`.env.example`](.env.example)).
 
-| Variable | Used by | Get it |
-|----------|---------|--------|
-| `FINMIND_TOKEN` | finmind | <https://finmindtrade.com/> (free) |
-| `FMP_API_KEY` | financialmodellingprep, company-wiki | <https://site.financialmodelingprep.com/developer/docs> |
-| `SERPAPI_API_KEY` | market-intelligence | <https://serpapi.com/> (free tier = 100 searches/month) |
-
-`13f-analysis` needs no key — it reads SEC EDGAR directly (set the optional
-`SEC_EDGAR_UA` contact string as an SEC fair-access courtesy).
+| Variable | Used by | Required | Get it |
+|----------|---------|----------|--------|
+| `FMP_API_KEY` | financialmodellingprep, company-wiki, company-universe-manager | **Yes** — plugin config | <https://site.financialmodelingprep.com/developer/docs> |
+| `FINMIND_TOKEN` | finmind | Optional (Taiwan data) | <https://finmindtrade.com/> (free) |
+| `SERPAPI_API_KEY` | market-intelligence | Optional (Google Trends) | <https://serpapi.com/> (free tier = 100/mo) |
+| `SEC_EDGAR_UA` | sec-filings, 13f-analysis | Auto-generated | — (override only if you want a real contact) |
 
 Skills that run code bootstrap their own dependencies on first use. Runtimes are a
 per-skill prerequisite the installer does not install for you: **Python** (finmind,

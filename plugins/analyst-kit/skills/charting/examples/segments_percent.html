@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AAPL — revenue by segment</title>
+  <script src="https://cdn.jsdelivr.net/npm/highcharts@12/highcharts.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/highcharts@12/modules/exporting.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/highcharts@12/modules/accessibility.js"></script>
+  <style>html,body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}#c{width:100%;height:520px}</style>
+</head>
+<body>
+  <div id="c"></div>
+  <script>
+
+var AK = {
+  fmt: function (value, opts) {
+    opts = opts || {};
+    if (value === null || value === undefined || (typeof value === 'number' && isNaN(value))) return '—';
+    if (opts.percent) {
+      var dp = (opts.decimals == null) ? 1 : opts.decimals;
+      return value.toFixed(dp) + '%';
+    }
+    var dp2 = (opts.decimals == null) ? (opts.unit ? 1 : 0) : opts.decimals;
+    var cur = opts.currency || '';
+    var unit = opts.unit || '';
+    if (value === 0) return cur + '0';
+    var body = cur + Math.abs(value).toFixed(dp2) + unit;
+    return (value < 0) ? '(' + body + ')' : body;
+  }
+};
+
+Highcharts.chart('c', {"chart":{"backgroundColor":"#FFFFFF","style":{"fontFamily":"system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif"}},"title":{"text":"AAPL — revenue by segment","style":{"fontSize":"16px","fontWeight":"600"}},"colors":["#5B8FF9","#5AD8A6","#F6BD16","#7262FD","#F6903D","#78D3F8","#9661BC","#269A99"],"credits":{"enabled":false},"legend":{"enabled":true},"tooltip":{"shared":true},"xAxis":{"type":"category","categories":["FY2021","FY2022","FY2023","FY2024","FY2025"]},"yAxis":{"title":{"text":"Share of revenue (%)","style":{"color":"#666666"}},"labels":{"formatter":function(){var v=(this.value!=null?this.value:this.y);return AK.fmt(v,{"percent":true});},"style":{"color":"#666666"}},"opposite":false,"gridLineColor":"#ECECEC"},"series":[{"name":"iPhone","type":"column","data":[191.973,205.489,200.583,201.183,209.586],"color":"#5B8FF9","stacking":"percent","tooltip":{"valueSuffix":"%","valueDecimals":1}},{"name":"Service","type":"column","data":[68.425,78.129,85.2,96.169,109.158],"color":"#5AD8A6","stacking":"percent","tooltip":{"valueSuffix":"%","valueDecimals":1}},{"name":"Wearables, Home and Accessories","type":"column","data":[38.367,41.241,39.845,37.005,35.686],"color":"#F6BD16","stacking":"percent","tooltip":{"valueSuffix":"%","valueDecimals":1}},{"name":"Mac","type":"column","data":[35.19,40.177,29.357,29.984,33.708],"color":"#7262FD","stacking":"percent","tooltip":{"valueSuffix":"%","valueDecimals":1}},{"name":"iPad","type":"column","data":[31.862,29.292,28.3,26.694,28.023],"color":"#F6903D","stacking":"percent","tooltip":{"valueSuffix":"%","valueDecimals":1}}],"plotOptions":{"series":{"animation":false}},"subtitle":{"text":"FY2021–FY2025","style":{"color":"#666666"}}});
+  </script>
+</body>
+</html>

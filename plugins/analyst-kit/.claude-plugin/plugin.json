@@ -1,0 +1,40 @@
+{
+  "name": "analyst-kit",
+  "version": "0.2.0",
+  "description": "Hedge-fund-grade equity research for Claude. Forensic single-stock deep dives, thematic value-chain mapping, technical analysis with entry/exit levels, multi-page company-research wikis, and financial models — backed by US (SEC/FMP), global, and Taiwan (FinMind/TWSE) data, with charting and reporting. Ships a research-auditor subagent that fact-checks every deliverable for hallucinations and data errors before it reaches you, and a SessionStart hook that runs the runtime (onboarding, update check, telemetry).",
+  "author": {
+    "name": "Mohit Kumar"
+  },
+  "homepage": "https://github.com/mohitjandwani/analyst-kit",
+  "license": "MIT",
+  "userConfig": {
+    "FMP_API_KEY": {
+      "type": "string",
+      "title": "Financial Modeling Prep API key (required)",
+      "description": "Required to use the kit. Free key at https://site.financialmodelingprep.com/developer/docs — powers prices, fundamentals, news, and estimates. (SEC filings need no key.)",
+      "sensitive": true,
+      "required": true
+    },
+    "FINMIND_TOKEN": {
+      "type": "string",
+      "title": "FinMind token (optional — Taiwan market data)",
+      "description": "Optional — only the finmind skill (TWSE/TPEx data) needs it. Free token at https://finmindtrade.com/. Leave blank unless you research Taiwan stocks; you can add it later.",
+      "sensitive": true,
+      "required": false
+    },
+    "SERPAPI_API_KEY": {
+      "type": "string",
+      "title": "SerpAPI key (optional — Google Trends)",
+      "description": "Optional — only the market-intelligence skill (Google-Trends nowcasting) needs it. Free tier (100/mo) at https://serpapi.com/. Leave blank unless you use that skill; you can add it later.",
+      "sensitive": true,
+      "required": false
+    }
+  },
+  "keywords": [
+    "finance",
+    "equity-research",
+    "hedge-fund",
+    "stocks",
+    "investing"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "name": "@analyst-kit/reporting",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Report contract → branded multi-page PDF (portrait report or 16:9 presentation deck) via Playwright.",
+  "scripts": {
+    "examples": "bun scripts/render.ts templates/examples/report-example.json out/report-example.pdf && bun scripts/render.ts templates/examples/presentation-example.json out/presentation-example.pdf"
+  },
+  "dependencies": {
+    "playwright": "^1.49.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  }
+}

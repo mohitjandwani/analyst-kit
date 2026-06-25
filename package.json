@@ -19,9 +19,11 @@
     ".env.example"
   ],
   "scripts": {
-    "validate": "node scripts/validate.js && node scripts/sync-preamble.js --check",
+    "validate": "node scripts/validate.js && node scripts/sync-preamble.js --check && node scripts/build-plugin.js --check",
     "build:registry": "node scripts/build-registry.js",
     "check:registry": "node scripts/build-registry.js --check",
+    "build:plugin": "node scripts/build-plugin.js",
+    "check:plugin": "node scripts/build-plugin.js --check",
     "build:routing": "node scripts/build-routing-table.js",
     "sync:preamble": "node scripts/sync-preamble.js",
     "check:preamble": "node scripts/sync-preamble.js --check",

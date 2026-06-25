@@ -1,0 +1,8 @@
+# Cached raw API responses + script outputs (regenerated on demand)
+data/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/

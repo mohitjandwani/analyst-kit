@@ -5,23 +5,13 @@
     "url": "https://github.com/mohitjandwani"
   },
   "metadata": {
-    "description": "Hedge-fund-grade equity-research skills: deep dives, thematic mapping, company wikis, and market data."
+    "description": "Hedge-fund-grade equity-research skills for Claude: deep dives, thematic mapping, technical analysis, company wikis, and market data — with a research-auditor subagent and runtime hooks."
   },
   "plugins": [
     {
-      "name": "international-analyst",
-      "source": "./plugins/international-analyst",
-      "description": "Region-agnostic equity research: deep dives, thematic mapping, company wikis, data analysis."
-    },
-    {
-      "name": "us-stock-analyst",
-      "source": "./plugins/us-stock-analyst",
-      "description": "US-market equity research workflows and data capabilities."
-    },
-    {
-      "name": "taiwan-stock-analyst",
-      "source": "./plugins/taiwan-stock-analyst",
-      "description": "Taiwan-market (TWSE/TPEx) equity research: FinMind/TWSE data + research workflows."
+      "name": "analyst-kit",
+      "source": "./plugins/analyst-kit",
+      "description": "The full Analyst Kit: every research workflow + data source + the research-auditor subagent and SessionStart runtime hook, in one install."
     }
   ]
 }

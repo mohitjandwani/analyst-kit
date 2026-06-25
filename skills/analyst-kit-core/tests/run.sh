@@ -13,7 +13,7 @@ CORE="$(cd "$(dirname "$0")/.." && pwd)"
 BIN="$CORE/bin"
 
 # Never let the runner's own environment leak real keys into the assertions.
-unset AK_HOME FINMIND_TOKEN FMP_API_KEY SERPAPI_API_KEY 2>/dev/null || true
+unset AK_HOME FINMIND_TOKEN FMP_API_KEY SERPAPI_API_KEY SEC_EDGAR_UA 2>/dev/null || true
 
 PASS=0; FAIL=0
 ok()  { PASS=$((PASS+1)); printf '  \033[32m✓\033[0m %s\n' "$1"; }
@@ -120,6 +120,27 @@ new_home
 "$BIN/analyst-kit-setup" finish >/dev/null
 assert_file "finish: onboarded"      "$HOME/.analyst-kit/.onboarded"
 assert_file "finish: telemetry-prompted" "$HOME/.analyst-kit/.telemetry-prompted"
+
+# ── analyst-kit-setup ensure-identity (auto SEC user id + UA) ──────────────────────
+section "analyst-kit-setup ensure-identity"
+new_home
+EI="$("$BIN/analyst-kit-setup" ensure-identity)"
+assert_contains "reports a user id"             "USER_ID:" "$EI"
+assert_file     "user-id file created"          "$HOME/.analyst-kit/user-id"
+ID1="$(cat "$HOME/.analyst-kit/user-id")"
+case "$ID1" in *[!0-9]*|"") bad "user id is numeric" "got [$ID1]" ;; *) ok "user id is numeric" ;; esac
+assert_contains "UA written to .env, embeds id" "akit$ID1@gmail.com" "$(cat "$HOME/.analyst-kit/.env")"
+# Quoted so the spaced value survives `. .env`; source in a child so no leak here.
+SRC="$(bash -c 'set -a; . "$1"; set +a; printf "%s" "${SEC_EDGAR_UA:-}"' _ "$HOME/.analyst-kit/.env")"
+assert_eq "spaced UA sources cleanly" "analyst-kit akit$ID1@gmail.com" "$SRC"
+# Idempotent: id stable, no duplicate UA line.
+"$BIN/analyst-kit-setup" ensure-identity >/dev/null
+assert_eq "id stable across runs"     "$ID1" "$(cat "$HOME/.analyst-kit/user-id")"
+assert_eq "single SEC_EDGAR_UA line"  "1" "$(grep -c '^SEC_EDGAR_UA=' "$HOME/.analyst-kit/.env")"
+# An explicit SEC_EDGAR_UA already in the environment is never overwritten into .env.
+new_home
+SEC_EDGAR_UA="mine me@x.com" "$BIN/analyst-kit-setup" ensure-identity >/dev/null
+assert_absent "explicit UA not mirrored to .env" "SEC_EDGAR_UA=" "$(cat "$HOME/.analyst-kit/.env" 2>/dev/null || echo '')"
 
 # ── disable / enable / reconcile (skills with missing keys) ───────────────
 section "analyst-kit-setup disable / enable / reconcile"
