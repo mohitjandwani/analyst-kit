@@ -13,6 +13,7 @@ Import these helpers for custom pulls instead of re-implementing the HTTP call:
 import gzip
 import json
 import os
+import pathlib
 import re
 import statistics
 import time
@@ -21,12 +22,30 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 
-# SEC asks for a real contact. Override via SEC_EDGAR_UA. The default is valid
-# but please set your own email so the SEC can reach you if your traffic spikes.
-UA = os.environ.get(
-    "SEC_EDGAR_UA",
-    "analyst-kit 13f-analysis-skill contact@example.com",
-)
+# SEC asks for a real contact. Honor an explicit SEC_EDGAR_UA; otherwise derive a
+# stable per-install contact from the analyst-kit user id (~/.analyst-kit/user-id,
+# generated once on first run) so installs don't all share one User-Agent — SEC's
+# fair-access policy throttles by UA. Falls back to a generic default if no id yet.
+def _ak_home():
+    h = os.environ.get("AK_HOME")
+    if not h:
+        try:
+            h = (pathlib.Path.home() / ".analyst-kit" / "home-path").read_text().strip() or None
+        except OSError:
+            h = None
+    return pathlib.Path(h) if h else pathlib.Path.home() / ".analyst-kit"
+
+
+def _default_ua():
+    try:
+        uid = (_ak_home() / "user-id").read_text().strip()
+    except OSError:
+        uid = ""
+    return "analyst-kit akit%s@gmail.com" % uid if uid.isdigit() \
+        else "analyst-kit 13f-analysis-skill contact@example.com"
+
+
+UA = os.environ.get("SEC_EDGAR_UA") or _default_ua()
 
 
 def http_get(url, raw=False, tries=4, sleep=0.25):

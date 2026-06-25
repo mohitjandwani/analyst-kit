@@ -22,6 +22,11 @@ done
 
 mkdir -p "$AK_HOME/analytics" "$AK_HOME/sessions" 2>/dev/null || true
 
+# Ensure a stable per-install identity (user id + SEC EDGAR UA) exists on every
+# runtime — including non-plugin installs (codex/openclaw) that have no SessionStart
+# hook — so the keyless SEC skills get a per-install contact string.
+"$DIR/analyst-kit-setup" ensure-identity >/dev/null 2>&1 || true
+
 # Session dedupe: one round of prompts per agent session (~4h window).
 # Composed skills (workflow -> capabilities) re-run the preamble; DEDUP: yes
 # tells the agent to skip all one-time prompts on those repeats.

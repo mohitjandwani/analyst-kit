@@ -71,18 +71,25 @@ instead of your home directory.
 
 ### API keys
 
-Keys are read from the process environment or a git-ignored `.env`; the installer
-prompts for anything missing when run interactively (see [`.env.example`](.env.example)).
+The plugin's `userConfig` prompts for keys at enable time and stores them in the OS
+keychain; the SessionStart hook bridges each non-empty value into `$AK_HOME/.env`
+(which the per-skill preamble sources), so scripts read `os.environ[...]` unchanged.
+**`FMP_API_KEY` is required**; `FINMIND_TOKEN` and `SERPAPI_API_KEY` are optional
+(add them in the config UI anytime, or let the per-skill onboarding ask when the
+skill runs and soft-disable until provided). On Codex/Node the onboarding prompts and
+writes the same `.env`.
 
-| Variable | Used by | Get it |
-|----------|---------|--------|
-| `FINMIND_TOKEN` | `finmind` | <https://finmindtrade.com/> (free) |
-| `FMP_API_KEY` | `financialmodellingprep`, `company-wiki` | <https://site.financialmodelingprep.com/developer/docs> |
-| `SERPAPI_API_KEY` | `market-intelligence` | <https://serpapi.com/> (free tier: 100/mo) |
+| Variable | Used by | Required | Get it |
+|----------|---------|----------|--------|
+| `FMP_API_KEY` | `financialmodellingprep`, `company-wiki`, `company-universe-manager` | **Yes** — plugin config | <https://site.financialmodelingprep.com/developer/docs> |
+| `FINMIND_TOKEN` | `finmind` | Optional (Taiwan) | <https://finmindtrade.com/> (free) |
+| `SERPAPI_API_KEY` | `market-intelligence` | Optional (Google Trends) | <https://serpapi.com/> (free tier: 100/mo) |
+| `SEC_EDGAR_UA` | `sec-filings`, `13f-analysis` | Auto-generated | — |
 
-`13f-analysis` and `sec-filings` read SEC EDGAR directly with no key (optional
-`SEC_EDGAR_UA` contact string as a fair-access courtesy). Skills that run code
-bootstrap their own dependencies on first use; **Python** and **Bun** are per-skill
+`13f-analysis` and `sec-filings` read SEC EDGAR directly with no key — `SEC_EDGAR_UA`
+is auto-generated per install from a one-time user id (`analyst-kit-setup
+ensure-identity`; `edgar.py` derives the UA from it). Skills that run code bootstrap
+their own dependencies on first use; **Python** and **Bun** are per-skill
 prerequisites the installer does not install for you.
 
 ### Verify it loaded

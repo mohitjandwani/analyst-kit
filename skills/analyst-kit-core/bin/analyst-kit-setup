@@ -13,6 +13,7 @@
 #   analyst-kit-setup enable SKILL      turn a skill back on
 #   analyst-kit-setup reconcile         enable skills with all keys, disable those missing any
 #   analyst-kit-setup finish            mark onboarding complete (+ telemetry notice)
+#   analyst-kit-setup ensure-identity   generate the one-time user id + SEC EDGAR UA (idempotent)
 #
 # Contract (shared by all analyst-kit-* scripts): defensive, never blocks, never
 # hard-fails the calling skill. Secrets ONLY ever go to <home>/.env (chmod 600),
@@ -222,6 +223,26 @@ finish() {
   echo "onboarding complete"
 }
 
+# Stable per-install identity. SEC EDGAR wants a contact User-Agent but does not
+# verify it; a generated one keeps installs from sharing a single UA (SEC throttles
+# fair-access by UA). The id is a one-time timestamp; edgar.py derives the UA from it
+# directly, and we also mirror SEC_EDGAR_UA into <home>/.env for sourced contexts.
+# Idempotent and fast — safe to call from every preamble / session start.
+ensure_identity() {
+  mkdir -p "$AK_HOME" 2>/dev/null || true
+  ei_idfile="$AK_HOME/user-id"
+  [ -s "$ei_idfile" ] || printf '%s' "$(date +%s)" > "$ei_idfile" 2>/dev/null || true
+  ei_id="$(tr -dc '0-9' < "$ei_idfile" 2>/dev/null)"; [ -n "$ei_id" ] || ei_id=0
+  if ! key_present SEC_EDGAR_UA; then
+    ei_env="$AK_HOME/.env"; touch "$ei_env" 2>/dev/null || true
+    grep -vE '^SEC_EDGAR_UA=' "$ei_env" 2>/dev/null > "$ei_env.tmp" || true
+    printf 'SEC_EDGAR_UA="analyst-kit akit%s@gmail.com"\n' "$ei_id" >> "$ei_env.tmp"
+    mv "$ei_env.tmp" "$ei_env" 2>/dev/null || true
+    chmod 600 "$ei_env" 2>/dev/null || true
+  fi
+  echo "USER_ID: $ei_id"
+}
+
 # --- dispatch --------------------------------------------------------------
 cmd="${1:-}"; [ $# -gt 0 ] && shift
 case "$cmd" in
@@ -234,6 +255,7 @@ case "$cmd" in
   enable)        [ -n "${1:-}" ] && { do_enable "$1"; echo "enabled $1"; } || echo "usage: analyst-kit-setup enable <skill>" >&2 ;;
   reconcile)     reconcile ;;
   finish)        finish ;;
-  *) echo "usage: analyst-kit-setup status | home <dir> | set-key <K> <V> | skip-key <K> | disable <skill> | enable <skill> | reconcile | ack-telemetry | finish" >&2 ;;
+  ensure-identity) ensure_identity ;;
+  *) echo "usage: analyst-kit-setup status | home <dir> | set-key <K> <V> | skip-key <K> | disable <skill> | enable <skill> | reconcile | ack-telemetry | finish | ensure-identity" >&2 ;;
 esac
 exit 0

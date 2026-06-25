@@ -50,6 +50,10 @@ hook that runs the runtime (onboarding, update checks, telemetry). No clone, no 
 /plugin install analyst-kit@analyst-kit
 ```
 
+> Enabling the plugin prompts for your keys (all stored in the OS keychain): **`FMP_API_KEY` is required**;
+> `FINMIND_TOKEN` (Taiwan) and `SERPAPI_API_KEY` (Google Trends) are optional — fill them now, later via
+> `/plugin` → configure, or when a skill first asks. SEC filings need no key.
+
 **Claude Cowork** (desktop app) — same marketplace, no terminal:
 
 1. Open **Customize → Plugins**, click **Add ▾** (top right), and choose **Add marketplace**.
@@ -141,18 +145,20 @@ Run `node bin/analyst-kit.js list` to see every skill, or
 
 ## API keys
 
-Keys are read from the environment or a git-ignored `.env`. The installer
-(`analyst-kit env` / `analyst-kit install`) prompts for anything missing when run interactively.
-See [`.env.example`](.env.example).
+When you enable the plugin on Claude Code/Cowork it prompts for your keys (stored in
+the OS keychain; the SessionStart hook bridges them to the scripts): **`FMP_API_KEY`
+is required**, while `FINMIND_TOKEN` and `SERPAPI_API_KEY` are optional fields you can
+fill now, later via `/plugin` → configure, or when a skill first needs one. SEC EDGAR
+works with **no key** (a per-install `SEC_EDGAR_UA` is generated automatically). The
+Node installer / Codex prompt for any missing key interactively and store it in a
+git-ignored `.env` (see [`.env.example`](.env.example)).
 
-| Variable | Used by | Get it |
-|----------|---------|--------|
-| `FINMIND_TOKEN` | finmind | <https://finmindtrade.com/> (free) |
-| `FMP_API_KEY` | financialmodellingprep, company-wiki | <https://site.financialmodelingprep.com/developer/docs> |
-| `SERPAPI_API_KEY` | market-intelligence | <https://serpapi.com/> (free tier = 100 searches/month) |
-
-`13f-analysis` needs no key — it reads SEC EDGAR directly (set the optional
-`SEC_EDGAR_UA` contact string as an SEC fair-access courtesy).
+| Variable | Used by | Required | Get it |
+|----------|---------|----------|--------|
+| `FMP_API_KEY` | financialmodellingprep, company-wiki, company-universe-manager | **Yes** — plugin config | <https://site.financialmodelingprep.com/developer/docs> |
+| `FINMIND_TOKEN` | finmind | Optional (Taiwan data) | <https://finmindtrade.com/> (free) |
+| `SERPAPI_API_KEY` | market-intelligence | Optional (Google Trends) | <https://serpapi.com/> (free tier = 100/mo) |
+| `SEC_EDGAR_UA` | sec-filings, 13f-analysis | Auto-generated | — (override only if you want a real contact) |
 
 Skills that run code bootstrap their own dependencies on first use. Runtimes are a
 per-skill prerequisite the installer does not install for you: **Python** (finmind,

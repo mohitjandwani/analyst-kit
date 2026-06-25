@@ -4,4 +4,4 @@
 FINMIND_TOKEN	FinMind — Taiwan market data	https://finmindtrade.com/
 FMP_API_KEY	Financial Modeling Prep — global fundamentals	https://site.financialmodelingprep.com/developer/docs
 SERPAPI_API_KEY	SerpAPI — Google Trends search interest (free tier 100/mo)	https://serpapi.com/
-SEC_EDGAR_UA	SEC EDGAR fair-access contact string (optional; a default is built in)	https://www.sec.gov/os/webmaster-faq
+SEC_EDGAR_UA	SEC EDGAR fair-access contact string (auto-generated per install from the user id; override optional)	https://www.sec.gov/os/webmaster-faq
