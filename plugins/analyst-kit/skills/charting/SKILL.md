@@ -150,15 +150,16 @@ boundary **already scaled**; the TS layer formats and draws.
 
 ## Use it
 
-**Agent fast-path — two commands, no setup, no hand-written code.** Where `python3` (with
-polars) and `bun` already exist (e.g. the e2e container), go raw records → finished HTML
-without writing any Python/TS/HTML yourself:
+**Agent fast-path — two commands, no setup, no hand-written code.** `python3` (with polars)
+produces the contract; `node` renders it — **no bun/tsx install required** (node is always
+present; the launcher uses bun/tsx if found, else node, installing bun only as a last
+resort). Go raw records → finished HTML without writing any Python/TS/HTML yourself:
 
 ```bash
 # 1. raw records → contract (YoY math runs in Polars — never compute growth "by hand")
 python3 -m pipeline.cli yoy data.json --metrics revenue,bookings --lag 4 -o contract.json
-# 2. contract → self-contained chart page (vendored Highcharts inlined; PDF-safe offline)
-bun scripts/render.ts contract.json chart.html        # also runs under tsx
+# 2. contract → self-contained chart page (vendored Highcharts inlined; PDF-safe, opens from file://)
+node scripts/render.mjs contract.json chart.html      # runs on plain node; uses bun/tsx if present
 ```
 
 `data.json` is `[{"date": "YYYY-MM-DD", "revenue": 655300000, "bookings": 773800000}, …]`
@@ -187,6 +188,13 @@ const htmlCdn = renderChartPage(contract, { cdnScripts: true }); // lightweight 
 const opts = buildOptions(contract);                 // Highcharts options object — change anything you want
 ```
 
+> **`file://` rule — use the default (inlined) mode for anything opened directly.** The
+> default `renderChartPage` / `render.mjs` output inlines Highcharts, so the page works
+> offline from `file://` and in a headless PDF. The `--cdn` / `cdnScripts: true` mode emits
+> `<script src>` tags and **only works when served over http(s)** — opened from `file://` it
+> renders a blank chart ("Highcharts is not defined"). Use `--cdn` only for a lightweight
+> browser preview behind a local server, never for a file you double-click or PDF.
+>
 > **CDN rule for hand-written HTML:** if you write `<script src>` tags directly, always use
 > `https://cdn.jsdelivr.net/npm/highcharts@12/` — **never `code.highcharts.com`**, which returns
 > 403 for headless browser requests and will produce a blank chart in the PDF.

@@ -191,7 +191,7 @@ Writes three files and prints a one-line verdict:
 Render either contract with the charting skill (sibling install):
 
 ```bash
-cd ../charting && bun scripts/render.ts ../technical-analysis/out/dashboard-contract.json out/dashboard.html
+cd ../charting && node scripts/render.mjs ../technical-analysis/out/dashboard-contract.json out/dashboard.html
 ```
 
 The contracts already use charting's pane (`yAxes[].opts.top/height`) and `arearange`
